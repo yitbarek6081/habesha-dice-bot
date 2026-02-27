@@ -27,4 +27,5 @@ async def roll_dice(message: types.Message):
         await message.answer(f"ውጤቱ {result} ነው! ተሸንፈሃል። በሚቀጥለው ይሳካልህ! 😔")
 
 if __name__ == '__main__':
+
     executor.start_polling(dp)
