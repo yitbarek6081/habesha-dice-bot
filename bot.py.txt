@@ -1,0 +1,30 @@
+import os
+import random
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
+
+# ከBotFather ያገኘኸውን Token እዚህ ጋር አስገባ (ወይም Render ላይ እናስተካክላለን)
+TOKEN = os.getenv("BOT_TOKEN") 
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+
+# ተጠቃሚው /start ሲል የሚመጣ መልዕክት
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
+    await message.reply("እንኳን ወደ ዳይስ ጨዋታ በሰላም መጡ! 🎲\n\nለመጫወት /play የሚለውን ይጫኑ።")
+
+# ተጠቃሚው /play ሲል ዳይስ ይጣላል
+@dp.message_handler(commands=['play'])
+async def roll_dice(message: types.Message):
+    # ቴሌግራም እውነተኛ ዳይስ እንዲጥል ያደርጋል
+    dice_msg = await bot.send_dice(message.chat.id, emoji='🎲')
+    result = dice_msg.dice.value
+    
+    # የጨዋታው ህግ (ለምሳሌ ከ3 በላይ አሸናፊ)
+    if result > 3:
+        await message.answer(f"ውጤቱ {result} ነው! አሸንፈሃል! 💰")
+    else:
+        await message.answer(f"ውጤቱ {result} ነው! ተሸንፈሃል። በሚቀጥለው ይሳካልህ! 😔")
+
+if __name__ == '__main__':
+    executor.start_polling(dp)
