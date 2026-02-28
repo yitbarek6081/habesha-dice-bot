@@ -12,10 +12,10 @@ if not BOT_TOKEN:
 
 START_BALANCE = 500
 BINGO_COLORS = ["🔴","🔵","🟢","🟡","🟣","🟠","🟤","⚪","⚫"]
-TICKET_COST = 0         # Free play
-ROUND_PRIZE = 100       # Prize points per round
-DRAW_INTERVAL = 3       # Seconds per color draw
-ROUND_DURATION = 60     # Seconds per round
+ROUND_COST = 10
+ADMIN_PERCENT = 0.2
+DRAW_INTERVAL = 3          # seconds between color draws
+JOIN_COUNTDOWN = 15        # seconds to join before round starts
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
@@ -23,7 +23,6 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 # ================== DATABASE ==================
 conn = sqlite3.connect("bingo_tournament.db", check_same_thread=False)
 cursor = conn.cursor()
-# Use f-string to set DEFAULT balance because ? placeholders don't work in CREATE TABLE
 cursor.execute(f"""CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     name TEXT,
@@ -32,16 +31,17 @@ cursor.execute(f"""CREATE TABLE IF NOT EXISTS users (
 conn.commit()
 
 # ================== GAME STATE ==================
-game_players = {}  # {user_id: {"needed": [...], "hits": 0}}
+waiting_players = {}       # {user_id: full_name}
+game_players = {}          # {user_id: {"needed": [...], "hits":0, "message_id":id}}
 current_draw = ""
+round_pool = 0
 game_active = False
-prize_pool = 0
 
 # ================== MAIN MENU ==================
 def get_main_menu_markup(balance):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🎮 Join Bingo Tournament", callback_data="join_game"),
+        types.InlineKeyboardButton("🎮 Join Bingo Round", callback_data="join_game"),
         types.InlineKeyboardButton(f"💵 Balance: {balance}", callback_data="check_balance"),
         types.InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard")
     )
@@ -53,98 +53,139 @@ async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     cursor.execute("SELECT id, balance FROM users WHERE id=?", (user_id,))
     user = cursor.fetchone()
-    
     if not user:
         cursor.execute("INSERT INTO users (id, name, balance) VALUES (?, ?, ?)",
                        (user_id, message.from_user.full_name, START_BALANCE))
         conn.commit()
         balance = START_BALANCE
-        welcome = f"🎉 Welcome {message.from_user.full_name}! You have {START_BALANCE} free points to play Bingo Tournament!"
+        welcome = f"🎉 Welcome {message.from_user.full_name}! You have {START_BALANCE} points to play Bingo!"
     else:
         balance = user[1]
         welcome = f"👋 Welcome back {message.from_user.full_name}! Your balance: {balance} points."
-    
     await message.answer(welcome, reply_markup=get_main_menu_markup(balance))
 
 # ================== JOIN GAME ==================
 @dp.callback_query_handler(lambda c: c.data=="join_game")
 async def join_game(c: types.CallbackQuery):
-    global game_active, prize_pool
+    global waiting_players
     user_id = c.from_user.id
-    if user_id in game_players:
-        return await bot.answer_callback_query(c.id,"✅ Already joined!")
+    cursor.execute("SELECT balance FROM users WHERE id=?",(user_id,))
+    balance = cursor.fetchone()[0]
+    if balance < ROUND_COST:
+        return await bot.answer_callback_query(c.id,"⚠️ Not enough points to join this round!")
 
-    colors = random.sample(BINGO_COLORS, 9)
-    msg = await bot.send_message(user_id, "🎯 Your Bingo Card:",
-                                 reply_markup=types.InlineKeyboardMarkup(row_width=3).add(
-                                     *[types.InlineKeyboardButton(color, callback_data=f"hit_{color}") for color in colors]
-                                 ))
-    game_players[user_id] = {"needed": colors, "hits": 0, "message_id": msg.message_id}
+    if user_id in waiting_players or user_id in game_players:
+        return await bot.answer_callback_query(c.id,"✅ Already joined this round!")
 
-    # Optional: add ticket points to pool
-    # prize_pool += TICKET_COST
+    waiting_players[user_id] = c.from_user.full_name
+    await bot.answer_callback_query(c.id,f"🎮 You joined the upcoming round! Players joined: {len(waiting_players)}")
 
-    await bot.answer_callback_query(c.id, "🎮 You joined the Bingo Tournament!")
+    # Start countdown if first player
+    if len(waiting_players) == 1 and not game_active:
+        asyncio.create_task(join_countdown())
 
-    # Start shared draw if not active
-    if not game_active:
-        asyncio.create_task(run_bingo_round())
+# ================== JOIN COUNTDOWN ==================
+async def join_countdown():
+    global waiting_players, game_players, round_pool, game_active
+    countdown = JOIN_COUNTDOWN
+    while countdown > 0 and waiting_players:
+        message = f"⏳ Round starting in {countdown} seconds!\nPlayers joined: {len(waiting_players)}\n" + \
+                  "\n".join(waiting_players.values())
+        for user_id in waiting_players:
+            try:
+                await bot.send_message(user_id, message)
+            except:
+                pass
+        await asyncio.sleep(1)
+        countdown -= 1
+
+    if not waiting_players:
+        return
+
+    # Deduct points and prepare round pool
+    round_pool = 0
+    for user_id in waiting_players:
+        cursor.execute("UPDATE users SET balance = balance - ? WHERE id=?", (ROUND_COST,user_id))
+        round_pool += ROUND_COST
+    conn.commit()
+
+    # Move waiting players to game_players
+    for user_id in waiting_players:
+        colors = random.sample(BINGO_COLORS, 9)
+        msg = await bot.send_message(user_id, "🎯 Your Bingo Card:",
+                                     reply_markup=types.InlineKeyboardMarkup(row_width=3).add(
+                                         *[types.InlineKeyboardButton(color, callback_data=f"hit_{color}") for color in colors]
+                                     ))
+        game_players[user_id] = {"needed": colors, "hits": 0, "message_id": msg.message_id}
+    waiting_players.clear()
+
+    # Start the round
+    asyncio.create_task(run_bingo_round())
 
 # ================== RUN ROUND ==================
 async def run_bingo_round():
-    global current_draw, game_active, prize_pool
+    global current_draw, game_active, round_pool
     game_active = True
-    round_time = 0
-    while round_time < ROUND_DURATION and game_players:
+
+    while game_players:
+        # Draw a random color from pool
         current_draw = random.choice(BINGO_COLORS)
-        for user_id in list(game_players.keys()):
-            try:
-                await bot.send_message(user_id,f"🎲 Drawn Color: {current_draw}")
-            except:
-                pass
+
+        # Remove this color from each player if they have it
+        for user_id, player in list(game_players.items()):
+            if current_draw in player["needed"]:
+                player["needed"].remove(current_draw)
+                player["hits"] += 1
+
+                # Update player card
+                remaining_buttons = [types.InlineKeyboardButton(c, callback_data=f"hit_{c}") for c in player["needed"]]
+                if len(player["needed"]) == 0:
+                    remaining_buttons = [types.InlineKeyboardButton("🎉 WIN!", callback_data="win")]
+                await bot.edit_message_reply_markup(user_id, player["message_id"],
+                                                    reply_markup=types.InlineKeyboardMarkup().add(*remaining_buttons))
+
+        # Wait interval before next draw
         await asyncio.sleep(DRAW_INTERVAL)
-        round_time += DRAW_INTERVAL
-    # Round ends
-    if game_players:  # No winner?
-        for user_id in list(game_players.keys()):
-            await bot.send_message(user_id,"⏰ Round ended! No winner this time.")
-        game_players.clear()
+
     current_draw = ""
     game_active = False
-    prize_pool = 0
 
 # ================== HANDLE HITS ==================
 @dp.callback_query_handler(lambda c: c.data.startswith("hit_"))
 async def handle_hit(c: types.CallbackQuery):
-    global game_players, current_draw, prize_pool
     user_id = c.from_user.id
-    color = c.data.split("_")[1]
-    player = game_players.get(user_id)
-    if not player:
+    if user_id not in game_players:
+        return await bot.answer_callback_query(c.id,"⚠️ Not in game!")
+    await bot.answer_callback_query(c.id,"⏳ Wait for the system to draw the next color", show_alert=True)
+
+# ================== HANDLE WIN ==================
+@dp.callback_query_handler(lambda c: c.data=="win")
+async def handle_win(c: types.CallbackQuery):
+    global game_players, round_pool
+    user_id = c.from_user.id
+    if user_id not in game_players:
         return await bot.answer_callback_query(c.id,"⚠️ Not in game!")
 
-    if color==current_draw and color in player["needed"]:
-        player["needed"].remove(color)
-        player["hits"] += 1
-        await bot.answer_callback_query(c.id,f"✅ Hits: {player['hits']}/9")
+    winner_points = int(round_pool * 0.8)
+    admin_points = round_pool - winner_points
 
-        if player["hits"]==9:
-            # Winner!
-            cursor.execute("SELECT balance FROM users WHERE id=?",(user_id,))
-            balance = cursor.fetchone()[0] + ROUND_PRIZE
-            cursor.execute("UPDATE users SET balance=? WHERE id=?",(balance,user_id))
-            conn.commit()
-            await bot.send_message(user_id,f"🎊 BINGO! You won {ROUND_PRIZE} points!\n💵 Balance: {balance}")
-            # Announce to others
-            for other_id in list(game_players.keys()):
-                if other_id!=user_id:
-                    try:
-                        await bot.send_message(other_id,f"🏆 {c.from_user.full_name} completed Bingo first!")
-                    except:
-                        pass
-            game_players.clear()
-    else:
-        await bot.answer_callback_query(c.id,"❌ Wrong color!")
+    cursor.execute("SELECT balance FROM users WHERE id=?",(user_id,))
+    balance = cursor.fetchone()[0] + winner_points
+    cursor.execute("UPDATE users SET balance=? WHERE id=?",(balance,user_id))
+    conn.commit()
+
+    await bot.send_message(user_id,
+        f"🎊 BINGO! You won {winner_points} points!\n💵 Balance: {balance}\n💼 Admin keeps {admin_points} points")
+
+    for other_id in list(game_players.keys()):
+        if other_id != user_id:
+            try:
+                await bot.send_message(other_id,f"🏆 {c.from_user.full_name} won this round!")
+            except:
+                pass
+
+    game_players.clear()
+    round_pool = 0
 
 # ================== CHECK BALANCE ==================
 @dp.callback_query_handler(lambda c: c.data=="check_balance")
