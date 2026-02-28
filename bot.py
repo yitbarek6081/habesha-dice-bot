@@ -4,14 +4,14 @@ import sqlite3
 import random
 import time
 from aiogram import Bot, Dispatcher, types, executor
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.contrib.fsm_storage.memory import MemoryStorage # እዚህ ጋር ተስተካክሏል
 
-# --- 1. ኮንፊገሬሽን (ከ Render Environment Variables የሚነበብ) ---
+# --- 1. ኮንፊገሬሽን ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID")) 
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage())
+dp = Dispatcher(bot, storage=MemoryStorage()) # እዚህ ጋር ተስተካክሏል
 
 # --- 2. ዳታቤዝ ማዘጋጀት ---
 conn = sqlite3.connect('habesha_game_pro.db', check_same_thread=False)
@@ -24,8 +24,8 @@ conn.commit()
 
 # የጨዋታ ተለዋዋጮች
 ALL_COLORS = ["🔴", "🟢", "🔵", "🟣", "🟡"]
-ENTRY_FEE = 50.0      # የመግቢያ ዋጋ (ሊቀየር ይችላል)
-PRIZE_PERCENT = 0.80   # 80% ለአሸናፊው (20% ያንተ ኮሚሽን)
+ENTRY_FEE = 50.0      
+PRIZE_PERCENT = 0.80   
 current_target = []
 round_winners = set()
 user_steps = {}
@@ -50,10 +50,11 @@ async def handle_registration(message: types.Message):
     await message.answer("✅ ምዝገባው ተሳክቷል!", reply_markup=types.ReplyKeyboardRemove())
     await show_main_menu(message)
 
-# --- 4. ዋና ሜኑ (Main Menu) ---
+# --- 4. ዋና ሜኑ ---
 async def show_main_menu(message: types.Message):
     cursor.execute("SELECT balance FROM users WHERE id=?", (message.from_user.id,))
-    balance = cursor.fetchone()[3]
+    row = cursor.fetchone()
+    balance = row[3] if row else 0
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🎮 PLAY (ወደ ውድድሩ ይግቡ)", callback_data="btn_play"),
@@ -71,11 +72,12 @@ async def start_game_round(msg, user_id):
     
     for i in range(15, -1, -1):
         cursor.execute("SELECT balance FROM users WHERE id=?", (user_id,))
-        balance = cursor.fetchone()[3]
+        row = cursor.fetchone()
+        balance = row[3] if row else 0
         board_text = (
             f"🎮 **የቀለም ፍጥነት ውድድር**\n━━━━━━━━━━━━━━━\n"
             f"🎯 **ተልዕኮ:** `{target_str}`\n"
-            f"👥 **ፕለየር:** {random.randint(50,150)} ሰው\n"
+            f"👥 **ተሳታፊ:** {random.randint(50,150)} ሰው\n"
             f"💰 **ባላንስ:** {balance} ብር\n"
             f"⏳ **ቀሪ ጊዜ:** {i}s\n━━━━━━━━━━━━━━━\n"
             f"0 ሲደርስ በፍጥነት ይደርድሩ!"
@@ -90,7 +92,7 @@ async def start_game_round(msg, user_id):
     markup.add(*btns)
     await msg.edit_text("🚀 **START!** አሁን በፍጥነት ይጫኑ!", reply_markup=markup)
 
-# --- 6. የቁልፎች ተግባር (Callbacks) ---
+# --- 6. የቁልፎች ተግባር ---
 @dp.callback_query_handler(lambda c: True)
 async def handle_all_callbacks(c: types.CallbackQuery):
     global round_winners
@@ -98,12 +100,12 @@ async def handle_all_callbacks(c: types.CallbackQuery):
 
     if c.data == "btn_play":
         cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
-        balance = cursor.fetchone()[3]
+        row = cursor.fetchone()
+        balance = row[3] if row else 0
         if balance < ENTRY_FEE:
             await bot.answer_callback_query(c.id, "⚠️ በቂ ባላንስ የለዎትም!", show_alert=True)
             return
         
-        # ብር መቀነስ እና ሽልማት መመደብ
         cursor.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (ENTRY_FEE, u_id))
         cursor.execute("UPDATE pool SET current_prize = current_prize + ?", (ENTRY_FEE * PRIZE_PERCENT,))
         conn.commit()
@@ -140,7 +142,7 @@ async def handle_all_callbacks(c: types.CallbackQuery):
     
     await bot.answer_callback_query(c.id)
 
-# --- 7. የደረሰኝ መቀበያ (Deposit Approval) ---
+# --- 7. የደረሰኝ መቀበያ ---
 @dp.message_handler(content_types=['photo'])
 async def handle_receipt(message: types.Message):
     photo_id = message.photo[-1].file_unique_id
