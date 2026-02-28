@@ -4,14 +4,17 @@ import sqlite3
 import random
 import time
 from aiogram import Bot, Dispatcher, types, executor
-from aiogram.contrib.fsm_storage.memory import MemoryStorage # እዚህ ጋር ተስተካክሏል
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 # --- 1. ኮንፊገሬሽን ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID")) 
+try:
+    ADMIN_ID = int(os.getenv("ADMIN_ID"))
+except (TypeError, ValueError):
+    ADMIN_ID = 0  # አድሚን ID ካልተገኘ
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage()) # እዚህ ጋር ተስተካክሏል
+dp = Dispatcher(bot, storage=MemoryStorage())
 
 # --- 2. ዳታቤዝ ማዘጋጀት ---
 conn = sqlite3.connect('habesha_game_pro.db', check_same_thread=False)
@@ -24,13 +27,36 @@ conn.commit()
 
 # የጨዋታ ተለዋዋጮች
 ALL_COLORS = ["🔴", "🟢", "🔵", "🟣", "🟡"]
-ENTRY_FEE = 50.0      
-PRIZE_PERCENT = 0.80   
+ENTRY_FEE = 50.0      # መወራረጃ 50 ብር
+PRIZE_PERCENT = 0.80   # 80% ለአሸናፊው (20% ለአንተ ኮሚሽን)
 current_target = []
 round_winners = set()
 user_steps = {}
 
-# --- 3. ማስጀመሪያ እና ምዝገባ ---
+# --- 3. ሜኑ ማሳያ ፈንክሽን ---
+async def show_main_menu(message_or_id, user_id=None):
+    if isinstance(message_or_id, types.Message):
+        chat_id = message_or_id.chat.id
+        u_id = message_or_id.from_user.id
+    else:
+        chat_id = message_or_id
+        u_id = user_id
+
+    cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
+    row = cursor.fetchone()
+    balance = row[0] if row else 0 # 0 if not registered
+    
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("🎮 PLAY (ውድድሩን ጀምር)", callback_data="btn_play"),
+        types.InlineKeyboardButton("💰 DEPOSIT (ብር ሙላ)", callback_data="btn_deposit"),
+        types.InlineKeyboardButton("💳 WITHDRAW (ብር አውጣ)", callback_data="btn_withdraw")
+    )
+    
+    text = f"🏆 **HABESHA COLOR RACE**\n\n💵 ያሎት ባላንስ፦ **{balance}** ብር\n\nምን ማድረግ ይፈልጋሉ?"
+    await bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
+
+# --- 4. ማስጀመሪያ እና ምዝገባ ---
 @dp.message_handler(commands=['start'])
 async def start_cmd(message: types.Message):
     user_id = message.from_user.id
@@ -40,30 +66,28 @@ async def start_cmd(message: types.Message):
     else:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton("📲 በስልክ ቁጥር ይመዝገቡ", request_contact=True))
-        await message.answer("እንኳን ወደ ጨዋታው በሰላም መጡ! ለመቀጠል እባክዎ ይመዝገቡ።", reply_markup=markup)
+        await message.answer("እንኳን ወደ HABESHA COLOR RACE በሰላም መጡ! ለመቀጠል እባክዎ ይመዝገቡ።", reply_markup=markup)
 
 @dp.message_handler(content_types=['contact'])
 async def handle_registration(message: types.Message):
-    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance) VALUES (?, ?, ?, 0)", 
-                   (message.from_user.id, message.from_user.full_name, message.contact.phone_number))
+    user_id = message.from_user.id
+    phone = message.contact.phone_number
+    name = message.from_user.full_name
+    
+    # በዳታቤዝ መመዝገብ
+    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance) VALUES (?, ?, ?, 0)", (user_id, name, phone))
     conn.commit()
-    await message.answer("✅ ምዝገባው ተሳክቷል!", reply_markup=types.ReplyKeyboardRemove())
-    await show_main_menu(message)
+    
+    # ለአድሚኑ ስልክ ቁጥሩን ብቻ መላክ
+    if ADMIN_ID != 0:
+        await bot.send_message(ADMIN_ID, f"📞 አዲስ ተመዝጋቢ፦ {phone}")
 
-# --- 4. ዋና ሜኑ ---
-async def show_main_menu(message: types.Message):
-    cursor.execute("SELECT balance FROM users WHERE id=?", (message.from_user.id,))
-    row = cursor.fetchone()
-    balance = row[3] if row else 0
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("🎮 PLAY (ወደ ውድድሩ ይግቡ)", callback_data="btn_play"),
-        types.InlineKeyboardButton("💰 DEPOSIT (ብር ለመሙላት)", callback_data="btn_deposit"),
-        types.InlineKeyboardButton("💳 WITHDRAW (ብር ለማውጣት)", callback_data="btn_withdraw")
-    )
-    await bot.send_message(message.chat.id, f"🏆 **HABESHA COLOR RACE**\n\n💵 ያሎት ባላንስ፦ **{balance}** ብር\n\nምን ማድረግ ይፈልጋሉ?", reply_markup=markup)
+    await message.answer("✅ ምዝገባው ተሳክቷል! አሁን መጫወት ይችላሉ።", reply_markup=types.ReplyKeyboardRemove())
+    
+    # ወዲያውኑ ሜኑውን ማምጣት
+    await show_main_menu(message.chat.id, user_id)
 
-# --- 5. የ 15 ሰከንድ አውቶማቲክ ቆጠራ ---
+# --- 5. የጨዋታ ውድድር (15 ሰከንድ ቆጠራ) ---
 async def start_game_round(msg, user_id):
     global current_target, round_winners
     round_winners.clear()
@@ -73,11 +97,10 @@ async def start_game_round(msg, user_id):
     for i in range(15, -1, -1):
         cursor.execute("SELECT balance FROM users WHERE id=?", (user_id,))
         row = cursor.fetchone()
-        balance = row[3] if row else 0
+        balance = row[0] if row else 0
         board_text = (
             f"🎮 **የቀለም ፍጥነት ውድድር**\n━━━━━━━━━━━━━━━\n"
             f"🎯 **ተልዕኮ:** `{target_str}`\n"
-            f"👥 **ተሳታፊ:** {random.randint(50,150)} ሰው\n"
             f"💰 **ባላንስ:** {balance} ብር\n"
             f"⏳ **ቀሪ ጊዜ:** {i}s\n━━━━━━━━━━━━━━━\n"
             f"0 ሲደርስ በፍጥነት ይደርድሩ!"
@@ -92,17 +115,16 @@ async def start_game_round(msg, user_id):
     markup.add(*btns)
     await msg.edit_text("🚀 **START!** አሁን በፍጥነት ይጫኑ!", reply_markup=markup)
 
-# --- 6. የቁልፎች ተግባር ---
+# --- 6. ቁልፎች (Callbacks) ---
 @dp.callback_query_handler(lambda c: True)
-async def handle_all_callbacks(c: types.CallbackQuery):
-    global round_winners
+async def handle_callbacks(c: types.CallbackQuery):
     u_id = c.from_user.id
+    global round_winners
 
     if c.data == "btn_play":
         cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
         row = cursor.fetchone()
-        balance = row[3] if row else 0
-        if balance < ENTRY_FEE:
+        if not row or row[0] < ENTRY_FEE:
             await bot.answer_callback_query(c.id, "⚠️ በቂ ባላንስ የለዎትም!", show_alert=True)
             return
         
@@ -127,22 +149,22 @@ async def handle_all_callbacks(c: types.CallbackQuery):
                     cursor.execute("UPDATE pool SET current_prize = 0")
                     conn.commit()
                     finish = round(time.time() - user_steps[u_id]["start"], 3)
-                    await bot.edit_message_text(f"🎊 **BINGO!** 🎊\n🏆 አሸናፊ፦ {c.from_user.first_name}\n⏱ ጊዜ፦ {finish}s\n💰 ሽልማት፦ {prize} ብር ገብቶልሃል!", c.message.chat.id, c.message.message_id)
+                    await bot.edit_message_text(f"🎊 **BINGO!** 🎊\n🏆 አሸናፊ፦ {c.from_user.first_name}\n⏱ ጊዜ፦ {finish}s\n💰 ሽልማት፦ {prize} ብር ተከፍሏል!", c.message.chat.id, c.message.message_id)
                 else: await bot.answer_callback_query(c.id, "😔 ሌላ ሰው ቀድሞ ጨርሷል!")
                 del user_steps[u_id]
         else:
-            await bot.answer_callback_query(c.id, "❌ ተሳስተዋል! በድጋሚ ይሞክሩ።", show_alert=True)
+            await bot.answer_callback_query(c.id, "❌ ተሳስተዋል!", show_alert=True)
             del user_steps[u_id]
 
     elif c.data == "btn_deposit":
         await bot.send_message(c.message.chat.id, "💰 **ብር ለመሙላት**\n\nቴሌብር፦ `09xxxxxxxx` (ስም)\nሲቤኢ፦ `1000xxxxxxx` (ስም)\n\nደረሰኙን (Screenshot) እዚህ ይላኩ።")
 
     elif c.data == "btn_withdraw":
-        await bot.send_message(c.message.chat.id, "💳 **ገንዘብ ለማውጣት**\n\nመጠን እና ስልክ ቁጥርዎን እንዲህ ይላኩ፦\n`500 - 0912345678`")
+        await bot.send_message(c.message.chat.id, "💳 **ገንዘብ ለማውጣት**\n\nመጠን እና ስልክ ቁጥርዎን በዚህ መልኩ ይላኩ፦\n`500 - 0912345678`")
     
     await bot.answer_callback_query(c.id)
 
-# --- 7. የደረሰኝ መቀበያ ---
+# --- 7. የደረሰኝ መቀበያ እና አድሚን Approval ---
 @dp.message_handler(content_types=['photo'])
 async def handle_receipt(message: types.Message):
     photo_id = message.photo[-1].file_unique_id
@@ -156,19 +178,50 @@ async def handle_receipt(message: types.Message):
     
     markup = types.InlineKeyboardMarkup().add(
         types.InlineKeyboardButton("✅ 100 አጽድቅ", callback_data=f"aprv_{message.from_user.id}_100"),
-        types.InlineKeyboardButton("✅ 500 አጽድቅ", callback_data=f"aprv_{message.from_user.id}_500")
+        types.InlineKeyboardButton("✅ 500 አጽድቅ", callback_data=f"aprv_{message.from_user.id}_500"),
+        types.InlineKeyboardButton("❌ ውድቅ አድርግ", callback_data=f"rejt_{message.from_user.id}")
     )
-    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 አዲስ ደረሰኝ\nከ፦ {message.from_user.full_name}", reply_markup=markup)
-    await message.answer("📩 ደረሰኝዎ ተልኳል፤ አድሚኑ እስኪያጸድቅ ይጠብቁ።")
+    if ADMIN_ID != 0:
+        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 አዲስ ደረሰኝ ከ {message.from_user.full_name}", reply_markup=markup)
+    await message.answer("📩 ደረሰኝዎ ተልኳል። አድሚኑ እስኪያጸድቅ ይጠብቁ።")
 
-# --- 8. አድሚን APPROVAL ---
-@dp.callback_query_handler(lambda c: c.data.startswith('aprv_'))
-async def approve_payment(c: types.CallbackQuery):
-    _, uid, amt = c.data.split('_')
-    cursor.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (float(amt), int(uid)))
+@dp.callback_query_handler(lambda c: c.data.startswith(('aprv_', 'rejt_')))
+async def admin_action(c: types.CallbackQuery):
+    data = c.data.split('_')
+    action = data[0]
+    uid = int(data[1])
+    
+    if action == "aprv":
+        amt = float(data[2])
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amt, uid))
+        conn.commit()
+        await bot.send_message(uid, f"✅ {amt} ብር ባላንስዎ ላይ ተጨምሯል።")
+        await bot.edit_message_caption(c.message.chat.id, c.message.message_id, caption="✅ የጸደቀ")
+    elif action == "rejt":
+        await bot.send_message(uid, "❌ የላኩት ደረሰኝ ውድቅ ተደርጓል።")
+        await bot.edit_message_caption(c.message.chat.id, c.message.message_id, caption="❌ ውድቅ የተደረገ")
+    await bot.answer_callback_query(c.id)
+
+# --- 8. Withdraw Request ---
+@dp.message_handler(lambda message: "-" in message.text and message.text.split("-")[0].strip().isdigit())
+async def handle_withdraw(message: types.Message):
+    parts = message.text.split("-")
+    amt = float(parts[0].strip())
+    phone = parts[1].strip()
+    u_id = message.from_user.id
+    
+    cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
+    row = cursor.fetchone()
+    if not row or row[0] < amt:
+        await message.reply("❌ በቂ ባላንስ የለዎትም!")
+        return
+
+    cursor.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (amt, u_id))
     conn.commit()
-    await bot.send_message(uid, f"✅ {amt} ብር ተጨምሮልዎታል። መልካም ጨዋታ!")
-    await bot.edit_message_caption(c.message.chat.id, c.message.message_id, caption="✅ የጸደቀ")
+
+    if ADMIN_ID != 0:
+        await bot.send_message(ADMIN_ID, f"🚨 **Withdraw Request**\n💰 መጠን፦ {amt}\n📞 ስልክ፦ {phone}\n🆔 ID፦ `{u_id}`")
+    await message.answer("📩 የክፍያ ጥያቄዎ ደርሶናል።")
 
 if __name__ == '__main__':
-    executor.start_polling(dp)
+    executor.start_polling(dp, skip_updates=True)
