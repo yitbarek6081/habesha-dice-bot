@@ -2,180 +2,189 @@ import os
 import asyncio
 import sqlite3
 import random
-import time
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
-# --- 1. ኮንፊገሬሽን ---
+# --- 1. Configuration ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 try:
-    ADMIN_ID = int(os.getenv("ADMIN_ID"))
-except (TypeError, ValueError):
+    ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
+except:
     ADMIN_ID = 0
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# --- 2. ዳታቤዝ ማዘጋጀት ---
-conn = sqlite3.connect('habesha_game_pro.db', check_same_thread=False)
+# --- 2. Database ---
+conn = sqlite3.connect('habesha_game.db', check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, phone TEXT, balance REAL DEFAULT 0)')
-cursor.execute('CREATE TABLE IF NOT EXISTS receipts (file_id TEXT PRIMARY KEY, user_id INTEGER)')
-cursor.execute('CREATE TABLE IF NOT EXISTS pool (id INTEGER PRIMARY KEY, current_prize REAL DEFAULT 0)')
-cursor.execute('INSERT OR IGNORE INTO pool (id, current_prize) VALUES (1, 0)')
+cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY, 
+    name TEXT, 
+    balance REAL DEFAULT 0,
+    referred_by INTEGER)''')
+cursor.execute('CREATE TABLE IF NOT EXISTS pool (id INTEGER PRIMARY KEY, prize REAL DEFAULT 0)')
+cursor.execute('INSERT OR IGNORE INTO pool (id, prize) VALUES (1, 0)')
 conn.commit()
 
-ALL_COLORS = ["🔴", "🟢", "🔵", "🟣", "🟡"]
-ENTRY_FEE = 50.0      
-PRIZE_PERCENT = 0.80   
-current_target = []
-round_winners = set()
-user_steps = {}
+BINGO_COLORS = ["🔴", "🔵", "🟢", "🟡", "🟣", "🟠", "🟤", "⚪", "⚫"]
+TICKET_PRICE = 50.0
+lobby_players = [] 
+user_game_state = {}
+is_counting_down = False
 
-# --- 3. Dashboard (Main Menu) ማሳያ ---
-async def show_main_menu(chat_id, user_id):
-    cursor.execute("SELECT balance FROM users WHERE id=?", (user_id,))
-    row = cursor.fetchone()
-    balance = row[0] if row else 0
-    
+# --- 3. Main Menu ---
+def get_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🎮 PLAY (ውድድሩን ጀምር)", callback_data="btn_play"),
-        types.InlineKeyboardButton("💰 DEPOSIT (ብር ሙላ)", callback_data="btn_deposit"),
-        types.InlineKeyboardButton("💳 WITHDRAW (ብር አውጣ)", callback_data="btn_withdraw")
+        types.InlineKeyboardButton("🎮 Be-Bingo Te-che-wat (Play)", callback_data="join_lobby"),
+        types.InlineKeyboardButton("💰 Bir Mulla (Deposit)", callback_data="deposit"),
+        types.InlineKeyboardButton("💳 Bir Awta (Withdraw)", callback_data="withdraw")
     )
+    return markup
+
+# --- 4. Multiplayer Engine (With Balance & Player Count) ---
+
+async def start_multiplayer_round():
+    global lobby_players, is_counting_down
+    is_counting_down = True
     
-    text = f"🏆 **HABESHA COLOR RACE**\n\n💵 ያሎት ባላንስ፦ **{balance}** ብር\n\nምን ማድረግ ይፈልጋሉ?"
-    await bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
+    # 20 Second Lobby
+    for i in range(20, 0, -5):
+        p_count = len(lobby_players)
+        for uid in lobby_players:
+            try: await bot.send_message(uid, f"⏳ **Che-wa-ta-w le-me-je-mer {i} second ker-tual...**\n👥 Te-che-wachoch: **{p_count}**", parse_mode="Markdown")
+            except: pass
+        await asyncio.sleep(5)
 
-# --- 4. ማስጀመሪያ እና ምዝገባ ---
-@dp.message_handler(commands=['start'])
-async def start_cmd(message: types.Message):
-    user_id = message.from_user.id
-    cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
-    if cursor.fetchone():
-        await show_main_menu(message.chat.id, user_id)
-    else:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        markup.add(types.KeyboardButton("📲 በስልክ ቁጥር ይመዝገቡ", request_contact=True))
-        await message.answer("እንኳን ወደ HABESHA COLOR RACE በሰላም መጡ! ለመቀጠል እባክዎ ይመዝገቡ።", reply_markup=markup)
+    current_round_players = lobby_players.copy()
+    lobby_players = []
+    is_counting_down = False
 
-@dp.message_handler(content_types=['contact'])
-async def handle_registration(message: types.Message):
-    user_id = message.from_user.id
-    phone = message.contact.phone_number
-    name = message.from_user.full_name
-    
-    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance) VALUES (?, ?, ?, 0)", (user_id, name, phone))
-    conn.commit()
-    
-    if ADMIN_ID != 0:
-        await bot.send_message(ADMIN_ID, f"📞 አዲስ ተመዝጋቢ፦ {phone}")
+    if not current_round_players: return
+    p_total = len(current_round_players)
 
-    await message.answer("✅ ምዝገባው ተሳክቷል! አሁን መጫወት ይችላሉ።", reply_markup=types.ReplyKeyboardRemove())
-    await show_main_menu(message.chat.id, user_id)
-
-# --- 5. የጨዋታ ቆጠራ (አሁን ባላንስ ባይኖርም ይሰራል) ---
-async def start_game_round(msg, user_id):
-    global current_target, round_winners
-    round_winners.clear()
-    current_target = random.sample(ALL_COLORS, len(ALL_COLORS))
-    target_str = " ➔ ".join(current_target)
-    
-    for i in range(15, -1, -1):
-        board_text = f"🎮 **የቀለም ፍጥነት ውድድር**\n━━━━━━━━━━━━━━━\n🎯 **ተልዕኮ:** `{target_str}`\n⏳ **ቀሪ ጊዜ:** {i}s\n━━━━━━━━━━━━━━━"
-        try: await msg.edit_text(board_text, parse_mode="Markdown")
-        except: pass
-        await asyncio.sleep(1.2)
-    
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    btns = [types.InlineKeyboardButton(c, callback_data=f"hit_{c}") for c in ALL_COLORS]
-    random.shuffle(btns)
-    markup.add(*btns)
-    await msg.edit_text("🚀 **START!** በፍጥነት ይጫኑ!", reply_markup=markup)
-
-# --- 6. ቁልፎች (Callbacks) ---
-@dp.callback_query_handler(lambda c: True)
-async def handle_callbacks(c: types.CallbackQuery):
-    u_id = c.from_user.id
-    global round_winners
-
-    if c.data == "btn_play":
-        # ባላንስ ሳይረጋገጥ በቀጥታ ወደ ጨዋታው ቦርድ ይገባል
-        msg = await bot.send_message(c.message.chat.id, "🔄 ዙሩ እየተዘጋጀ ነው...")
-        asyncio.create_task(start_game_round(msg, u_id))
-
-    elif c.data.startswith('hit_'):
-        color = c.data.split("_")[1]
-        if u_id not in user_steps: user_steps[u_id] = {"step": 0, "start": time.time()}
+    # Board Dereder
+    for uid in current_round_players:
+        player_colors = random.sample(BINGO_COLORS, 9)
+        cursor.execute("SELECT balance FROM users WHERE id=?", (uid,))
+        current_bal = cursor.fetchone()[0]
         
-        if color == current_target[user_steps[u_id]["step"]]:
-            user_steps[u_id]["step"] += 1
-            if user_steps[u_id]["step"] == 5:
-                # ተጫዋቹ ሲያሸንፍ ባላንሱን እዚህ ጋር እናረጋግጣለን
-                cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
-                balance = cursor.fetchone()[0]
-                
-                if balance < ENTRY_FEE:
-                    await bot.send_message(c.message.chat.id, "⚠️ ጨዋታውን ጨርሰሃል! ነገር ግን ለመወራረድ በቂ ባላንስ ስለሌለህ ሽልማቱን ማግኘት አትችልም። እባክህ ብር ሙላ።")
-                    await show_main_menu(c.message.chat.id, u_id)
-                else:
-                    if not round_winners:
-                        round_winners.add(u_id)
-                        # ብር ቀንሶ ሽልማቱን መስጠት
-                        cursor.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (ENTRY_FEE, u_id))
-                        cursor.execute("UPDATE pool SET current_prize = current_prize + ?", (ENTRY_FEE * PRIZE_PERCENT,))
-                        
-                        cursor.execute("SELECT current_prize FROM pool WHERE id=1")
-                        prize = cursor.fetchone()[0]
-                        cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (prize, u_id))
-                        cursor.execute("UPDATE pool SET current_prize = 0")
-                        conn.commit()
-                        
-                        finish = round(time.time() - user_steps[u_id]["start"], 3)
-                        await bot.edit_message_text(f"🎊 **BINGO!** 🎊\n🏆 አሸናፊ፦ {c.from_user.first_name}\n⏱ ጊዜ፦ {finish}s\n💰 ሽልማት፦ {prize} ብር ተከፍሏል!", c.message.chat.id, c.message.message_id)
-                    else:
-                        await bot.answer_callback_query(c.id, "😔 ሌላ ሰው ቀድሞ ጨርሷል!")
-                del user_steps[u_id]
-        else:
-            await bot.answer_callback_query(c.id, "❌ ተሳስተዋል!", show_alert=True)
-            del user_steps[u_id]
-
-    elif c.data == "btn_deposit":
-        await bot.send_message(c.message.chat.id, "💰 ደረሰኝ እዚህ ይላኩ።")
-
-    elif c.data == "btn_withdraw":
-        await bot.send_message(c.message.chat.id, "💳 መጠን እና ስልክ ቁጥር ይላኩ (ምሳሌ፦ 500 - 0912...)")
+        user_game_state[uid] = {"needed": player_colors, "hits": 0, "active": True, "total_p": p_total}
+        
+        markup = types.InlineKeyboardMarkup(row_width=3)
+        btns = [types.InlineKeyboardButton(color, callback_data=f"hit_{color}") for color in player_colors]
+        markup.add(*btns)
+        
+        board_text = (
+            "━━━━━━━━━━━━━━\n"
+            "🎮 **YE-BINGO KARTELA** 🎮\n"
+            "━━━━━━━━━━━━━━\n"
+            f"💰 Balance: **{current_bal} ETB**\n"
+            f"👥 Players: **{p_total}**\n"
+            "━━━━━━━━━━━━━━\n"
+            "🎯 Status: *Ke 5 second behula ye-je-me-ral...*"
+        )
+        await bot.send_message(uid, board_text, reply_markup=markup, parse_mode="Markdown")
     
-    await bot.answer_callback_query(c.id)
+    await asyncio.sleep(5)
 
-# --- 7. የደረሰኝ መቀበያ እና አድሚን Approval ---
-@dp.message_handler(content_types=['photo'])
-async def handle_receipt(message: types.Message):
-    photo_id = message.photo[-1].file_unique_id
-    cursor.execute("SELECT user_id FROM receipts WHERE file_id=?", (photo_id,))
-    if cursor.fetchone():
-        await message.reply("⚠️ ይህ ደረሰኝ ቀድሞ ጥቅም ላይ ውሏል!")
-        return
+    # Shared Draw
+    for _ in range(35):
+        active_uids = [u for u in current_round_players if user_game_state.get(u, {}).get('active')]
+        if not active_uids: break
+        
+        drawn = random.choice(BINGO_COLORS)
+        for uid in active_uids:
+            user_game_state[uid]["current"] = drawn
+            call_text = f"🔔 **Te-le-ke-ke:** {drawn}"
+            try: 
+                msg = await bot.send_message(uid, call_text, parse_mode="Markdown")
+                asyncio.create_task(delete_msg(msg, 3))
+            except: pass
+        await asyncio.sleep(3.5)
+
+async def delete_msg(msg, delay):
+    await asyncio.sleep(delay)
+    try: await msg.delete()
+    except: pass
+
+# --- 5. Handlers ---
+
+@dp.callback_query_handler(lambda c: c.data == "join_lobby")
+async def join_lobby(c: types.CallbackQuery):
+    u_id = c.from_user.id
+    cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
+    balance = cursor.fetchone()[0]
+
+    if balance < TICKET_PRICE:
+        return await bot.answer_callback_query(c.id, "⚠️ Be-ki balance ye-lo-ti-m!", show_alert=True)
     
-    cursor.execute("INSERT INTO receipts (file_id, user_id) VALUES (?, ?)", (photo_id, message.from_user.id))
+    if u_id in lobby_players:
+        return await bot.answer_callback_query(c.id, "⏳ Te-me-ze-ge-be-wal, kotera-wun te-bi-ku.")
+
+    cursor.execute("UPDATE users SET balance = balance - ? WHERE id=?", (TICKET_PRICE, u_id))
+    cursor.execute("UPDATE pool SET prize = prize + ?", (TICKET_PRICE * 0.85,))
     conn.commit()
-    
-    markup = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ 100 አጽድቅ", callback_data=f"aprv_{message.from_user.id}_100"),
-        types.InlineKeyboardButton("✅ 500 አጽድቅ", callback_data=f"aprv_{message.from_user.id}_500")
-    )
-    if ADMIN_ID != 0:
-        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 አዲስ ደረሰኝ ከ {message.from_user.full_name}", reply_markup=markup)
-    await message.answer("📩 ደረሰኝዎ ተልኳል፤ አድሚኑ እስኪያጸድቅ ይጠብቁ።")
 
-@dp.callback_query_handler(lambda c: c.data.startswith('aprv_'))
-async def approve_payment(c: types.CallbackQuery):
-    _, uid, amt = c.data.split('_')
-    cursor.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (float(amt), int(uid)))
-    conn.commit()
-    await bot.send_message(uid, f"✅ {amt} ብር ተጨምሮልዎታል።")
-    await bot.edit_message_caption(c.message.chat.id, c.message.message_id, caption="✅ የጸደቀ")
+    lobby_players.append(u_id)
+    await bot.send_message(u_id, f"✅ Te-me-ze-ge-be-wal! Ye-20 second kotera te-je-me-rual.\n👥 Players in Lobby: **{len(lobby_players)}**")
+
+    if not is_counting_down:
+        asyncio.create_task(start_multiplayer_round())
+
+@dp.callback_query_handler(lambda c: c.data.startswith("hit_"))
+async def handle_hit(c: types.CallbackQuery):
+    u_id = c.from_user.id
+    color = c.data.split("_")[1]
+    state = user_game_state.get(u_id)
+
+    if state and state.get("active") and color == state.get("current") and color in state["needed"]:
+        state["needed"].remove(color)
+        state["hits"] += 1
+        
+        hits = state["hits"]
+        cursor.execute("SELECT balance FROM users WHERE id=?", (u_id,))
+        c_bal = cursor.fetchone()[0]
+        
+        new_text = (
+            "━━━━━━━━━━━━━━\n"
+            "🎮 **YE-BINGO KARTELA** 🎮\n"
+            "━━━━━━━━━━━━━━\n"
+            f"💰 Balance: **{c_bal} ETB**\n"
+            f"👥 Players: **{state['total_p']}**\n"
+            "━━━━━━━━━━━━━━\n"
+            f"✅ **{hits}/9** Hits!\n"
+            f"🔥 Ber-ta! Ker-tua-l: **{9-hits}**"
+        )
+        try: await bot.edit_message_text(new_text, u_id, c.message.message_id, reply_markup=c.message.reply_markup, parse_mode="Markdown")
+        except: pass
+        
+        if hits == 9:
+            state["active"] = False
+            cursor.execute("SELECT prize FROM pool WHERE id=1")
+            prize = cursor.fetchone()[0]
+            cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (prize, u_id))
+            cursor.execute("UPDATE pool SET prize = 0")
+            conn.commit()
+            await bot.send_message(u_id, f"🎊 **WIN!** {prize} ETB a-she-ne-fe-wal!")
+    else:
+        await bot.answer_callback_query(c.id, "❌ Keler-u ge-na al-we-ta-m!")
+
+@dp.message_handler(commands=['start'])
+async def cmd_start(message: types.Message):
+    user_id = message.from_user.id
+    cursor.execute("SELECT id, balance FROM users WHERE id=?", (user_id,))
+    user_data = cursor.fetchone()
+
+    if not user_data:
+        cursor.execute("INSERT INTO users (id, name, balance) VALUES (?, ?, 0)", (user_id, message.from_user.full_name))
+        conn.commit()
+        balance = 0
+    else:
+        balance = user_data[1]
+
+    await message.answer(f"👋 Welcome!\n💰 Balance: **{balance} ETB**", reply_markup=get_main_menu_markup(), parse_mode="Markdown")
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
