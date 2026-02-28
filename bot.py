@@ -23,11 +23,12 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 # ================== DATABASE ==================
 conn = sqlite3.connect("bingo_tournament.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+# Use f-string to set DEFAULT balance because ? placeholders don't work in CREATE TABLE
+cursor.execute(f"""CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     name TEXT,
-    balance INTEGER DEFAULT ?
-)""", (START_BALANCE,))
+    balance INTEGER DEFAULT {START_BALANCE}
+)""")
 conn.commit()
 
 # ================== GAME STATE ==================
