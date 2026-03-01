@@ -3,59 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tombola Live</title>
+    <title>ሐበሻ ቶምቦላ - Habesha Tombola</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; margin: 0; padding: 10px; text-align: center; }
-        .stats-bar { display: flex; justify-content: space-between; background: #1e293b; padding: 10px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; border-bottom: 3px solid #f1c40f; }
-        .current-ball-container { display: flex; flex-direction: column; align-items: center; margin: 20px 0; }
-        .ball-main { width: 90px; height: 90px; background: radial-gradient(circle at 30% 30%, #f1c40f, #b8860b); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 900; box-shadow: 0 0 20px rgba(241, 196, 15, 0.5); }
-        .recent-balls { display: flex; gap: 8px; margin-top: 10px; }
-        .ball-small { width: 35px; height: 35px; background: #334155; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-        .grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; background: #1e293b; padding: 10px; border-radius: 10px; }
-        .num { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: #0f172a; border-radius: 4px; font-size: 13px; color: #64748b; }
-        .drawn { background: #f1c40f !important; color: black !important; font-weight: bold; transform: scale(1.05); }
-        .game-status { margin-top: 20px; padding: 15px; background: rgba(241, 196, 15, 0.1); border: 1px dashed #f1c40f; border-radius: 10px; }
+        :root {
+            --primary-gold: #f1c40f;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --win-green: #27ae60;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: white;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+
+        .header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: var(--primary-gold);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* የቲኬት ሳጥን አቀማመጥ */
+        .ticket-container {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 20px;
+            border: 3px solid var(--primary-gold);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 360px;
+            width: 100%;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: white;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            font-weight: 800;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 -4px 0 rgba(0,0,0,0.1);
+        }
+
+        /* ተጫዋቹ ሲነካው የሚሆን ቀለም */
+        .cell.marked {
+            background: var(--primary-gold);
+            transform: scale(0.95);
+            box-shadow: 0 0 15px var(--primary-gold);
+        }
+
+        .cell.marked::after {
+            content: "✘";
+            position: absolute;
+            font-size: 2rem;
+            color: rgba(0,0,0,0.4);
+        }
+
+        .controls {
+            margin-top: 30px;
+            width: 100%;
+            max-width: 360px;
+        }
+
+        .win-btn {
+            background: var(--win-green);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 15px;
+            width: 100%;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+            transition: transform 0.1s;
+        }
+
+        .win-btn:active {
+            transform: scale(0.98);
+        }
+
+        .footer-text {
+            margin-top: 15px;
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
     </style>
 </head>
 <body>
-    <div class="stats-bar">
-        <div>ተጫዋቾች: <span style="color:#f1c40f">46</span></div>
-        <div>ኳሶች: <span id="count" style="color:#f1c40f">0/90</span></div>
+
+    <div class="header">
+        <h1>🇪🇹 ሐበሻ ቶምቦላ</h1>
+        <p id="status">ካርታዎ እየተዘጋጀ ነው...</p>
     </div>
 
-    <div class="current-ball-container">
-        <div class="ball-main" id="active-ball">--</div>
-        <div class="recent-balls" id="history">
-            <div class="ball-small">--</div>
-            <div class="ball-small">--</div>
-            <div class="ball-small">--</div>
-        </div>
+    <div class="ticket-container">
+        <div class="grid" id="ticket-grid">
+            </div>
     </div>
 
-    <div class="grid" id="board"></div>
-
-    <div class="game-status">
-        <p id="status">ጨዋታው በሂደት ላይ ነው...</p>
+    <div class="controls">
+        <button class="win-btn" onclick="sendWinClaim()">አንድ ረድፍ ሞላሁ! (Claim Win)</button>
     </div>
+
+    <p class="footer-text">ቁጥሩ ሲወጣ ሳጥኑን ይንኩት</p>
 
     <script>
-        // 1-90 ሰሌዳ መፍጠር
-        const board = document.getElementById('board');
-        for(let i=1; i<=90; i++) {
-            board.innerHTML += `<div class="num" id="n${i}">${i}</div>`;
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // ገጹን ሙሉ ያደርገዋል
+        tg.ready();
+
+        // 1. ቲኬቱን ከ bot.py ሰርቨር መቀበል
+        async function loadTicket() {
+            try {
+                const response = await fetch('/get_ticket');
+                const data = await response.json();
+                const grid = document.getElementById('ticket-grid');
+                grid.innerHTML = '';
+                
+                // 15ቱን ቁጥሮች በቅደም ተከተል ማሳየት
+                data.ticket.forEach(row => {
+                    row.forEach(num => {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.innerText = num;
+                        cell.onclick = function() {
+                            this.classList.toggle('marked');
+                            tg.HapticFeedback.impactOccurred('medium'); // ንዝረት እንዲሰማው
+                        };
+                        grid.appendChild(cell);
+                    });
+                });
+                document.getElementById('status').innerText = "የእርስዎ ካርታ ተዘጋጅቷል";
+            } catch (error) {
+                document.getElementById('status').innerText = "ስህተት ተፈጥሯል፣ እባክዎ እንደገና ይሞክሩ";
+            }
         }
 
-        // ለሙከራ ያህል በየ 5 ሴኮንዱ ቁጥር እንዲወጣ (በኋላ ከቦቱ ጋር ይገናኛል)
-        let drawnCount = 0;
-        setInterval(() => {
-            if(drawnCount < 90) {
-                const randomNum = Math.floor(Math.random() * 90) + 1;
-                document.getElementById('active-ball').innerText = randomNum;
-                document.getElementById(`n${randomNum}`).classList.add('drawn');
-                drawnCount++;
-                document.getElementById('count').innerText = `${drawnCount}/90`;
-            }
-        }, 5000);
+        // 2. አሸነፍኩ የሚል ዳታ ለቦቱ መላክ
+        function sendWinClaim() {
+            // "claim_cinquina" የሚለውን ዳታ ለ bot.py ይልካል
+            tg.sendData("claim_cinquina");
+            tg.close();
+        }
+
+        // ገጹ ሲከፈት ቲኬቱን እንዲያመጣ መጥራት
+        loadTicket();
     </script>
 </body>
 </html>
