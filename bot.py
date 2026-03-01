@@ -1,3 +1,4 @@
+# ይህ ኮድ ከፍተኛ ባህሪያት ያካትታል።
 import os
 import asyncio
 import sqlite3
@@ -5,275 +6,227 @@ import random
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
-# ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
-if not BOT_TOKEN or not ADMIN_ID:
-    raise ValueError("⚠️ BOT_TOKEN or ADMIN_ID not set!")
-
-START_BALANCE = 500
-BINGO_COLORS = ["🔴","🔵","🟢","🟡","🟣","🟠","🟤","⚪","⚫"]
-ROUND_COST = 10
-ADMIN_PERCENT = 0.2
-DRAW_INTERVAL = 3
-JOIN_COUNTDOWN = 15
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ================= DATABASE =================
-conn = sqlite3.connect("bingo_tournament.db", check_same_thread=False)
+conn = sqlite3.connect("habesha_game.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute(f"""CREATE TABLE IF NOT EXISTS users (
+
+# --- Tables ---
+cursor.execute('''CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     name TEXT,
-    balance INTEGER DEFAULT {START_BALANCE},
-    phone TEXT
-)""")
+    balance REAL DEFAULT 0,
+    wins INTEGER DEFAULT 0
+)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS pool (
+    id INTEGER PRIMARY KEY,
+    prize REAL DEFAULT 0
+)''')
+cursor.execute('INSERT OR IGNORE INTO pool (id, prize) VALUES (1,0)')
 conn.commit()
 
-# ================= GAME STATE =================
-waiting_players = {}  # {user_id: name}
-game_players = {}     # {user_id: {"needed":[colors], "hits":0, "message_id":id, "clicked":[]}}
-current_draw = ""
-drawn_colors = []
-round_pool = 0
-game_active = False
+BINGO_COLORS = ["🔴","🔵","🟢","🟡","🟣","🟠","🟤","⚪","⚫"]
+lobby_players = []
+user_game_state = {}
+game_running = False
+TICKET_PRICE = 0  # free start
 
-# ================= MAIN MENU =================
-def main_menu(balance):
+# --- Helpers ---
+def get_pool():
+    cursor.execute("SELECT prize FROM pool WHERE id=1")
+    return cursor.fetchone()[0]
+
+def get_main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🎮 Join Bingo Round", callback_data="join_game"),
-        types.InlineKeyboardButton(f"💵 Balance: {balance}", callback_data="check_balance"),
-        types.InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard"),
-        types.InlineKeyboardButton("📱 Register Phone", callback_data="register_phone")
+        types.InlineKeyboardButton("🎮 Play", callback_data="join_lobby"),
+        types.InlineKeyboardButton("💰 Deposit", callback_data="deposit"),
+        types.InlineKeyboardButton("💳 Withdraw", callback_data="withdraw")
     )
     return markup
 
-# ================= /START =================
-@dp.message_handler(commands=["start"])
-async def start_cmd(message: types.Message):
-    user_id = message.from_user.id
-    cursor.execute("SELECT id,balance FROM users WHERE id=?",(user_id,))
-    user = cursor.fetchone()
-    if not user:
-        cursor.execute("INSERT INTO users(id,name,balance) VALUES(?,?,?)",
-                       (user_id,message.from_user.full_name,START_BALANCE))
-        conn.commit()
-        balance = START_BALANCE
-        welcome = f"🎉 Welcome {message.from_user.full_name}! You have {START_BALANCE} points to play Bingo!"
-    else:
-        balance = user[1]
-        welcome = f"👋 Welcome back {message.from_user.full_name}! Your balance: {balance} points."
-    await message.answer(welcome, reply_markup=main_menu(balance))
-
-# ================= REGISTER PHONE =================
-@dp.callback_query_handler(lambda c: c.data=="register_phone")
-async def register_phone_button(c: types.CallbackQuery):
-    await bot.send_message(c.from_user.id,"📱 Send your phone number using:\n`/phone 0912345678`", parse_mode="Markdown")
-
-@dp.message_handler(commands=["phone"])
-async def register_phone(message: types.Message):
-    args = message.get_args().strip()
-    if not args.isdigit():
-        return await message.reply("⚠️ Usage: /phone <number>")
-    phone = args
-    user_id = message.from_user.id
-    cursor.execute("UPDATE users SET phone=? WHERE id=?",(phone,user_id))
-    conn.commit()
-    await message.reply(f"✅ Phone {phone} registered!")
-
-# ================= JOIN GAME =================
-@dp.callback_query_handler(lambda c: c.data=="join_game")
-async def join_game(c: types.CallbackQuery):
-    global waiting_players
-    user_id = c.from_user.id
-    cursor.execute("SELECT balance FROM users WHERE id=?",(user_id,))
+async def update_player_board(uid):
+    state = user_game_state[uid]
+    cursor.execute("SELECT balance FROM users WHERE id=?", (uid,))
     balance = cursor.fetchone()[0]
-    if balance < ROUND_COST:
-        return await bot.answer_callback_query(c.id,"⚠️ Not enough points!")
-
-    if user_id in waiting_players or user_id in game_players:
-        return await bot.answer_callback_query(c.id,"✅ Already joined!")
-
-    waiting_players[user_id] = c.from_user.full_name
-    await bot.answer_callback_query(c.id,f"🎮 You joined! Players: {len(waiting_players)}")
-
-    if not game_active:
-        asyncio.create_task(join_countdown())
-
-# ================= COUNTDOWN =================
-async def join_countdown():
-    global waiting_players, game_players, round_pool, game_active
-    # Wait for at least 2 players
-    while len(waiting_players) < 2:
-        if waiting_players:
-            for uid in waiting_players:
-                try:
-                    await bot.send_message(uid,f"⏳ Waiting for at least 2 players... Currently: {len(waiting_players)}")
-                except: pass
-        await asyncio.sleep(2)
-
-    countdown = JOIN_COUNTDOWN
-    live_msgs = {}
-    for uid in waiting_players:
-        try:
-            msg = await bot.send_message(uid,f"⏳ Round starting in {countdown} seconds! Players: {len(waiting_players)}")
-            live_msgs[uid] = msg.message_id
-        except: pass
-
-    while countdown>0 and len(waiting_players)>=2:
-        text = f"⏳ Round starting in {countdown} seconds! Players: {len(waiting_players)}"
-        for uid,msg_id in live_msgs.items():
-            try: await bot.edit_message_text(text,chat_id=uid,message_id=msg_id)
-            except: pass
-        await asyncio.sleep(1)
-        countdown -= 1
-
-    # Deduct points & pool
-    global round_pool
-    round_pool = 0
-    for uid in waiting_players:
-        cursor.execute("UPDATE users SET balance=balance-? WHERE id=?",(ROUND_COST,uid))
-        round_pool += ROUND_COST
-    conn.commit()
-
-    # Assign 9 colors per player
-    for uid in waiting_players:
-        colors = random.sample(BINGO_COLORS,9)
-        markup = types.InlineKeyboardMarkup(row_width=5)
-        markup.add(*[types.InlineKeyboardButton(c,callback_data=f"hit_{c}") for c in colors])
-        try:
-            msg = await bot.send_message(uid,f"🎯 Your Bingo Card (Click the color when it matches CURRENT)",reply_markup=markup)
-            game_players[uid] = {"needed":colors,"hits":0,"message_id":msg.message_id,"clicked":[]}
-        except: pass
-
-    waiting_players.clear()
-    asyncio.create_task(run_bingo_round())
-
-# ================= GRID SYSTEM =================
-def generate_bingo_card(player_colors, clicked_colors):
-    grid = ""
-    cols = ["C","O","L","O","R"]
-    grid += " | ".join(cols) + "\n" + "-"*25 + "\n"
-
-    all_cells = []
-    color_cells = player_colors.copy()
-    empty_cells = ["⚪"] * (30 - len(color_cells))
-    all_cells = color_cells + empty_cells
-    random.shuffle(all_cells)
-
-    for i,cell in enumerate(all_cells):
-        if cell in clicked_colors:
-            all_cells[i] = "✅"
-    for row in range(6):
-        grid += " | ".join(all_cells[row*5:(row+1)*5]) + "\n"
-    return grid
-
-# ================= RUN ROUND =================
-async def run_bingo_round():
-    global current_draw, game_active, drawn_colors
-    drawn_colors = []
-    game_active = True
-
-    while game_players:
-        current_draw = random.choice(BINGO_COLORS)
-        drawn_colors.append(current_draw)
-
-        for uid,player in game_players.items():
-            header = f"DERASH: {round_pool} | BALLS: {' '.join(drawn_colors[-10:])} | PLAYERS: {len(game_players)} | CURRENT: {current_draw}\n{'-'*40}\n"
-            grid = generate_bingo_card(player["needed"], player["clicked"])
-            text = header + grid
-            buttons = [types.InlineKeyboardButton(c, callback_data=f"hit_{c}") for c in player["needed"]]
-            if not buttons: buttons = [types.InlineKeyboardButton("🎉 WIN!",callback_data="win")]
-            markup = types.InlineKeyboardMarkup(row_width=5).add(*buttons)
-            try:
-                await bot.edit_message_text(text, chat_id=uid, message_id=player["message_id"], reply_markup=markup)
-            except: pass
-
-        await asyncio.sleep(DRAW_INTERVAL)
-
-    current_draw=""
-    game_active=False
-
-# ================= HANDLE CLICK =================
-@dp.callback_query_handler(lambda c: c.data.startswith("hit_"))
-async def handle_hit(c: types.CallbackQuery):
-    uid = c.from_user.id
-    color_clicked = c.data.split("_")[1]
-    player = game_players.get(uid)
-    if not player: return await bot.answer_callback_query(c.id,"⚠️ Not in game!")
-
-    if color_clicked == current_draw:
-        if color_clicked not in player["clicked"]:
-            player["clicked"].append(color_clicked)
-            player["needed"].remove(color_clicked)
-            player["hits"] += 1
-        await bot.answer_callback_query(c.id,f"✅ Correct! {player['hits']}/9")
-    else:
-        await bot.answer_callback_query(c.id,"❌ Not the current color!", show_alert=True)
-
-# ================= HANDLE WIN =================
-@dp.callback_query_handler(lambda c: c.data=="win")
-async def handle_win(c: types.CallbackQuery):
-    global game_players, round_pool
-    uid = c.from_user.id
-    player = game_players.get(uid)
-    if not player: return await bot.answer_callback_query(c.id,"⚠️ Not in game!")
-
-    winner_points = int(round_pool*0.8)
-    admin_points = round_pool - winner_points
-
-    cursor.execute("SELECT balance FROM users WHERE id=?",(uid,))
-    balance = cursor.fetchone()[0]+winner_points
-    cursor.execute("UPDATE users SET balance=? WHERE id=?",(balance,uid))
-    conn.commit()
-
-    await bot.send_message(uid,f"🎊 BINGO! You won {winner_points} points!\n💵 Balance: {balance}\n💼 Admin keeps {admin_points} points")
-    for other in list(game_players.keys()):
-        if other!=uid:
-            try: await bot.send_message(other,f"🏆 {c.from_user.full_name} won this round!")
-            except: pass
-
-    game_players.clear()
-    round_pool=0
-    await asyncio.sleep(5)
-    if waiting_players: asyncio.create_task(join_countdown())
-
-# ================= CHECK BALANCE =================
-@dp.callback_query_handler(lambda c: c.data=="check_balance")
-async def check_balance(c: types.CallbackQuery):
-    uid = c.from_user.id
-    cursor.execute("SELECT balance FROM users WHERE id=?",(uid,))
-    balance = cursor.fetchone()[0]
-    await bot.answer_callback_query(c.id,f"💵 Balance: {balance}",show_alert=True)
-
-# ================= LEADERBOARD =================
-@dp.callback_query_handler(lambda c: c.data=="leaderboard")
-async def leaderboard(c: types.CallbackQuery):
-    cursor.execute("SELECT name,balance FROM users ORDER BY balance DESC LIMIT 5")
-    top = cursor.fetchall()
-    text = "🏆 Top 5 Players:\n\n" + "\n".join([f"{i+1}. {p[0]}: {p[1]} pts" for i,p in enumerate(top)])
-    await bot.answer_callback_query(c.id,text,show_alert=True)
-
-# ================= ADMIN GIVE POINTS =================
-@dp.message_handler(commands=["givepoints"])
-async def admin_give_points(message: types.Message):
-    if message.from_user.id!=ADMIN_ID: return await message.reply("❌ Not admin!")
-    args = message.get_args().split()
-    if len(args)!=2 or not args[1].isdigit(): return await message.reply("⚠️ Usage: /givepoints <phone> <points>")
-    phone, pts = args[0], int(args[1])
-    cursor.execute("SELECT id,balance FROM users WHERE phone=?",(phone,))
-    user = cursor.fetchone()
-    if not user: return await message.reply("❌ Phone not found!")
-    new_balance = user[1]+pts
-    cursor.execute("UPDATE users SET balance=? WHERE id=?",(new_balance,user[0]))
-    conn.commit()
-    await message.reply(f"✅ {pts} points added to phone {phone}. New balance: {new_balance}")
-    try: await bot.send_message(user[0],f"💰 Admin added {pts} points! New balance: {new_balance}")
+    pool = get_pool()
+    text = (
+        f"━━━━━━━━━━━━━━\n"
+        f"🎮 Habesha Win Board 🎮\n"
+        f"━━━━━━━━━━━━━━\n"
+        f"💰 Balance: {balance} ETB\n"
+        f"👥 Players: {state['total_p']}\n💰 Pool: {pool}\n"
+        f"━━━━━━━━━━━━━━\n"
+        f"✅ Hits: {state['hits']}/9\n"
+        f"🔥 Remaining: {9 - state['hits']}"
+    )
+    try:
+        await bot.edit_message_text(text, uid, state["msg_id"], reply_markup=state["markup"])
     except: pass
 
-# ================= RUN BOT =================
+async def animate_hit(uid, color):
+    try:
+        for _ in range(2):
+            await bot.edit_message_text(f"🎯 HIT! {color}", uid, user_game_state[uid]["msg_id"])
+            await asyncio.sleep(0.3)
+            await update_player_board(uid)
+            await asyncio.sleep(0.3)
+    except: pass
+
+async def end_game(uid):
+    state = user_game_state[uid]
+    prize = get_pool()
+    cursor.execute("UPDATE users SET balance = balance + ?, wins = wins + 1 WHERE id=?", (prize, uid))
+    cursor.execute("UPDATE pool SET prize = 0 WHERE id=1")
+    conn.commit()
+    await bot.send_message(uid, f"🎉 YOU WIN! Prize: {prize} ETB")
+    await update_player_board(uid)
+
+# --- Game loop ---
+async def start_multiplayer_round():
+    global lobby_players, game_running
+    game_running = True
+    current_players = lobby_players.copy()
+    lobby_players = []
+
+    for uid in current_players:
+        player_colors = random.sample(BINGO_COLORS, 9)
+        markup = types.InlineKeyboardMarkup(row_width=3)
+        btns = [types.InlineKeyboardButton(c, callback_data=f"hit_{c}") for c in player_colors]
+        markup.add(*btns)
+        msg = await bot.send_message(uid, "🎮 Game Start! Hit the colors as they appear!", reply_markup=markup)
+        user_game_state[uid] = {
+            "needed": player_colors.copy(),
+            "hits":0,
+            "active":True,
+            "total_p":len(current_players),
+            "msg_id": msg.message_id,
+            "markup": markup
+        }
+
+    available_colors = BINGO_COLORS * 5
+    random.shuffle(available_colors)
+    drop_count = 0
+
+    for drop_color in available_colors:
+        if drop_count >= 40:
+            break
+        drop_count += 1
+
+        for uid, state in user_game_state.items():
+            if not state["active"]:
+                continue
+            if drop_color in state["needed"]:
+                state["needed"].remove(drop_color)
+                state["hits"] += 1
+                asyncio.create_task(animate_hit(uid, drop_color))
+                await update_player_board(uid)
+                if state["hits"] == 9:
+                    state["active"] = False
+                    await end_game(uid)
+        # Notify drop
+        for uid in user_game_state.keys():
+            try:
+                tmp_msg = await bot.send_message(uid, f"🔔 Drop: {drop_color}")
+                asyncio.create_task(bot.delete_message(uid, tmp_msg.message_id))
+            except: pass
+        await asyncio.sleep(3)
+
+    game_running = False
+
+# --- Handlers ---
+@dp.callback_query_handler(lambda c: c.data=="join_lobby")
+async def join_lobby(c: types.CallbackQuery):
+    uid = c.from_user.id
+    if uid not in lobby_players:
+        lobby_players.append(uid)
+        await c.answer(f"✅ Joined! Players: {len(lobby_players)}")
+    else:
+        await c.answer("⏳ Already joined")
+
+    if not game_running:
+        asyncio.create_task(start_multiplayer_round())
+
+@dp.callback_query_handler(lambda c: c.data.startswith("hit_"))
+async def hit_color(c: types.CallbackQuery):
+    uid = c.from_user.id
+    color = c.data.split("_")[1]
+    state = user_game_state.get(uid)
+    if state and state["active"] and color in state["needed"]:
+        state["needed"].remove(color)
+        state["hits"] += 1
+        await animate_hit(uid, color)
+        await update_player_board(uid)
+        if state["hits"] == 9:
+            state["active"] = False
+            await end_game(uid)
+    else:
+        await c.answer("❌ Not your color!")
+
+@dp.message_handler(commands=['start'])
+async def cmd_start(m: types.Message):
+    uid = m.from_user.id
+    cursor.execute("SELECT id FROM users WHERE id=?", (uid,))
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO users (id, name) VALUES (?,?)", (uid, m.from_user.full_name))
+        conn.commit()
+    await m.answer("👋 Welcome! Start playing free!", reply_markup=get_main_menu())
+
+@dp.callback_query_handler(lambda c: c.data=="deposit")
+async def deposit(c: types.CallbackQuery):
+    text = (
+        "💰 Deposit Instructions:\n\n"
+        "CBE: 09XXXXXXXX\n"
+        "Telebirr: 09YYYYYYYY\n\n"
+        "Send screenshot with your user ID to Admin for approval."
+    )
+    await c.message.answer(text)
+
+@dp.message_handler(lambda m: m.chat.id == ADMIN_ID, content_types=['photo','document'])
+async def admin_approve_screenshot(m: types.Message):
+    try:
+        caption = m.caption
+        user_id = int(caption.split("user:")[1].split()[0])
+        amount = float(caption.split("amount:")[1].split()[0])
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
+        conn.commit()
+        await bot.send_message(user_id, f"✅ Deposit Approved! +{amount} ETB")
+        await m.reply("✅ User balance updated successfully")
+    except Exception as e:
+        await m.reply(f"❌ Failed: {str(e)}")
+
+@dp.callback_query_handler(lambda c: c.data=="withdraw")
+async def withdraw(c: types.CallbackQuery):
+    text = "💳 Withdraw Instructions:\nSend /withdraw <amount>, Admin will approve."
+    await c.message.answer(text)
+
+@dp.message_handler(commands=['withdraw'])
+async def withdraw_request(m: types.Message):
+    try:
+        user_id = m.from_user.id
+        amount = float(m.text.split()[1])
+        cursor.execute("SELECT balance FROM users WHERE id=?", (user_id,))
+        balance = cursor.fetchone()[0]
+        if balance < amount:
+            await m.reply("❌ Insufficient balance")
+            return
+        await bot.send_message(ADMIN_ID, f"Withdraw request: User {user_id} Amount {amount}")
+        await m.reply("✅ Withdraw request sent to admin for approval")
+    except:
+        await m.reply("❌ Invalid format. Use /withdraw <amount>")
+
+@dp.message_handler(commands=['leaderboard'])
+async def leaderboard(m: types.Message):
+    cursor.execute("SELECT name, balance, wins FROM users ORDER BY balance DESC LIMIT 10")
+    top = cursor.fetchall()
+    text = "🏆 Leaderboard 🏆\n"
+    for i, (name,balance,wins) in enumerate(top,1):
+        text += f"{i}. {name} - 💰{balance} ETB - 🏆{wins} wins\n"
+    await m.answer(text)
+
 if __name__=="__main__":
     executor.start_polling(dp, skip_updates=True)
