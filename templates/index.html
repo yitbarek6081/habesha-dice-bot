@@ -1,178 +1,83 @@
 <!DOCTYPE html>
-<html lang="am">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ሐበሻ ቶምቦላ - Habesha Tombola</title>
+    <title>Habesha Tombola</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root {
-            --primary-gold: #f1c40f;
-            --bg-dark: #0f172a;
-            --card-bg: #1e293b;
-            --win-green: #27ae60;
-        }
+        body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
+        
+        /* Lobby Overlay */
+        #lobby { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.95); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .timer { font-size: 4rem; color: #f1c40f; border: 5px solid #f1c40f; width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 20px; }
 
-        body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-dark);
-            color: white;
-            margin: 0;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            user-select: none;
-        }
+        /* Game Layout */
+        .container { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 10px; }
+        
+        /* 1-90 Board */
+        .board { flex: 1; min-width: 300px; background: #1e293b; padding: 10px; border-radius: 10px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; border: 2px solid #334155; }
+        .b-cell { font-size: 0.7rem; padding: 5px; background: #334155; border-radius: 3px; color: #94a3b8; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; box-shadow: 0 0 5px #ef4444; }
 
-        .header {
-            margin-bottom: 20px;
-            text-align: center;
-        }
+        /* Player Ticket */
+        .ticket { flex: 1; min-width: 300px; background: #f1c40f; padding: 15px; border-radius: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; border: 3px solid #b8860b; }
+        .t-cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.2rem; border-radius: 5px; cursor: pointer; }
+        .t-cell.marked { background: #22c55e; color: white; text-decoration: line-through; }
 
-        .header h1 {
-            color: var(--primary-gold);
-            font-size: 1.8rem;
-            margin-bottom: 5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        /* የቲኬት ሳጥን አቀማመጥ */
-        .ticket-container {
-            background: var(--card-bg);
-            padding: 15px;
-            border-radius: 20px;
-            border: 3px solid var(--primary-gold);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            max-width: 360px;
-            width: 100%;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-        }
-
-        .cell {
-            aspect-ratio: 1;
-            background: white;
-            color: #1e293b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.3rem;
-            font-weight: 800;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: inset 0 -4px 0 rgba(0,0,0,0.1);
-        }
-
-        /* ተጫዋቹ ሲነካው የሚሆን ቀለም */
-        .cell.marked {
-            background: var(--primary-gold);
-            transform: scale(0.95);
-            box-shadow: 0 0 15px var(--primary-gold);
-        }
-
-        .cell.marked::after {
-            content: "✘";
-            position: absolute;
-            font-size: 2rem;
-            color: rgba(0,0,0,0.4);
-        }
-
-        .controls {
-            margin-top: 30px;
-            width: 100%;
-            max-width: 360px;
-        }
-
-        .win-btn {
-            background: var(--win-green);
-            color: white;
-            border: none;
-            padding: 18px;
-            border-radius: 15px;
-            width: 100%;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
-            transition: transform 0.1s;
-        }
-
-        .win-btn:active {
-            transform: scale(0.98);
-        }
-
-        .footer-text {
-            margin-top: 15px;
-            font-size: 0.8rem;
-            opacity: 0.7;
-        }
+        .win-btn { background: #22c55e; color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-size: 1.2rem; font-weight: bold; margin-top: 20px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>🇪🇹 ሐበሻ ቶምቦላ</h1>
-        <p id="status">ካርታዎ እየተዘጋጀ ነው...</p>
+    <div id="lobby">
+        <h2 id="msg">ለመመዝገብ በመጠባበቅ ላይ...</h2>
+        <div class="timer" id="timer">20</div>
     </div>
 
-    <div class="ticket-container">
-        <div class="grid" id="ticket-grid">
-            </div>
+    <div id="game-ui" style="display:none;">
+        <h3>🇪🇹 ሐበሻ ቶምቦላ</h3>
+        <div class="container">
+            <div class="board" id="board"></div> <div class="ticket" id="ticket"></div> </div>
+        <button class="win-btn" onclick="claimWin()">አንድ ረድፍ ሞላሁ! (Win)</button>
     </div>
-
-    <div class="controls">
-        <button class="win-btn" onclick="sendWinClaim()">አንድ ረድፍ ሞላሁ! (Claim Win)</button>
-    </div>
-
-    <p class="footer-text">ቁጥሩ ሲወጣ ሳጥኑን ይንኩት</p>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // ገጹን ሙሉ ያደርገዋል
-        tg.ready();
+        tg.expand();
 
-        // 1. ቲኬቱን ከ bot.py ሰርቨር መቀበል
-        async function loadTicket() {
-            try {
-                const response = await fetch('/get_ticket');
-                const data = await response.json();
-                const grid = document.getElementById('ticket-grid');
-                grid.innerHTML = '';
-                
-                // 15ቱን ቁጥሮች በቅደም ተከተል ማሳየት
-                data.ticket.forEach(row => {
-                    row.forEach(num => {
-                        const cell = document.createElement('div');
-                        cell.className = 'cell';
-                        cell.innerText = num;
-                        cell.onclick = function() {
-                            this.classList.toggle('marked');
-                            tg.HapticFeedback.impactOccurred('medium'); // ንዝረት እንዲሰማው
-                        };
-                        grid.appendChild(cell);
-                    });
-                });
-                document.getElementById('status').innerText = "የእርስዎ ካርታ ተዘጋጅቷል";
-            } catch (error) {
-                document.getElementById('status').innerText = "ስህተት ተፈጥሯል፣ እባክዎ እንደገና ይሞክሩ";
-            }
+        // 1. ቦርዱን መፍጠር (1-90)
+        const boardDiv = document.getElementById('board');
+        for(let i=1; i<=90; i++) {
+            boardDiv.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
         }
 
-        // 2. አሸነፍኩ የሚል ዳታ ለቦቱ መላክ
-        function sendWinClaim() {
-            // "claim_cinquina" የሚለውን ዳታ ለ bot.py ይልካል
-            tg.sendData("claim_cinquina");
-            tg.close();
-        }
+        // 2. ቲኬት መቀበል
+        fetch('/get_ticket').then(r => r.json()).then(data => {
+            if(data.error) { document.getElementById('msg').innerText = "ጨዋታው ተጀምሯል። ቀጣዩን ይጠብቁ!"; return; }
+            const tDiv = document.getElementById('ticket');
+            data.ticket.flat().forEach(num => {
+                const cell = document.createElement('div');
+                cell.className = 't-cell'; cell.innerText = num;
+                cell.onclick = () => { cell.classList.toggle('marked'); tg.HapticFeedback.impactOccurred('medium'); };
+                tDiv.appendChild(cell);
+            });
+        });
 
-        // ገጹ ሲከፈት ቲኬቱን እንዲያመጣ መጥራት
-        loadTicket();
+        // 3. የጨዋታውን ሁኔታ በየሰከንዱ ቼክ ማድረግ
+        setInterval(() => {
+            fetch('/game_status').then(r => r.json()).then(data => {
+                if(data.status === "lobby") {
+                    document.getElementById('timer').innerText = data.timer;
+                } else if(data.status === "running") {
+                    document.getElementById('lobby').style.display = 'none';
+                    document.getElementById('game-ui').style.display = 'block';
+                    data.drawn.forEach(n => document.getElementById(`b-${n}`).classList.add('drawn'));
+                }
+            });
+        }, 1000);
+
+        function claimWin() { tg.sendData("win"); tg.close(); }
     </script>
 </body>
 </html>
