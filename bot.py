@@ -33,7 +33,20 @@ def save_data():
     try:
         with open(WALLETS_FILE, "w") as f:
             json.dump(user_wallets, f)
-    except: pass
+        
+        # ዳታው በየጊዜው እንዳይጠፋ ለአድሚኑ Backup ይልካል
+        # ይህንን በየ 10 ደቂቃው ወይም ዋና ለውጥ ሲኖር ማድረግ ይቻላል
+    except Exception as e:
+        print(f"Error saving: {e}")
+
+# አዲስ ባክአፕ የመላኪያ ትዕዛዝ
+@dp.message(Command("backup"))
+async def send_backup(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    
+    save_data()
+    document = types.FSInputFile(WALLETS_FILE)
+    await message.answer_document(document, caption="📊 የዛሬው የተጫዋቾች ባላንስ ባክአፕ (Backup)")
 
 load_data()
 
@@ -156,3 +169,4 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__": asyncio.run(main())
+
