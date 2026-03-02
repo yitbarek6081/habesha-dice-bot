@@ -6,43 +6,57 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 5px; }
-        .header { display: grid; grid-template-columns: repeat(3, 1fr); background: #1e293b; padding: 12px; border-bottom: 2px solid #f1c40f; }
-        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 8px; background: #1e293b; margin: 5px 0; border-radius: 5px; }
-        .b-cell { font-size: 0.6rem; padding: 4px; background: #334155; border-radius: 3px; color: #94a3b8; }
-        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.1); transition: 0.3s; }
+        .header { display: grid; grid-template-columns: repeat(3, 1fr); background: #1e293b; padding: 10px; border-bottom: 2px solid #f1c40f; }
+        .p-info { background: #334155; padding: 10px; font-weight: bold; color: #f1c40f; }
         
-        #ticket-area { margin-top: 10px; display: none; background: #1e293b; padding: 10px; border-radius: 10px; }
+        /* Board Animation */
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: #1e293b; margin: 5px 0; }
+        .b-cell { font-size: 0.6rem; padding: 4px; background: #334155; border-radius: 2px; color: #94a3b8; transition: all 0.3s ease; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.1); }
+
+        /* Ticket Slide-up Animation */
+        #ticket-area { display: none; margin-top: 10px; padding: 10px; background: #1e293b; border-radius: 8px; animation: slideUp 0.4s ease-out; }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 5px; }
-        .t-cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 5px; font-size: 1.1rem; cursor: pointer; }
-        .t-cell.marked { background: #22c55e !important; color: white; transition: 0.3s; }
+        .t-cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; border-radius: 4px; cursor: pointer; transition: background 0.3s; }
         
-        .btn-win { background: #22c55e; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; display: none; margin-top: 10px; font-size: 1.1rem; }
-        .btn-join { background: #f1c40f; color: black; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; }
+        /* Mark Animation */
+        .t-cell.marked { background: #22c55e !important; color: white; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { 0% { transform: scale(0.6); } 100% { transform: scale(1); } }
+
+        .btn-win { background: #22c55e; color: white; border: none; padding: 15px; border-radius: 5px; width: 100%; font-weight: bold; display: none; margin-top: 10px; font-size: 1.1rem; }
+        .btn-join { background: #f1c40f; color: black; border: none; padding: 12px 30px; border-radius: 5px; font-weight: bold; width: 80%; transition: transform 0.2s; }
+        .btn-join:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
     <div class="header">
         <div id="bal">BAL: 0.00</div>
         <div id="pot">POT: 0</div>
-        <div id="tmr">⌛ 0s</div>
+        <div id="tmr">⌛ 20s</div>
     </div>
-    <div id="join-box" style="margin: 15px 0;"><button onclick="join()" class="btn-join">JOIN GAME (10 ETB)</button></div>
+    
+    <div class="p-info" id="p-count">👤 ተጫዋቾች: 0</div>
+
+    <div id="join-box" style="margin: 20px 0;">
+        <button onclick="join()" class="btn-join">JOIN (10 ETB)</button>
+    </div>
+
     <div class="board" id="brd"></div>
+
     <div id="ticket-area">
-        <h4 style="color:#f1c40f; margin: 5px;">የእርስዎ ቲኬት (ለመምረጥ ቁጥሩን ይጫኑ)</h4>
         <div id="t-container"></div>
-        <button id="win-btn" onclick="claimWin()" class="btn-win">WIN 🏆 (CLICK TO WIN)</button>
+        <button id="win-btn" onclick="claimWin()" class="btn-win">WIN 🏆 (ተጫን!)</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         let phone = localStorage.getItem('user_phone');
-        let myTicket = null;
-        let drawnNumbers = [];
-        let markedNumbers = [];
+        let myTicket = null; let drawnNumbers = []; let markedNumbers = [];
 
         if(!phone) {
-            phone = prompt("ስልክ ቁጥርዎን ያስገቡ (09...):");
+            phone = prompt("ስልክ ቁጥር ያስገቡ:");
             if(phone) localStorage.setItem('user_phone', phone.trim());
         }
 
@@ -51,22 +65,28 @@
 
         function update() {
             fetch('/get_status').then(r => r.json()).then(data => {
-                document.getElementById('tmr').innerText = "⌛ " + data.timer + "s";
+                if(data.winner) { document.getElementById('p-count').innerText = "🏆 አሸናፊ: " + data.winner; return; }
+                document.getElementById('p-count').innerText = "👤 ተጫዋቾች: " + data.players_count;
                 document.getElementById('pot').innerText = "POT: " + data.pot;
-                drawnNumbers = data.drawn;
+
                 if(data.status === "lobby") {
+                    document.getElementById('tmr').innerText = "⌛ " + data.timer + "s";
                     document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
                     document.getElementById('ticket-area').style.display = 'none';
                     document.getElementById('join-box').style.display = 'block';
                     myTicket = null; markedNumbers = [];
                 } else {
+                    document.getElementById('tmr').innerText = "🔴 LIVE";
+                    drawnNumbers = data.drawn;
                     drawnNumbers.forEach(n => document.getElementById(`b-${n}`).classList.add('drawn'));
+                    document.getElementById('join-box').style.display = 'none';
                 }
             });
-            if(phone) {
+
+            if(phone && !myTicket) {
                 fetch('/user_data/' + phone).then(r => r.json()).then(d => {
                     document.getElementById('bal').innerText = "BAL: " + d.balance.toFixed(2);
-                    if(d.is_joined && !myTicket) {
+                    if(d.is_joined) {
                         myTicket = d.ticket; renderTicket();
                         document.getElementById('join-box').style.display = 'none';
                         document.getElementById('ticket-area').style.display = 'block';
@@ -91,27 +111,19 @@
         }
 
         function checkWin() {
-            let rowWin = false;
-            myTicket.forEach(row => {
-                if(row.every(num => markedNumbers.includes(num))) rowWin = true;
-            });
-            document.getElementById('win-btn').style.display = rowWin ? 'block' : 'none';
+            let win = myTicket.some(row => row.every(num => markedNumbers.includes(num)));
+            document.getElementById('win-btn').style.display = win ? 'block' : 'none';
         }
 
         function join() {
-            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name})})
-            .then(r => r.json()).then(d => {
-                if(d.success) { myTicket = d.ticket; renderTicket(); document.getElementById('join-box').style.display = 'none'; document.getElementById('ticket-area').style.display = 'block'; }
-                else alert(d.msg);
-            });
+            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})})
+            .then(r => r.json()).then(d => { if(d.success) update(); else alert(d.msg); });
         }
 
         function claimWin() {
             fetch('/win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r => r.json()).then(d => {
-                if(d.success) alert("🏆 " + d.winner + " " + d.prize + " ETB አሸንፈዋል።");
-                else alert(d.msg);
-            });
+            .then(r => r.json()).then(d => { if(d.success) alert("🏆 ተሳክቷል!"); });
         }
 
         setInterval(update, 1000);
