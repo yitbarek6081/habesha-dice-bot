@@ -6,76 +6,77 @@
     <title>Habesha Tombola</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
-        
-        /* Lobby Overlay */
-        #lobby { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.95); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .timer { font-size: 4rem; color: #f1c40f; border: 5px solid #f1c40f; width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 20px; }
-
-        /* Game Layout */
-        .container { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 10px; }
+        body { background: #0f172a; color: white; font-family: sans-serif; margin: 0; padding: 10px; text-align: center; }
+        .lobby-bar { background: #1e293b; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #f1c40f; }
+        .timer { font-size: 2rem; color: #f1c40f; font-weight: bold; }
+        .container { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
         
         /* 1-90 Board */
-        .board { flex: 1; min-width: 300px; background: #1e293b; padding: 10px; border-radius: 10px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; border: 2px solid #334155; }
-        .b-cell { font-size: 0.7rem; padding: 5px; background: #334155; border-radius: 3px; color: #94a3b8; }
-        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; box-shadow: 0 0 5px #ef4444; }
+        .board { flex: 1.2; min-width: 300px; background: #1e293b; padding: 10px; border-radius: 10px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+        .b-cell { font-size: 0.7rem; padding: 6px; background: #334155; border-radius: 3px; color: #94a3b8; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
 
-        /* Player Ticket */
-        .ticket { flex: 1; min-width: 300px; background: #f1c40f; padding: 15px; border-radius: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; border: 3px solid #b8860b; }
+        /* Ticket */
+        .ticket { flex: 1; min-width: 300px; background: #f1c40f; padding: 12px; border-radius: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
         .t-cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.2rem; border-radius: 5px; cursor: pointer; }
         .t-cell.marked { background: #22c55e; color: white; text-decoration: line-through; }
-
-        .win-btn { background: #22c55e; color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-size: 1.2rem; font-weight: bold; margin-top: 20px; cursor: pointer; }
+        
+        .win-btn { background: #22c55e; color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-size: 1.2rem; font-weight: bold; margin-top: 15px; cursor: pointer; }
+        .join-btn { background: #f1c40f; color: black; border: none; padding: 10px 20px; font-weight: bold; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div id="lobby">
-        <h2 id="msg">ለመመዝገብ በመጠባበቅ ላይ...</h2>
+    <div id="lobby-ui" class="lobby-bar">
+        <h3 id="msg">መመዝገቢያ ክፍት ነው!</h3>
         <div class="timer" id="timer">20</div>
+        <button id="join-btn" class="join-btn" onclick="joinGame()">JOIN (ተሳተፍ)</button>
     </div>
 
-    <div id="game-ui" style="display:none;">
-        <h3>🇪🇹 ሐበሻ ቶምቦላ</h3>
-        <div class="container">
-            <div class="board" id="board"></div> <div class="ticket" id="ticket"></div> </div>
-        <button class="win-btn" onclick="claimWin()">አንድ ረድፍ ሞላሁ! (Win)</button>
-    </div>
+    <div class="container">
+        <div class="board" id="main-board"></div> <div class="ticket" id="player-ticket"></div> </div>
+    
+    <button id="win-btn" class="win-btn" style="display:none;" onclick="claimWin()">አሸነፍኩ! (Bingo)</button>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // 1. ቦርዱን መፍጠር (1-90)
-        const boardDiv = document.getElementById('board');
+        // 1-90 ቦርድ መፍጠሪያ
+        const board = document.getElementById('main-board');
         for(let i=1; i<=90; i++) {
-            boardDiv.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
+            board.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
         }
 
-        // 2. ቲኬት መቀበል
+        // ቲኬት መጫኛ
         fetch('/get_ticket').then(r => r.json()).then(data => {
-            if(data.error) { document.getElementById('msg').innerText = "ጨዋታው ተጀምሯል። ቀጣዩን ይጠብቁ!"; return; }
-            const tDiv = document.getElementById('ticket');
+            const ticketDiv = document.getElementById('player-ticket');
             data.ticket.flat().forEach(num => {
                 const cell = document.createElement('div');
                 cell.className = 't-cell'; cell.innerText = num;
                 cell.onclick = () => { cell.classList.toggle('marked'); tg.HapticFeedback.impactOccurred('medium'); };
-                tDiv.appendChild(cell);
+                ticketDiv.appendChild(cell);
             });
         });
 
-        // 3. የጨዋታውን ሁኔታ በየሰከንዱ ቼክ ማድረግ
+        // የጨዋታ ሁኔታ መከታተያ
         setInterval(() => {
             fetch('/game_status').then(r => r.json()).then(data => {
                 if(data.status === "lobby") {
                     document.getElementById('timer').innerText = data.timer;
                 } else if(data.status === "running") {
-                    document.getElementById('lobby').style.display = 'none';
-                    document.getElementById('game-ui').style.display = 'block';
+                    document.getElementById('lobby-ui').style.display = 'none';
+                    document.getElementById('win-btn').style.display = 'block';
                     data.drawn.forEach(n => document.getElementById(`b-${n}`).classList.add('drawn'));
                 }
             });
         }, 1000);
+
+        function joinGame() {
+            document.getElementById('join-btn').innerText = "ተመዝግበሃል ✅";
+            document.getElementById('join-btn').disabled = true;
+            tg.HapticFeedback.notificationOccurred('success');
+        }
 
         function claimWin() { tg.sendData("win"); tg.close(); }
     </script>
