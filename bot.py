@@ -41,7 +41,6 @@ def save_data():
 
 load_data()
 
-# ጨዋታው በየ 3 ሰከንዱ ቁጥር እንዲያወጣ የተስተካከለ State
 game_state = {
     "status": "lobby",
     "start_time": time.time(),
@@ -52,11 +51,10 @@ game_state = {
 }
 
 def generate_ticket():
-    # 15 ቁጥሮችን በ3 ረድፍ (ለእያንዳንዱ ረድፍ 5 ቁጥር) ያዘጋጃል
     all_nums = random.sample(range(1, 91), 15)
     return [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
 
-# --- 3. FLASK API (Server Logic) ---
+# --- 3. FLASK API ---
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -72,7 +70,6 @@ def get_status():
     elif game_state["status"] == "lobby" and remaining <= 0:
         game_state["start_time"] = now
 
-    # በየ 3 ሰከንዱ አውቶማቲክ ቁጥር ማውጫ
     if game_state["status"] == "running" and len(game_state["drawn_numbers"]) < 90:
         if now - game_state["last_draw_time"] >= 3:
             new_num = random.randint(1, 90)
@@ -82,18 +79,20 @@ def get_status():
             game_state["last_draw_time"] = now
 
     return jsonify({
-        "status": game_state["status"],
-        "timer": int(remaining),
-        "drawn": game_state["drawn_numbers"],
-        "pot": game_state["pot"],
+        "status": game_state["status"], "timer": int(remaining),
+        "drawn": game_state["drawn_numbers"], "pot": game_state["pot"],
         "players_count": len(game_state["players"])
     })
 
 @app.route('/user_data/<phone>')
 def user_data(phone):
     p = clean_phone(phone)
-    ticket = game_state["players"].get(p, {}).get("ticket", null) if p in game_state["players"] else None
-    return jsonify({"balance": user_wallets.get(p, 0.0), "is_joined": p in game_state["players"], "ticket": ticket})
+    player = game_state["players"].get(p)
+    return jsonify({
+        "balance": user_wallets.get(p, 0.0),
+        "is_joined": p in game_state["players"],
+        "ticket": player["ticket"] if player else None
+    })
 
 @app.route('/join_game', methods=['POST'])
 def join_game():
@@ -117,10 +116,9 @@ def win():
     ticket = player_data["ticket"]
     drawn = game_state["drawn_numbers"]
     
-    # ❌ ማጭበርበር መከላከያ፡ የሰርቨር ማረጋገጫ
     is_legit = False
     for row in ticket:
-        if all(num in drawn for num in row): # አንድ ረድፍ ሙሉ በሙሉ መውጣቱን ቼክ ያደርጋል
+        if all(num in drawn for num in row):
             is_legit = True
             break
     
@@ -131,7 +129,7 @@ def win():
         name = player_data["name"]
         game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0})
         return jsonify({"success": True, "winner": name, "prize": prize})
-    return jsonify({"success": False, "msg": "ገና አልጨረሱም! ቁጥሮቹን ይከታተሉ።"})
+    return jsonify({"success": False, "msg": "ገና አልጨረሱም!"})
 
 # --- 4. TELEGRAM BOT ---
 @dp.message(Command("start"))
@@ -139,8 +137,7 @@ async def cmd_start(m: types.Message):
     url = WEB_APP_URL if WEB_APP_URL.endswith("/") else f"{WEB_APP_URL}/"
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="🎮 Play Tombola", web_app=WebAppInfo(url=url)))
-    kb.row(InlineKeyboardButton(text="💰 Deposit", callback_data="dep"))
-    await m.answer(f"ሰላም {m.from_user.first_name}! እንኳን ደህና መጡ።", reply_markup=kb.as_markup())
+    await m.answer(f"ሰላም {m.from_user.first_name}!", reply_markup=kb.as_markup())
 
 @dp.message(Command("add_credit"))
 async def add_c(m: types.Message):
@@ -148,12 +145,8 @@ async def add_c(m: types.Message):
     try:
         _, p, amt = m.text.split()
         p = clean_phone(p); user_wallets[p] = user_wallets.get(p, 0) + float(amt)
-        save_data(); await m.answer(f"✅ ተሞልቷል። አሁን ባላንስ: {user_wallets[p]}")
+        save_data(); await m.answer(f"✅ ተሞልቷል። ባላንስ: {user_wallets[p]}")
     except: await m.answer("አጠቃቀም: /add_credit 09... 50")
-
-@dp.callback_query(F.data == "dep")
-async def dep(c: types.CallbackQuery):
-    await c.message.answer(f"📱 Telebirr: `{TELEBIRR_PHONE}`\n🏦 CBE: `{CBEBIRR_PHONE}`\n👤 ስም: {ADMIN_NAME}", parse_mode="Markdown")
 
 async def main():
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
