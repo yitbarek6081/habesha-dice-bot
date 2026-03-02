@@ -95,7 +95,7 @@ async def dep_opts(c: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data.startswith("p_"))
 async def p_inst(c: types.CallbackQuery):
-    acc = "0911223344" if "tele" in c.data else "100012345678"
+    acc = "0945880475" if "tele" in c.data else "0945880474"
     await c.message.answer(f"📍 አካውንት: `{acc}`\nእባክዎ የደረሰኝ ፎቶ (Screenshot) እዚህ ይላኩ።")
 
 @dp.message(lambda m: m.photo is not None)
@@ -123,3 +123,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
