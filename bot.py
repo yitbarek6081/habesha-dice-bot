@@ -4,16 +4,16 @@ from threading import Thread
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import WebAppInfo, InlineKeyboardButton, FSInputFile
+from aiogram.types import WebAppInfo, InlineKeyboardButton
 
-# --- 1. CONFIGURATION (እነዚህን ብቻ ቀይር) ---
+# --- 1. CONFIGURATION ---
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 
-ADMIN_ID = 7956330391             # <--- ያንተን የቴሌግራም ID ቁጥር እዚህ ተካ
-TELEBIRR_PHONE = "0945880474"   # <--- ያንተን የቴሌብር ስልክ እዚህ ተካ
-CBEBIRR_PHONE = "0945880474"    # <--- ያንተን የሲቢኢ ብር ስልክ እዚህ ተካ
-ADMIN_NAME = "yitbarek abera"         # <--- ያንተን ስም እዚህ ተካ
+ADMIN_ID = 7956330391            
+TELEBIRR_PHONE = "0945880474"   
+CBEBIRR_PHONE = "0945880474"    
+ADMIN_NAME = "yitbarek abera"         
 
 # --- 2. INITIALIZE ---
 bot = Bot(token=TOKEN)
@@ -47,7 +47,8 @@ game_state = {
     "drawn_numbers": [],
     "players": {},
     "pot": 0,
-    "last_draw_time": 0
+    "last_draw_time": 0,
+    "winner_name": None
 }
 
 def generate_ticket():
@@ -61,27 +62,36 @@ def index(): return render_template('index.html')
 @app.route('/get_status')
 def get_status():
     now = time.time()
-    remaining = max(0, 25 - (now - game_state["start_time"]))
     
-    if game_state["status"] == "lobby" and remaining <= 0 and len(game_state["players"]) >= 2:
-        game_state["status"] = "running"
-        game_state["drawn_numbers"] = []
-        game_state["last_draw_time"] = now
-    elif game_state["status"] == "lobby" and remaining <= 0:
-        game_state["start_time"] = now
-
-    if game_state["status"] == "running" and len(game_state["drawn_numbers"]) < 90:
-        if now - game_state["last_draw_time"] >= 3:
-            new_num = random.randint(1, 90)
-            while new_num in game_state["drawn_numbers"]:
-                new_num = random.randint(1, 90)
-            game_state["drawn_numbers"].append(new_num)
+    if game_state["status"] == "lobby":
+        elapsed = now - game_state["start_time"]
+        remaining = 20 - int(elapsed % 20) # 20 ሰከንድ ሎቢ
+        
+        # ቢያንስ 2 ሰው ካለና ሰዓቱ 1 ሲደርስ ይጀምራል
+        if remaining == 1 and len(game_state["players"]) >= 2:
+            game_state["status"] = "running"
+            game_state["drawn_numbers"] = []
             game_state["last_draw_time"] = now
+    else:
+        remaining = 0
+
+    # በየ 4 ሰከንዱ ቁጥር ማውጫ
+    if game_state["status"] == "running" and not game_state["winner_name"]:
+        if len(game_state["drawn_numbers"]) < 90:
+            if now - game_state["last_draw_time"] >= 4:
+                new_num = random.randint(1, 90)
+                while new_num in game_state["drawn_numbers"]:
+                    new_num = random.randint(1, 90)
+                game_state["drawn_numbers"].append(new_num)
+                game_state["last_draw_time"] = now
 
     return jsonify({
-        "status": game_state["status"], "timer": int(remaining),
-        "drawn": game_state["drawn_numbers"], "pot": game_state["pot"],
-        "players_count": len(game_state["players"])
+        "status": game_state["status"], 
+        "timer": int(remaining),
+        "drawn": game_state["drawn_numbers"], 
+        "pot": game_state["pot"],
+        "players_count": len(game_state["players"]),
+        "winner": game_state["winner_name"]
     })
 
 @app.route('/user_data/<phone>')
@@ -97,6 +107,7 @@ def user_data(phone):
 @app.route('/join_game', methods=['POST'])
 def join_game():
     p = clean_phone(request.json.get("phone"))
+    if game_state["status"] != "lobby": return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
     if user_wallets.get(p, 0) < 10: return jsonify({"success": False, "msg": "ባላንስ የሎትም!"})
     if p not in game_state["players"]:
         user_wallets[p] -= 10
@@ -104,32 +115,33 @@ def join_game():
         ticket = generate_ticket()
         game_state["players"][p] = {"name": request.json.get("name", "Player"), "ticket": ticket}
         game_state["pot"] += 10
-        return jsonify({"success": True, "ticket": ticket})
+        return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ገብተዋል!"})
 
 @app.route('/win', methods=['POST'])
 def win():
     p = clean_phone(request.json.get("phone"))
+    if game_state["winner_name"]: return jsonify({"success": False, "msg": "ሌላ ሰው አሸንፏል!"})
     player_data = game_state["players"].get(p)
-    if not player_data: return jsonify({"success": False, "msg": "ተጫዋቹ አልተገኘም!"})
+    if not player_data: return jsonify({"success": False})
 
     ticket = player_data["ticket"]
     drawn = game_state["drawn_numbers"]
     
-    is_legit = False
-    for row in ticket:
-        if all(num in drawn for num in row):
-            is_legit = True
-            break
+    is_legit = any(all(num in drawn for num in row) for row in ticket)
     
     if is_legit:
         prize = game_state["pot"] * 0.80
         user_wallets[p] = user_wallets.get(p, 0) + prize
         save_data()
-        name = player_data["name"]
-        game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0})
-        return jsonify({"success": True, "winner": name, "prize": prize})
+        game_state["winner_name"] = player_data["name"]
+        Thread(target=reset_game).start()
+        return jsonify({"success": True, "winner": player_data["name"], "prize": prize})
     return jsonify({"success": False, "msg": "ገና አልጨረሱም!"})
+
+def reset_game():
+    time.sleep(5)
+    game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0, "winner_name":None})
 
 # --- 4. TELEGRAM BOT ---
 @dp.message(Command("start"))
