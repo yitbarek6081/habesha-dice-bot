@@ -5,76 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        /* All animations disabled */
+        * { transition: none !important; animation: none !important; transform: none !important; }
         body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 5px; }
         .header { display: grid; grid-template-columns: repeat(3, 1fr); background: #1e293b; padding: 10px; border-bottom: 2px solid #f1c40f; }
-        .p-info { background: #334155; padding: 10px; font-weight: bold; color: #f1c40f; }
-        
-        /* Board Animation */
+        .p-info { background: #334155; padding: 8px; font-weight: bold; color: #f1c40f; }
+        .wallet-actions { display: flex; justify-content: space-around; padding: 10px; background: #1e293b; gap: 10px; }
+        .btn-act { flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
+        .dep { background: #22c55e; } .with { background: #3b82f6; }
         .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: #1e293b; margin: 5px 0; }
-        .b-cell { font-size: 0.6rem; padding: 4px; background: #334155; border-radius: 2px; color: #94a3b8; transition: all 0.3s ease; }
-        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.1); }
-
-        /* Ticket Slide-up Animation */
-        #ticket-area { display: none; margin-top: 10px; padding: 10px; background: #1e293b; border-radius: 8px; animation: slideUp 0.4s ease-out; }
-        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
+        .b-cell { font-size: 0.7rem; padding: 5px 0; background: #334155; border-radius: 2px; color: #94a3b8; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
+        #ticket-area { display: none; margin-top: 10px; padding: 10px; background: #1e293b; border: 1px solid #475569; border-radius: 4px; }
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 5px; }
-        .t-cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; border-radius: 4px; cursor: pointer; transition: background 0.3s; }
-        
-        /* Mark Animation */
-        .t-cell.marked { background: #22c55e !important; color: white; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes pop { 0% { transform: scale(0.6); } 100% { transform: scale(1); } }
-
-        .btn-win { background: #22c55e; color: white; border: none; padding: 15px; border-radius: 5px; width: 100%; font-weight: bold; display: none; margin-top: 10px; font-size: 1.1rem; }
-        .btn-join { background: #f1c40f; color: black; border: none; padding: 12px 30px; border-radius: 5px; font-weight: bold; width: 80%; transition: transform 0.2s; }
-        .btn-join:active { transform: scale(0.95); }
+        .t-cell { background: white; color: black; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3rem; border-radius: 4px; }
+        .t-cell.marked { background: #22c55e !important; color: white; }
+        .btn-win { background: #f1c40f; color: black; border: none; padding: 15px; border-radius: 5px; width: 100%; font-weight: bold; font-size: 1.2rem; margin-top: 10px; display: none; }
+        .btn-join { background: #f1c40f; color: black; border: none; padding: 15px 40px; border-radius: 5px; font-weight: bold; width: 85%; margin: 20px 0; font-size: 1.1rem; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div id="bal">BAL: 0.00</div>
-        <div id="pot">POT: 0</div>
-        <div id="tmr">⌛ 20s</div>
+    <div class="header"><div id="bal">0.00</div><div id="pot">POT: 0</div><div id="tmr">20s</div></div>
+    <div class="wallet-actions">
+        <button class="btn-act dep" onclick="alert('Telebirr/CBE: 0945880474')">DEPOSIT</button>
+        <button class="btn-act with" onclick="withdrawReq()">WITHDRAW</button>
     </div>
-    
     <div class="p-info" id="p-count">👤 ተጫዋቾች: 0</div>
-
-    <div id="join-box" style="margin: 20px 0;">
-        <button onclick="join()" class="btn-join">JOIN (10 ETB)</button>
-    </div>
-
+    <div id="join-box"><button onclick="join()" class="btn-join">JOIN (10 ETB)</button></div>
     <div class="board" id="brd"></div>
-
-    <div id="ticket-area">
-        <div id="t-container"></div>
-        <button id="win-btn" onclick="claimWin()" class="btn-win">WIN 🏆 (ተጫን!)</button>
-    </div>
+    <div id="ticket-area"><div id="t-container"></div><button id="win-btn" onclick="claimWin()" class="btn-win">WIN 🏆</button></div>
 
     <script>
         const tg = window.Telegram.WebApp;
         let phone = localStorage.getItem('user_phone');
-        let myTicket = null; let drawnNumbers = []; let markedNumbers = [];
+        let myTicket = null; let drawnNumbers = [];
+        if(!phone) { phone = prompt("ስልክ ያስገቡ:"); if(phone) localStorage.setItem('user_phone', phone.trim()); }
 
-        if(!phone) {
-            phone = prompt("ስልክ ቁጥር ያስገቡ:");
-            if(phone) localStorage.setItem('user_phone', phone.trim());
-        }
-
-        const brd = document.getElementById('brd');
-        for(let i=1; i<=90; i++) brd.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
+        for(let i=1; i<=90; i++) document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
         function update() {
             fetch('/get_status').then(r => r.json()).then(data => {
                 if(data.winner) { document.getElementById('p-count').innerText = "🏆 አሸናፊ: " + data.winner; return; }
                 document.getElementById('p-count').innerText = "👤 ተጫዋቾች: " + data.players_count;
                 document.getElementById('pot').innerText = "POT: " + data.pot;
-
                 if(data.status === "lobby") {
                     document.getElementById('tmr').innerText = "⌛ " + data.timer + "s";
                     document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
                     document.getElementById('ticket-area').style.display = 'none';
                     document.getElementById('join-box').style.display = 'block';
-                    myTicket = null; markedNumbers = [];
+                    myTicket = null;
                 } else {
                     document.getElementById('tmr').innerText = "🔴 LIVE";
                     drawnNumbers = data.drawn;
@@ -82,49 +61,28 @@
                     document.getElementById('join-box').style.display = 'none';
                 }
             });
-
             if(phone && !myTicket) {
                 fetch('/user_data/' + phone).then(r => r.json()).then(d => {
-                    document.getElementById('bal').innerText = "BAL: " + d.balance.toFixed(2);
+                    document.getElementById('bal').innerText = d.balance.toFixed(2) + " ETB";
                     if(d.is_joined) {
                         myTicket = d.ticket; renderTicket();
-                        document.getElementById('join-box').style.display = 'none';
                         document.getElementById('ticket-area').style.display = 'block';
+                        document.getElementById('win-btn').style.display = 'block';
                     }
                 });
             }
         }
 
         function renderTicket() {
-            const container = document.getElementById('t-container');
-            container.innerHTML = myTicket.map(row => `
-                <div class="t-row">${row.map(n => `<div class="t-cell" id="cell-${n}" onclick="markNum(${n})">${n}</div>`).join('')}</div>
+            document.getElementById('t-container').innerHTML = myTicket.map(row => `
+                <div class="t-row">${row.map(n => `<div class="t-cell" id="cell-${n}" onclick="mark(${n})">${n}</div>`).join('')}</div>
             `).join('');
         }
 
-        function markNum(n) {
-            if(drawnNumbers.includes(n)) {
-                document.getElementById(`cell-${n}`).classList.add('marked');
-                if(!markedNumbers.includes(n)) markedNumbers.push(n);
-                checkWin();
-            }
-        }
-
-        function checkWin() {
-            let win = myTicket.some(row => row.every(num => markedNumbers.includes(num)));
-            document.getElementById('win-btn').style.display = win ? 'block' : 'none';
-        }
-
-        function join() {
-            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})})
-            .then(r => r.json()).then(d => { if(d.success) update(); else alert(d.msg); });
-        }
-
-        function claimWin() {
-            fetch('/win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r => r.json()).then(d => { if(d.success) alert("🏆 ተሳክቷል!"); });
-        }
+        function mark(n) { if(drawnNumbers.includes(n)) document.getElementById(`cell-${n}`).classList.add('marked'); }
+        function join() { fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}).then(r => r.json()).then(d => { if(d.success) update(); else alert(d.msg); }); }
+        function claimWin() { fetch('/win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r => r.json()).then(d => { if(d.success) alert("አሸንፈዋል!"); }); }
+        function withdrawReq() { if(confirm("ጥያቄ ይላክ?")) fetch('/withdraw_request', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(() => alert("ተልኳል!")); }
 
         setInterval(update, 1000);
         tg.ready();
