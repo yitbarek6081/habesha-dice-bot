@@ -8,16 +8,15 @@ from aiogram.types import WebAppInfo, InlineKeyboardButton
 
 app = Flask(__name__)
 
-# --- የጨዋታው ዳታ ማከማቻ ---
+# --- የጨዋታው ሁኔታ (Game State) ---
 game_state = {
     "status": "waiting",  # waiting, lobby, running
     "start_time": 0,
     "drawn_numbers": [],
-    "all_numbers": list(range(1, 91))
 }
 
 def generate_ticket():
-    """ለእያንዳንዱ ተጫዋች 15 ቁጥሮች በ 3 ረድፍ ያመነጫል"""
+    """15 ቁጥሮች በ 3 ረድፍ ያመነጫል"""
     selected = random.sample(range(1, 91), 15)
     selected.sort()
     return [selected[0:5], selected[5:10], selected[10:15]]
@@ -27,9 +26,6 @@ def index(): return render_template('index.html')
 
 @app.route('/get_ticket')
 def get_ticket():
-    # ጨዋታው ከተጀመረ በኋላ መግባት አይቻልም
-    if game_state["status"] == "running":
-        return jsonify({"error": "wait"}), 403
     return jsonify({"ticket": generate_ticket()})
 
 @app.route('/game_status')
@@ -44,11 +40,12 @@ def get_status():
     })
 
 def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
-# --- ቦት Setup ---
+# --- ቴሌግራም ቦት ---
 TOKEN = os.getenv("BOT_TOKEN")
-WEB_APP_URL = os.getenv("WEB_APP_URL") # Render URL
+WEB_APP_URL = os.getenv("WEB_APP_URL") # Render ላይ የሰጠኸው URL
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -66,13 +63,13 @@ async def start_lobby(message: types.Message):
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🎮 ተቀላቀል (Join Game)", web_app=WebAppInfo(url=WEB_APP_URL)))
     
-    await message.answer("🔔 **የቶምቦላ መመዝገቢያ ተከፍቷል!**\n\nለመቀላቀል 20 ሰከንድ አለዎት። አሁኑኑ 'Join' ይበሉ!", reply_markup=builder.as_markup())
+    await message.answer("🔔 **የቶምቦላ መመዝገቢያ ተከፍቷል!**\nለ20 ሰከንድ ቆይቶ ጨዋታው ይጀምራል። አሁኑኑ 'Join' ይበሉ!", reply_markup=builder.as_markup())
 
-    # 20 ሰከንድ ሎቢ
+    # 20 ሰከንድ መጠበቅ
     await asyncio.sleep(20)
     
     game_state["status"] = "running"
-    await message.answer("🚀 **መመዝገቢያ ተዘግቷል! ቁጥሮች መውጣት ጀመሩ።**")
+    await message.answer("🚀 **ጊዜው አልቋል! ቁጥሮች መውጣት ጀመሩ።**")
     
     # Auto-Draw (በየ 10 ሰከንዱ)
     nums = list(range(1, 91))
