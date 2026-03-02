@@ -7,11 +7,17 @@
     <style>
         body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 5px; }
         .header { display: grid; grid-template-columns: repeat(3, 1fr); background: #1e293b; padding: 12px; border-bottom: 2px solid #f1c40f; }
-        .phone-display { font-size: 0.7rem; color: #94a3b8; background: #1e293b; padding: 5px; }
-        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 10px; }
-        .b-cell { font-size: 0.6rem; padding: 5px; background: #334155; border-radius: 3px; color: #94a3b8; }
-        .b-cell.drawn { background: #ef4444; color: white; box-shadow: 0 0 5px #ef4444; }
-        .btn { background: #f1c40f; color: #0f172a; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; margin-top: 15px; }
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 8px; background: #1e293b; margin: 5px 0; border-radius: 5px; }
+        .b-cell { font-size: 0.6rem; padding: 4px; background: #334155; border-radius: 3px; color: #94a3b8; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.1); transition: 0.3s; }
+        
+        #ticket-area { margin-top: 10px; display: none; background: #1e293b; padding: 10px; border-radius: 10px; }
+        .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 5px; }
+        .t-cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 5px; font-size: 1.1rem; cursor: pointer; }
+        .t-cell.marked { background: #22c55e !important; color: white; transition: 0.3s; }
+        
+        .btn-win { background: #22c55e; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; display: none; margin-top: 10px; font-size: 1.1rem; }
+        .btn-join { background: #f1c40f; color: black; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -20,62 +26,94 @@
         <div id="pot">POT: 0</div>
         <div id="tmr">⌛ 0s</div>
     </div>
-    <div class="phone-display">
-        Phone: <span id="u-phone">...</span> 
-        <button onclick="changePhone()" style="background:none; border:none; color:#f1c40f; text-decoration:underline; font-size:0.7rem;">[ቀይር]</button>
-    </div>
-
-    <div id="join-area">
-        <button onclick="join()" class="btn">JOIN GAME (10 ETB)</button>
-    </div>
-
+    <div id="join-box" style="margin: 15px 0;"><button onclick="join()" class="btn-join">JOIN GAME (10 ETB)</button></div>
     <div class="board" id="brd"></div>
+    <div id="ticket-area">
+        <h4 style="color:#f1c40f; margin: 5px;">የእርስዎ ቲኬት (ለመምረጥ ቁጥሩን ይጫኑ)</h4>
+        <div id="t-container"></div>
+        <button id="win-btn" onclick="claimWin()" class="btn-win">WIN 🏆 (CLICK TO WIN)</button>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         let phone = localStorage.getItem('user_phone');
+        let myTicket = null;
+        let drawnNumbers = [];
+        let markedNumbers = [];
 
-        function cleanPhone(p) {
-            if(!p) return null;
-            let c = p.replace(/\s+/g, '').replace('+', '');
-            if(c.startsWith('251')) c = '0' + c.substring(3);
-            return c;
-        }
-
-        if(!phone || phone === "null") {
-            let input = prompt("ስልክ ቁጥርዎን ያስገቡ (09...):");
-            phone = cleanPhone(input);
-            if(phone) localStorage.setItem('user_phone', phone);
-        }
-
-        function changePhone() {
-            localStorage.removeItem('user_phone');
-            location.reload();
+        if(!phone) {
+            phone = prompt("ስልክ ቁጥርዎን ያስገቡ (09...):");
+            if(phone) localStorage.setItem('user_phone', phone.trim());
         }
 
         const brd = document.getElementById('brd');
         for(let i=1; i<=90; i++) brd.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
         function update() {
-            document.getElementById('u-phone').innerText = phone;
             fetch('/get_status').then(r => r.json()).then(data => {
                 document.getElementById('tmr').innerText = "⌛ " + data.timer + "s";
                 document.getElementById('pot').innerText = "POT: " + data.pot;
-                if(data.status === "lobby") document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
-                else data.drawn.forEach(n => document.getElementById(`b-${n}`).classList.add('drawn'));
+                drawnNumbers = data.drawn;
+                if(data.status === "lobby") {
+                    document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
+                    document.getElementById('ticket-area').style.display = 'none';
+                    document.getElementById('join-box').style.display = 'block';
+                    myTicket = null; markedNumbers = [];
+                } else {
+                    drawnNumbers.forEach(n => document.getElementById(`b-${n}`).classList.add('drawn'));
+                }
             });
-
             if(phone) {
-                fetch('/user_data/' + phone).then(r => r.json()).then(data => {
-                    document.getElementById('bal').innerText = "BAL: " + data.balance.toFixed(2);
-                    document.getElementById('join-area').style.display = data.is_joined ? 'none' : 'block';
+                fetch('/user_data/' + phone).then(r => r.json()).then(d => {
+                    document.getElementById('bal').innerText = "BAL: " + d.balance.toFixed(2);
+                    if(d.is_joined && !myTicket) {
+                        myTicket = d.ticket; renderTicket();
+                        document.getElementById('join-box').style.display = 'none';
+                        document.getElementById('ticket-area').style.display = 'block';
+                    }
                 });
             }
         }
-        function join() {
-            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r => r.json()).then(d => { if(!d.success) alert(d.msg); });
+
+        function renderTicket() {
+            const container = document.getElementById('t-container');
+            container.innerHTML = myTicket.map(row => `
+                <div class="t-row">${row.map(n => `<div class="t-cell" id="cell-${n}" onclick="markNum(${n})">${n}</div>`).join('')}</div>
+            `).join('');
         }
+
+        function markNum(n) {
+            if(drawnNumbers.includes(n)) {
+                document.getElementById(`cell-${n}`).classList.add('marked');
+                if(!markedNumbers.includes(n)) markedNumbers.push(n);
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            let rowWin = false;
+            myTicket.forEach(row => {
+                if(row.every(num => markedNumbers.includes(num))) rowWin = true;
+            });
+            document.getElementById('win-btn').style.display = rowWin ? 'block' : 'none';
+        }
+
+        function join() {
+            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name})})
+            .then(r => r.json()).then(d => {
+                if(d.success) { myTicket = d.ticket; renderTicket(); document.getElementById('join-box').style.display = 'none'; document.getElementById('ticket-area').style.display = 'block'; }
+                else alert(d.msg);
+            });
+        }
+
+        function claimWin() {
+            fetch('/win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            .then(r => r.json()).then(d => {
+                if(d.success) alert("🏆 " + d.winner + " " + d.prize + " ETB አሸንፈዋል።");
+                else alert(d.msg);
+            });
+        }
+
         setInterval(update, 1000);
         tg.ready();
     </script>
