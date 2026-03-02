@@ -12,7 +12,7 @@ app = Flask(__name__)
 # --- 1. CONFIG & DATABASE ---
 ADMIN_ID = 7956330391 # @userinfobot ላይ ያገኙትን ቁጥር እዚህ ይተኩ
 TOKEN = os.getenv("BOT_TOKEN")
-WEB_APP_URL = os.getenv("https://habesha-dice-bot.onrender.com")
+WEB_APP_URL = os.getenv("WEB_APP_URL")
 
 user_wallets = {}   # { "phone": balance }
 used_receipts = set() # የደረሰኝ አሻራዎች (Hashes)
@@ -158,4 +158,5 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__": asyncio.run(main())
+
 
