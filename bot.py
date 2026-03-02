@@ -10,17 +10,16 @@ from aiogram.types import WebAppInfo, InlineKeyboardButton, FSInputFile
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 
-ADMIN_ID = 7956330391            # <--- ያንተን የቴሌግራም ID ቁጥር እዚህ ተካ
+ADMIN_ID = 7956330391             # <--- ያንተን የቴሌግራም ID ቁጥር እዚህ ተካ
 TELEBIRR_PHONE = "0945880474"   # <--- ያንተን የቴሌብር ስልክ እዚህ ተካ
 CBEBIRR_PHONE = "0945880474"    # <--- ያንተን የሲቢኢ ብር ስልክ እዚህ ተካ
 ADMIN_NAME = "yitbarek abera"         # <--- ያንተን ስም እዚህ ተካ
 
-# --- 2. INITIALIZE BOT & DISPATCHER (ስህተቱን ለመከላከል እዚህ መሆን አለባቸው) ---
+# --- 2. INITIALIZE ---
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 app = Flask(__name__)
 
-# --- 3. DATA HANDLING ---
 user_wallets = {}
 WALLETS_FILE = "wallets.json"
 
@@ -34,83 +33,67 @@ def load_data():
     global user_wallets
     if os.path.exists(WALLETS_FILE):
         try:
-            with open(WALLETS_FILE, "r") as f:
-                user_wallets = json.load(f)
+            with open(WALLETS_FILE, "r") as f: user_wallets = json.load(f)
         except: user_wallets = {}
 
 def save_data():
-    with open(WALLETS_FILE, "w") as f:
-        json.dump(user_wallets, f)
+    with open(WALLETS_FILE, "w") as f: json.dump(user_wallets, f)
 
 load_data()
 
-game_state = {"status": "lobby", "start_time": time.time(), "drawn_numbers": [], "players": {}, "pot": 0}
+# ጨዋታው በየ 3 ሰከንዱ ቁጥር እንዲያወጣ የተስተካከለ State
+game_state = {
+    "status": "lobby",
+    "start_time": time.time(),
+    "drawn_numbers": [],
+    "players": {},
+    "pot": 0,
+    "last_draw_time": 0
+}
 
-# --- 4. TELEGRAM BOT HANDLERS ---
-@dp.message(Command("start"))
-async def cmd_start(m: types.Message):
-    url = WEB_APP_URL if WEB_APP_URL.endswith("/") else f"{WEB_APP_URL}/"
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🎮 Play Tombola", web_app=WebAppInfo(url=url)))
-    builder.row(InlineKeyboardButton(text="💰 Deposit (ብር ለመሙላት)", callback_data="deposit"))
-    await m.answer(f"ሰላም {m.from_user.first_name}! እንኳን ወደ ቶምቦላ በደህና መጡ።", reply_markup=builder.as_markup())
+def generate_ticket():
+    # 15 ቁጥሮችን በ3 ረድፍ (ለእያንዳንዱ ረድፍ 5 ቁጥር) ያዘጋጃል
+    all_nums = random.sample(range(1, 91), 15)
+    return [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
 
-@dp.message(Command("add_credit"))
-async def admin_add(m: types.Message):
-    if m.from_user.id != ADMIN_ID: return
-    try:
-        _, p_input, amount = m.text.split()
-        p = clean_phone(p_input)
-        user_wallets[p] = user_wallets.get(p, 0) + float(amount)
-        save_data()
-        await m.answer(f"✅ ለ {p} {amount} ETB ተሞልቷል።\nአጠቃላይ ባላንስ: {user_wallets[p]}")
-    except: await m.answer("አጠቃቀም: `/add_credit 09... 50`")
-
-@dp.message(Command("list_players"))
-async def list_p(m: types.Message):
-    if m.from_user.id != ADMIN_ID: return
-    if not user_wallets: return await m.answer("ምንም ተጫዋች የለም።")
-    txt = "📊 **የተጫዋቾች ዝርዝር፡**\n"
-    for p, b in user_wallets.items(): txt += f"📞 `{p}`: {b} ETB\n"
-    await m.answer(txt, parse_mode="Markdown")
-
-@dp.message(Command("backup"))
-async def send_backup(m: types.Message):
-    if m.from_user.id != ADMIN_ID: return
-    save_data()
-    if os.path.exists(WALLETS_FILE):
-        await m.answer_document(FSInputFile(WALLETS_FILE), caption="የባላንስ ባክአፕ")
-
-@dp.callback_query(F.data == "deposit")
-async def dep_info(c: types.CallbackQuery):
-    txt = (f"📱 **Telebirr:** `{TELEBIRR_PHONE}`\n"
-           f"🏦 **CBEBirr:** `{CBEBIRR_PHONE}`\n"
-           f"👤 ስም: **{ADMIN_NAME}**")
-    await c.message.answer(txt, parse_mode="Markdown")
-    await c.answer()
-
-# --- 5. FLASK API ROUTES ---
+# --- 3. FLASK API (Server Logic) ---
 @app.route('/')
 def index(): return render_template('index.html')
 
 @app.route('/get_status')
 def get_status():
-    remaining = max(0, 25 - (time.time() - game_state["start_time"]))
+    now = time.time()
+    remaining = max(0, 25 - (now - game_state["start_time"]))
+    
     if game_state["status"] == "lobby" and remaining <= 0 and len(game_state["players"]) >= 2:
         game_state["status"] = "running"
+        game_state["drawn_numbers"] = []
+        game_state["last_draw_time"] = now
     elif game_state["status"] == "lobby" and remaining <= 0:
-        game_state["start_time"] = time.time()
-    
+        game_state["start_time"] = now
+
+    # በየ 3 ሰከንዱ አውቶማቲክ ቁጥር ማውጫ
     if game_state["status"] == "running" and len(game_state["drawn_numbers"]) < 90:
-        new_num = random.randint(1, 90)
-        if new_num not in game_state["drawn_numbers"]:
+        if now - game_state["last_draw_time"] >= 3:
+            new_num = random.randint(1, 90)
+            while new_num in game_state["drawn_numbers"]:
+                new_num = random.randint(1, 90)
             game_state["drawn_numbers"].append(new_num)
-    return jsonify({"status": game_state["status"], "timer": int(remaining), "drawn": game_state["drawn_numbers"], "pot": game_state["pot"], "players_count": len(game_state["players"])})
+            game_state["last_draw_time"] = now
+
+    return jsonify({
+        "status": game_state["status"],
+        "timer": int(remaining),
+        "drawn": game_state["drawn_numbers"],
+        "pot": game_state["pot"],
+        "players_count": len(game_state["players"])
+    })
 
 @app.route('/user_data/<phone>')
 def user_data(phone):
     p = clean_phone(phone)
-    return jsonify({"balance": user_wallets.get(p, 0.0), "is_joined": p in game_state["players"]})
+    ticket = game_state["players"].get(p, {}).get("ticket", null) if p in game_state["players"] else None
+    return jsonify({"balance": user_wallets.get(p, 0.0), "is_joined": p in game_state["players"], "ticket": ticket})
 
 @app.route('/join_game', methods=['POST'])
 def join_game():
@@ -119,16 +102,61 @@ def join_game():
     if p not in game_state["players"]:
         user_wallets[p] -= 10
         save_data()
-        game_state["players"][p] = request.json.get("name", "Player")
+        ticket = generate_ticket()
+        game_state["players"][p] = {"name": request.json.get("name", "Player"), "ticket": ticket}
         game_state["pot"] += 10
-        return jsonify({"success": True})
-    return jsonify({"success": False})
+        return jsonify({"success": True, "ticket": ticket})
+    return jsonify({"success": False, "msg": "ገብተዋል!"})
 
-# --- 6. RUN SERVER ---
+@app.route('/win', methods=['POST'])
+def win():
+    p = clean_phone(request.json.get("phone"))
+    player_data = game_state["players"].get(p)
+    if not player_data: return jsonify({"success": False, "msg": "ተጫዋቹ አልተገኘም!"})
+
+    ticket = player_data["ticket"]
+    drawn = game_state["drawn_numbers"]
+    
+    # ❌ ማጭበርበር መከላከያ፡ የሰርቨር ማረጋገጫ
+    is_legit = False
+    for row in ticket:
+        if all(num in drawn for num in row): # አንድ ረድፍ ሙሉ በሙሉ መውጣቱን ቼክ ያደርጋል
+            is_legit = True
+            break
+    
+    if is_legit:
+        prize = game_state["pot"] * 0.80
+        user_wallets[p] = user_wallets.get(p, 0) + prize
+        save_data()
+        name = player_data["name"]
+        game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0})
+        return jsonify({"success": True, "winner": name, "prize": prize})
+    return jsonify({"success": False, "msg": "ገና አልጨረሱም! ቁጥሮቹን ይከታተሉ።"})
+
+# --- 4. TELEGRAM BOT ---
+@dp.message(Command("start"))
+async def cmd_start(m: types.Message):
+    url = WEB_APP_URL if WEB_APP_URL.endswith("/") else f"{WEB_APP_URL}/"
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="🎮 Play Tombola", web_app=WebAppInfo(url=url)))
+    kb.row(InlineKeyboardButton(text="💰 Deposit", callback_data="dep"))
+    await m.answer(f"ሰላም {m.from_user.first_name}! እንኳን ደህና መጡ።", reply_markup=kb.as_markup())
+
+@dp.message(Command("add_credit"))
+async def add_c(m: types.Message):
+    if m.from_user.id != ADMIN_ID: return
+    try:
+        _, p, amt = m.text.split()
+        p = clean_phone(p); user_wallets[p] = user_wallets.get(p, 0) + float(amt)
+        save_data(); await m.answer(f"✅ ተሞልቷል። አሁን ባላንስ: {user_wallets[p]}")
+    except: await m.answer("አጠቃቀም: /add_credit 09... 50")
+
+@dp.callback_query(F.data == "dep")
+async def dep(c: types.CallbackQuery):
+    await c.message.answer(f"📱 Telebirr: `{TELEBIRR_PHONE}`\n🏦 CBE: `{CBEBIRR_PHONE}`\n👤 ስም: {ADMIN_NAME}", parse_mode="Markdown")
+
 async def main():
-    port = int(os.environ.get("PORT", 10000))
-    Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == "__main__": asyncio.run(main())
