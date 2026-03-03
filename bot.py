@@ -15,7 +15,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL") 
 ADMIN_ID = 7956330391 
-OWNER_PHONE = "0911223344" # <--- ኮሚሽኑ የሚገባበት ያንቺ ስልክ ቁጥር
+OWNER_PHONE = "0945880474" # <--- ኮሚሽኑ የሚገባበት ያንቺ ስልክ ቁጥር
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -147,3 +147,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
