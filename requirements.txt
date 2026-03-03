@@ -1,7 +1,4 @@
-aiogram>=3.0.0
 flask
-Pillow
-imagehash
-gunicorn
+aiogram
 pymongo
 dnspython
