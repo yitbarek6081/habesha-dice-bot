@@ -13,33 +13,33 @@ from pymongo import MongoClient
 # --- 1. CONFIGURATION ---
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
-MONGO_URL = os.getenv("MONGO_URL") 
+MONGO_URL = os.getenv("MONGO_URL")
 ADMIN_ID = 7956330391 
-OWNER_PHONE = "0945880474" # <--- ኮሚሽኑ የሚገባበት ያንቺ ስልክ ቁጥር
+OWNER_PHONE = "0945880474" # <--- ያንተ ስልክ
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 app = Flask(__name__)
 
 # --- 2. MONGODB SETUP ---
+# የ URI ስህተትን ለመከላከል እዚህ ጋር ምንም ለውጥ አታድርግ
 client = MongoClient(MONGO_URL)
 db = client['tombola_game']
 wallets = db['wallets']
 
 def get_balance(phone):
-    user = wallets.find_one({"phone": phone})
+    user = wallets.find_one({"phone": str(phone)})
     return user['balance'] if user else 0.0
 
 def update_balance(phone, amount):
-    wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}}, upsert=True)
+    wallets.update_one({"phone": str(phone)}, {"$inc": {"balance": amount}}, upsert=True)
 
 # --- 3. GAME STATE ---
 game_state = {"status": "lobby", "start_time": time.time(), "drawn_numbers": [], "players": {}, "pot": 0, "last_draw_time": 0, "winner_name": None}
 
-# --- 4. FLASK ROUTES ---
+# --- 4. FLASK API ---
 @app.route('/')
-def index():
-    return render_template('index.html')
+def index(): return render_template('index.html')
 
 @app.route('/get_status')
 def get_status():
@@ -48,49 +48,33 @@ def get_status():
         remaining = 20 - int((now - game_state["start_time"]) % 20)
         if remaining <= 1 and len(game_state["players"]) >= 2:
             game_state.update({"status": "running", "drawn_numbers": [], "last_draw_time": now, "winner_name": None})
-    else:
-        remaining = 0
+    else: remaining = 0
 
     if game_state["status"] == "running" and not game_state["winner_name"]:
         if now - game_state["last_draw_time"] >= 4 and len(game_state["drawn_numbers"]) < 90:
             new_num = random.randint(1, 90)
-            while new_num in game_state["drawn_numbers"]:
-                new_num = random.randint(1, 90)
+            while new_num in game_state["drawn_numbers"]: new_num = random.randint(1, 90)
             game_state["drawn_numbers"].append(new_num)
             game_state["last_draw_time"] = now
-
-    return jsonify({
-        "status": game_state["status"],
-        "timer": int(remaining),
-        "drawn_numbers": game_state["drawn_numbers"],
-        "pot": game_state["pot"],
-        "players_count": len(game_state["players"]),
-        "winner": game_state["winner_name"]
-    })
+    return jsonify({**game_state, "timer": int(remaining), "players_count": len(game_state["players"])})
 
 @app.route('/user_data/<phone>')
 def user_data(phone):
-    player = game_state["players"].get(phone)
-    return jsonify({
-        "balance": get_balance(phone),
-        "is_joined": phone in game_state["players"],
-        "ticket": player["ticket"] if player else None
-    })
+    player = game_state["players"].get(str(phone))
+    return jsonify({"balance": get_balance(phone), "is_joined": str(phone) in game_state["players"], "ticket": player["ticket"] if player else None})
 
 @app.route('/request_action', methods=['POST'])
 async def request_action():
     data = request.json
-    msg = f"🔔 **አዲስ ጥያቄ!**\n👤 ተጠቃሚ: `{data['phone']}`\n📝 አይነት: **{data['type'].upper()}**\n💰 መጠን: {data['amount']} ETB"
-    await bot.send_message(ADMIN_ID, msg, parse_mode="Markdown")
+    msg = f"🔔 **ጥያቄ!**\n👤 ስልክ: `{data['phone']}`\n📝 አይነት: {data['type']}\n💰 መጠን: {data['amount']}"
+    await bot.send_message(ADMIN_ID, msg)
     return jsonify({"success": True})
 
 @app.route('/join_game', methods=['POST'])
 def join_game():
     data = request.json
-    phone = data.get("phone")
-    if get_balance(phone) < 10 or game_state["status"] != "lobby":
-        return jsonify({"success": False, "msg": "Balance low or game started!"})
-    
+    phone = str(data.get("phone"))
+    if get_balance(phone) < 10 or game_state["status"] != "lobby": return jsonify({"success": False})
     update_balance(phone, -10)
     all_nums = random.sample(range(1, 91), 15)
     ticket = [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
@@ -100,51 +84,36 @@ def join_game():
 
 @app.route('/win', methods=['POST'])
 def win():
-    phone = request.json.get("phone")
+    phone = str(request.json.get("phone"))
     player = game_state["players"].get(phone)
-    if not player or game_state["winner_name"]:
-        return jsonify({"success": False})
-
+    if not player or game_state["winner_name"]: return jsonify({"success": False})
     is_legit = any(all(n in game_state["drawn_numbers"] for n in row) for row in player["ticket"])
     if is_legit:
-        prize, commission = game_state["pot"] * 0.80, game_state["pot"] * 0.20
-        update_balance(phone, prize)
-        update_balance(OWNER_PHONE, commission)
+        prize, comm = game_state["pot"] * 0.8, game_state["pot"] * 0.2
+        update_balance(phone, prize); update_balance(OWNER_PHONE, comm)
         game_state["winner_name"] = player["name"]
-        
-        def reset_game():
-            time.sleep(7)
-            game_state.update({"status": "lobby", "start_time": time.time(), "drawn_numbers": [], "players": {}, "pot": 0, "winner_name": None})
-        Thread(target=reset_game).start()
-        return jsonify({"success": True, "prize": prize})
+        Thread(target=lambda: (time.sleep(7), game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0, "winner_name":None}))).start()
+        return jsonify({"success": True})
     return jsonify({"success": False})
 
-# --- 5. TELEGRAM HANDLERS ---
-@dp.message(Command("start"))
-async def cmd_start(m: types.Message):
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🎮 ቶምቦላ ይጫወቱ", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await m.answer(f"ሰላም {m.from_user.first_name}!", reply_markup=kb.as_markup())
-
-@dp.message(Command("add_credit"))
-async def add_c(m: types.Message):
-    if m.from_user.id != ADMIN_ID: return
-    try:
-        parts = m.text.split()
-        p, amt = parts[1], float(parts[2])
-        update_balance(p, amt)
-        await m.answer(f"✅ ተሞልቷል! {p} ባላንስ: {get_balance(p)} ETB")
-    except: await m.answer("Usage: /add_credit 09... 100")
-
-# --- 6. RUNNER (RENDER FIX) ---
+# --- 5. RUNNER (RENDER PORT FIX) ---
 async def main():
     port = int(os.environ.get("PORT", 10000))
-    def run_flask():
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-    
-    Thread(target=run_flask, daemon=True).start()
+    def run_f(): app.run(host='0.0.0.0', port=port)
+    Thread(target=run_f, daemon=True).start()
     await asyncio.sleep(2)
     await dp.start_polling(bot)
 
+@dp.message(Command("start"))
+async def start(m: types.Message):
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🎮 Play Tombola", web_app=WebAppInfo(url=WEB_APP_URL)))
+    await m.answer("እንኳን መጡ!", reply_markup=kb.as_markup())
+
+@dp.message(Command("add_credit"))
+async def add(m: types.Message):
+    if m.from_user.id == ADMIN_ID:
+        p, a = m.text.split()[1], float(m.text.split()[2])
+        update_balance(p, a); await m.answer("ተሞልቷል!")
+
 if __name__ == "__main__":
     asyncio.run(main())
-
