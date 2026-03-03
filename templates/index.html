@@ -5,33 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * { transition: none !important; animation: none !important; }
-        body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 5px; }
-        .header { display: grid; grid-template-columns: repeat(3, 1fr); background: #1e293b; padding: 10px; border-bottom: 2px solid #f1c40f; }
-        .p-info { background: #334155; padding: 8px; font-weight: bold; color: #f1c40f; }
-        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: #1e293b; margin: 5px 0; }
+        body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 0; }
+        .header { background: #1e293b; padding: 15px; border-bottom: 3px solid #f1c40f; display: flex; justify-content: space-around; font-weight: bold; }
+        .wallet-bar { background: #334155; padding: 10px; display: flex; justify-content: center; gap: 10px; }
+        .btn-action { padding: 8px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-dep { background: #22c55e; } .btn-with { background: #3b82f6; }
+        .p-info { background: #1e293b; padding: 10px; color: #f1c40f; font-weight: bold; }
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: #1e293b; }
         .b-cell { font-size: 0.7rem; padding: 5px 0; background: #334155; border-radius: 2px; color: #94a3b8; }
         .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
-        #ticket-area { display: none; margin-top: 10px; padding: 10px; background: #1e293b; border-radius: 4px; }
+        #ticket-area { display: none; margin: 10px; padding: 10px; background: #1e293b; border-radius: 8px; border: 1px solid #475569; }
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 5px; }
-        .t-cell { background: white; color: black; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3rem; border-radius: 4px; }
+        .t-cell { background: white; color: black; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3rem; border-radius: 5px; }
         .t-cell.marked { background: #22c55e !important; color: white; }
-        .btn-win { background: #f1c40f; color: black; border: none; padding: 15px; border-radius: 5px; width: 100%; font-weight: bold; font-size: 1.2rem; margin-top: 10px; display: none; }
-        .btn-join { background: #f1c40f; color: black; border: none; padding: 15px 40px; border-radius: 5px; font-weight: bold; width: 85%; margin: 20px 0; font-size: 1.1rem; }
+        .btn-main { background: #f1c40f; color: black; border: none; padding: 15px; border-radius: 8px; width: 90%; font-weight: bold; font-size: 1.1rem; margin: 10px 0; }
     </style>
 </head>
 <body>
-    <div class="header"><div id="bal">0.00</div><div id="pot">POT: 0</div><div id="tmr">20s</div></div>
+    <div class="header">
+        <div id="bal">0.00 ETB</div>
+        <div id="pot">POT: 0</div>
+        <div id="tmr">20s</div>
+    </div>
+    <div class="wallet-bar">
+        <button class="btn-action btn-dep" onclick="action('deposit')">DEPOSIT</button>
+        <button class="btn-action btn-with" onclick="action('withdraw')">WITHDRAW</button>
+    </div>
     <div class="p-info" id="p-count">👤 ተጫዋቾች: 0</div>
-    <div id="join-box"><button onclick="join()" class="btn-join">JOIN (10 ETB)</button></div>
+    <div id="join-box"><button onclick="join()" class="btn-main">JOIN GAME (10 ETB)</button></div>
     <div class="board" id="brd"></div>
-    <div id="ticket-area"><div id="t-container"></div><button id="win-btn" onclick="claimWin()" class="btn-win">WIN 🏆</button></div>
+    <div id="ticket-area">
+        <div id="t-container"></div>
+        <button id="win-btn" onclick="claimWin()" class="btn-main" style="display:none; background:#22c55e; color:white;">WIN 🏆</button>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        let phone = localStorage.getItem('user_phone');
+        let phone = localStorage.getItem('u_phone');
         let myTicket = null; let drawnNumbers = [];
-        if(!phone) { phone = prompt("ስልክ ያስገቡ:"); if(phone) localStorage.setItem('user_phone', phone.trim()); }
+        if(!phone) { phone = prompt("ስልክ ያስገቡ:"); if(phone) localStorage.setItem('u_phone', phone.trim()); }
 
         for(let i=1; i<=90; i++) document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
@@ -52,7 +64,7 @@
                     drawnNumbers.forEach(n => {
                         document.getElementById(`b-${n}`).classList.add('drawn');
                         let tCell = document.getElementById(`cell-${n}`);
-                        if(tCell) tCell.classList.add('marked'); // Auto-mark
+                        if(tCell) tCell.classList.add('marked');
                     });
                     document.getElementById('join-box').style.display = 'none';
                 }
@@ -68,6 +80,15 @@
                 });
             }
         }
+
+        function action(type) {
+            let amt = prompt(type === 'deposit' ? "ምን ያህል ማስገባት ይፈልጋሉ?" : "ምን ያህል ማውጣት ይፈልጋሉ?");
+            if(amt) {
+                fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type, phone, amount:amt})})
+                .then(() => alert("ጥያቄዎ ተልኳል! አስተዳዳሪው ያረጋግጥልዎታል።"));
+            }
+        }
+
         function renderTicket() {
             document.getElementById('t-container').innerHTML = myTicket.map(row => `
                 <div class="t-row">${row.map(n => `<div class="t-cell" id="cell-${n}">${n}</div>`).join('')}</div>
