@@ -196,4 +196,187 @@
             padding: 30px; 
             width: 80%; 
             border-radius: 25px; 
-            border: 2
+            border: 2px solid var(--gold); 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="stat-box">
+            <span class="label">Balance</span>
+            <span id="bal" class="value">0.00 ETB</span>
+        </div>
+        <div class="stat-box">
+            <span id="timer-label" class="label">⌛ Timer</span>
+            <span id="tmr" class="value">20s</span>
+        </div>
+        <div class="stat-box">
+            <span class="label">Reward</span>
+            <span id="pot" class="value">0 ETB</span>
+        </div>
+    </div>
+
+    <div class="draw-zone">
+        <div id="active-num" class="big-num">?</div>
+    </div>
+
+    <div class="btn-group">
+        <button onclick="showPay()" class="btn-action" style="background: var(--neon-green);">💰 DEPOSIT</button>
+        <button onclick="requestWithdraw()" class="btn-action" style="background: #3b82f6;">💸 WITHDRAW</button>
+    </div>
+
+    <div id="p-count" style="color: var(--gold); font-weight: bold; margin-bottom: 5px;">👤 ተጫዋቾች: 0</div>
+
+    <div id="join-box">
+        <button onclick="joinGame()" class="btn-giant">JOIN GAME (10 ETB)</button>
+    </div>
+
+    <div id="brd" class="board"></div>
+
+    <div id="ticket-area" class="ticket-card" style="display:none">
+        <h3 style="margin-top:0; color:var(--gold);">የእርስዎ ቲኬት (ቁጥሮቹን ይንኩ)</h3>
+        <div id="t-container"></div>
+        <button id="win-btn" onclick="claimWin()" class="btn-giant" style="background: var(--neon-green); box-shadow: 0 6px 0 #14532d; display: none;">BINGO! 🏆</button>
+    </div>
+
+    <div id="payModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color: var(--gold); margin-top: 0;">ገንዘብ ያስገቡ</h2>
+            <button onclick="sendPay('CBE')" style="background: #5d2d91; color: white; width: 100%; padding: 15px; margin: 8px 0; border: none; border-radius: 12px; font-weight: bold;">CBE Birr</button>
+            <button onclick="sendPay('Tele')" style="background: #ed1c24; color: white; width: 100%; padding: 15px; margin: 8px 0; border: none; border-radius: 12px; font-weight: bold;">Telebirr</button>
+            <p onclick="closePay()" style="cursor: pointer; color: var(--text-slate); margin-top: 15px; font-weight: bold;">ዝጋ</p>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        let phone = localStorage.getItem('u_phone');
+        let myTicket = null;
+        let drawnNumbers = [];
+
+        if(!phone) {
+            phone = prompt("ለመጫወት ስልክ ቁጥርዎን ያስገቡ:");
+            if(phone) localStorage.setItem('u_phone', phone.trim());
+        }
+
+        // Initialize Board
+        for(let i=1; i<=90; i++) {
+            document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
+        }
+
+        function update() {
+            fetch('/get_status').then(r => r.json()).then(d => {
+                document.getElementById('p-count').innerText = d.winner ? "🏆 Winner: " + d.winner : "👤 ተጫዋቾች: " + d.players_count;
+                document.getElementById('pot').innerText = d.pot + " ETB";
+                
+                if(d.status === "lobby") {
+                    document.getElementById('tmr').innerText = d.timer + "s";
+                    document.getElementById('timer-label').innerText = "⌛ Timer";
+                    document.getElementById('active-num').innerText = "?";
+                    document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
+                    document.getElementById('join-box').style.display = 'block';
+                    document.getElementById('ticket-area').style.display = 'none';
+                    myTicket = null;
+                } else {
+                    document.getElementById('tmr').innerText = "LIVE";
+                    document.getElementById('timer-label').innerText = "🔴 Status";
+                    document.getElementById('join-box').style.display = 'none';
+                    
+                    drawnNumbers = d.drawn_numbers;
+                    if(drawnNumbers.length > 0) {
+                        let last = drawnNumbers[drawnNumbers.length - 1];
+                        let box = document.getElementById('active-num');
+                        if(box.innerText != last) {
+                            box.innerText = last;
+                            document.getElementById(`b-${last}`).classList.add('drawn');
+                            tg.HapticFeedback.impactOccurred('medium');
+                        }
+                    }
+                }
+            });
+
+            if(phone && !myTicket) {
+                fetch('/user_data/' + phone).then(r => r.json()).then(d => {
+                    document.getElementById('bal').innerText = d.balance.toFixed(2) + " ETB";
+                    if(d.is_joined) {
+                        myTicket = d.ticket;
+                        document.getElementById('ticket-area').style.display = 'block';
+                        document.getElementById('win-btn').style.display = 'block';
+                        renderTicket();
+                    }
+                });
+            }
+        }
+
+        function renderTicket() {
+            document.getElementById('t-container').innerHTML = myTicket.map(row => `
+                <div class="t-row">${row.map(n => `<div class="t-cell" id="c-${n}" onclick="userMark(${n})">${n}</div>`).join('')}</div>
+            `).join('');
+        }
+
+        function userMark(n) {
+            if(drawnNumbers.includes(n)) {
+                let el = document.getElementById(`c-${n}`);
+                if(!el.classList.contains('marked')) {
+                    el.classList.add('marked');
+                    tg.HapticFeedback.impactOccurred('light');
+                }
+            } else {
+                tg.HapticFeedback.notificationOccurred('error');
+                alert("ይህ ቁጥር ገና አልወጣም!");
+            }
+        }
+
+        function claimWin() {
+            let marked = document.querySelectorAll('.t-cell.marked').length;
+            if(marked < 15) { alert("ሁሉንም 15 ቁጥሮች መንካት አለብዎት!"); return; }
+            
+            fetch('/win', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({phone})
+            }).then(r => r.json()).then(d => {
+                if(d.success) alert("BINGO! 🏆 አሸንፈዋል!");
+                else alert("ገና ነዎት፣ በትክክል ያብሩ!");
+            });
+        }
+
+        function showPay() { document.getElementById('payModal').style.display = "block"; }
+        function closePay() { document.getElementById('payModal').style.display = "none"; }
+        
+        function sendPay(method) {
+            let amt = prompt(method + " ያስገቡት የብር መጠን:");
+            if(amt) {
+                fetch('/request_action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({type: method, phone, amount: amt})
+                });
+                alert("ጥያቄዎ ተልኳል!"); closePay();
+            }
+        }
+
+        function requestWithdraw() {
+            let amt = prompt("የሚወጣው የብር መጠን:");
+            if(amt) fetch('/request_action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: 'Withdraw', phone, amount: amt})
+            });
+        }
+
+        function joinGame() {
+            fetch('/join_game', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})
+            }).then(() => update());
+        }
+
+        setInterval(update, 1000);
+        tg.expand();
+        tg.ready();
+    </script>
+</body>
+</html>
