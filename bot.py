@@ -1,7 +1,10 @@
-import os, asyncio, random, time, json
-from flask import Flask, render_template, jsonify, request
+import os
+import asyncio
+import random
+import time
 from threading import Thread
-from aiogram import Bot, Dispatcher, types, F
+from flask import Flask, render_template, jsonify, request
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import WebAppInfo, InlineKeyboardButton
@@ -11,7 +14,8 @@ from pymongo import MongoClient
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL") 
-ADMIN_ID = 7956330391 # የእርስዎ ቴሌግራም ID
+ADMIN_ID = 7956330391 
+OWNER_PHONE = "0911223344" # <--- ኮሚሽኑ የሚገባበት ያንተ ስልክ ቁጥር
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -33,6 +37,7 @@ def update_balance(phone, amount):
         upsert=True
     )
 
+# --- 3. GAME STATE ---
 game_state = {
     "status": "lobby",
     "start_time": time.time(),
@@ -43,42 +48,58 @@ game_state = {
     "winner_name": None
 }
 
-# --- 3. FLASK API ---
+# --- 4. FLASK ROUTES (API) ---
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 
 @app.route('/get_status')
 def get_status():
     now = time.time()
     if game_state["status"] == "lobby":
         remaining = 20 - int((now - game_state["start_time"]) % 20)
-        if remaining == 1 and len(game_state["players"]) >= 2:
-            game_state["status"] = "running"
-            game_state["drawn_numbers"] = []
-            game_state["last_draw_time"] = now
-    else: remaining = 0
+        # ቢያንስ 2 ተጫዋች ሲኖር ጨዋታው ይጀምራል
+        if remaining <= 1 and len(game_state["players"]) >= 2:
+            game_state.update({
+                "status": "running",
+                "drawn_numbers": [],
+                "last_draw_time": now,
+                "winner_name": None
+            })
+    else:
+        remaining = 0
 
+    # ቁጥሮችን በየ 4 ሰከንዱ ማውጣት
     if game_state["status"] == "running" and not game_state["winner_name"]:
         if now - game_state["last_draw_time"] >= 4 and len(game_state["drawn_numbers"]) < 90:
             new_num = random.randint(1, 90)
-            while new_num in game_state["drawn_numbers"]: new_num = random.randint(1, 90)
+            while new_num in game_state["drawn_numbers"]:
+                new_num = random.randint(1, 90)
             game_state["drawn_numbers"].append(new_num)
             game_state["last_draw_time"] = now
-    return jsonify({"status": game_state["status"], "timer": int(remaining), "drawn": game_state["drawn_numbers"], "pot": game_state["pot"], "players_count": len(game_state["players"]), "winner": game_state["winner_name"]})
+
+    return jsonify({
+        "status": game_state["status"],
+        "timer": int(remaining),
+        "drawn_numbers": game_state["drawn_numbers"],
+        "pot": game_state["pot"],
+        "players_count": len(game_state["players"]),
+        "winner": game_state["winner_name"]
+    })
 
 @app.route('/user_data/<phone>')
 def user_data(phone):
     player = game_state["players"].get(phone)
-    return jsonify({"balance": get_balance(phone), "is_joined": phone in game_state["players"], "ticket": player["ticket"] if player else None})
+    return jsonify({
+        "balance": get_balance(phone),
+        "is_joined": phone in game_state["players"],
+        "ticket": player["ticket"] if player else None
+    })
 
 @app.route('/request_action', methods=['POST'])
 async def request_action():
     data = request.json
-    action_type = data.get("type") # "deposit" ወይም "withdraw"
-    phone = data.get("phone")
-    amount = data.get("amount", "ያልተጠቀሰ")
-    
-    msg = f"🔔 **አዲስ ጥያቄ!**\n\n👤 ተጠቃሚ: `{phone}`\n📝 አይነት: **{action_type.upper()}**\n💰 መጠን: {amount} ETB"
+    msg = f"🔔 **አዲስ ጥያቄ!**\n\n👤 ተጠቃሚ: `{data['phone']}`\n📝 አይነት: **{data['type'].upper()}**\n💰 መጠን: {data['amount']} ETB"
     await bot.send_message(ADMIN_ID, msg, parse_mode="Markdown")
     return jsonify({"success": True})
 
@@ -86,52 +107,87 @@ async def request_action():
 def join_game():
     data = request.json
     phone = data.get("phone")
-    if get_balance(phone) < 10: return jsonify({"success": False, "msg": "ባላንስ የሎትም!"})
-    if phone not in game_state["players"] and game_state["status"] == "lobby":
-        update_balance(phone, -10)
-        all_nums = random.sample(range(1, 91), 15)
-        ticket = [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
-        game_state["players"][phone] = {"name": data.get("name", "Player"), "ticket": ticket}
-        game_state["pot"] += 10
-        return jsonify({"success": True})
-    return jsonify({"success": False})
+    if get_balance(phone) < 10 or game_state["status"] != "lobby":
+        return jsonify({"success": False, "msg": "ባላንስ የሎትም ወይም ጨዋታ ተጀምሯል!"})
+    
+    update_balance(phone, -10)
+    # 15 የቲኬት ቁጥሮችን መፍጠር
+    all_nums = random.sample(range(1, 91), 15)
+    ticket = [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
+    
+    game_state["players"][phone] = {
+        "name": data.get("name", "Player"),
+        "ticket": ticket
+    }
+    game_state["pot"] += 10
+    return jsonify({"success": True})
 
 @app.route('/win', methods=['POST'])
 def win():
     phone = request.json.get("phone")
     player = game_state["players"].get(phone)
-    if not player or game_state["winner_name"]: return jsonify({"success": False})
-    is_legit = any(all(num in game_state["drawn_numbers"] for num in row) for row in player["ticket"])
+    if not player or game_state["winner_name"]:
+        return jsonify({"success": False})
+
+    # አሸናፊውን ማረጋገጥ
+    is_legit = any(all(n in game_state["drawn_numbers"] for n in row) for row in player["ticket"])
+    
     if is_legit:
-        prize = game_state["pot"] * 0.85
+        total_pot = game_state["pot"]
+        prize = total_pot * 0.80  # 80% ለአሸናፊው
+        commission = total_pot * 0.20  # 20% ያንተ ትርፍ
+        
         update_balance(phone, prize)
+        update_balance(OWNER_PHONE, commission)
+        
         game_state["winner_name"] = player["name"]
-        Thread(target=lambda: (time.sleep(7), game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0, "winner_name":None}))).start()
+        
+        # ከ 7 ሰከንድ በኋላ ጨዋታውን ወደ lobby መመለስ
+        def reset_game():
+            time.sleep(7)
+            game_state.update({
+                "status": "lobby",
+                "start_time": time.time(),
+                "drawn_numbers": [],
+                "players": {},
+                "pot": 0,
+                "winner_name": None
+            })
+        Thread(target=reset_game).start()
+        
         return jsonify({"success": True, "prize": prize})
     return jsonify({"success": False})
 
-# --- 4. TELEGRAM HANDLERS ---
+# --- 5. TELEGRAM HANDLERS ---
 @dp.message(Command("start"))
 async def cmd_start(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="🎮 ቶምቦላ ይጫወቱ", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await m.answer(f"ሰላም {m.from_user.first_name}! ለመጫወት ከታች ያለውን ቁልፍ ይጫኑ።", reply_markup=kb.as_markup())
+    await m.answer(f"ሰላም {m.from_user.first_name}! እንኳን ደህና መጡ።", reply_markup=kb.as_markup())
 
 @dp.message(Command("add_credit"))
 async def add_c(m: types.Message):
-    if m.from_user.id != ADMIN_ID: return
+    if m.from_user.id != ADMIN_ID:
+        return
     try:
         parts = m.text.split()
         p, amt = parts[1], float(parts[2])
         update_balance(p, amt)
         await m.answer(f"✅ ተሞልቷል!\nስልክ: {p}\nባላንስ: {get_balance(p)} ETB")
-    except: await m.answer("አጠቃቀም: `/add_credit 09... 100`")
+    except:
+        await m.answer("አጠቃቀም: `/add_credit 0912345678 100`")
 
-# --- 5. RENDER PORT FIX ---
+# --- 6. RUNNER ---
 async def main():
     port = int(os.environ.get("PORT", 10000))
-    Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    # Flask በ Thread ውስጥ ማስጀመር
+    Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False), daemon=True).start()
+    
+    print(f"Server is running on port {port}...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
