@@ -3,120 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tombola Live</title>
+    <title>Premium Casino Tombola</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --primary: #f1c40f;
+            --gold: #f1c40f;
             --bg: #0f172a;
             --card: #1e293b;
-            --text: #f8fafc;
+            --neon-green: #2ecc71;
+            --neon-red: #e74c3c;
+            --text-slate: #94a3b8;
         }
 
         body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: 'Segoe UI', Roboto, sans-serif; 
+            background: radial-gradient(circle at top, #1e293b, #0f172a); 
+            color: #f8fafc; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
             text-align: center; 
             margin: 0; 
-            padding-bottom: 20px;
+            padding: 0;
+            overflow-x: hidden;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
 
         /* Header Section */
         .header { 
-            background: var(--card); 
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
             padding: 15px; 
-            border-bottom: 3px solid var(--primary); 
+            border-bottom: 2px solid var(--gold); 
             display: flex; 
             justify-content: space-around; 
-            font-weight: bold;
-            font-size: 1.1rem;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
             position: sticky;
             top: 0;
-            z-index: 50;
+            z-index: 100;
         }
 
-        /* Big Number Zoom Display */
-        #current-draw { 
-            height: 110px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            background: var(--card); 
-            margin: 15px; 
-            border-radius: 15px; 
-            border: 3px dashed var(--primary);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        .stat-box { display: flex; flex-direction: column; }
+        .label { font-size: 0.65rem; color: var(--text-slate); text-transform: uppercase; letter-spacing: 1px; }
+        .value { font-size: 1.1rem; font-weight: 800; color: var(--gold); }
+
+        /* Big Number Zone */
+        .draw-zone {
+            margin: 20px auto;
+            width: 120px;
+            height: 120px;
+            background: var(--card);
+            border: 4px solid var(--gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 30px rgba(241, 196, 15, 0.3);
+            position: relative;
         }
 
         .big-num { 
-            font-size: 4.5rem; 
+            font-size: 4rem; 
             font-weight: 900; 
-            color: var(--primary); 
-            text-shadow: 0 0 20px rgba(241, 196, 15, 0.4);
-            animation: zoomIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            color: var(--gold); 
+            text-shadow: 0 0 15px rgba(241, 196, 15, 0.5);
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
         }
 
-        @keyframes zoomIn { 
-            0% { transform: scale(0.2); opacity: 0; } 
+        @keyframes popIn { 
+            0% { transform: scale(0.3); opacity: 0; } 
             100% { transform: scale(1); opacity: 1; } 
         }
 
-        /* Wallet & Actions */
-        .action-bar {
-            padding: 10px;
+        /* Action Buttons */
+        .btn-group {
             display: flex;
             justify-content: center;
             gap: 12px;
-            background: rgba(30, 41, 59, 0.5);
+            margin: 15px;
         }
 
-        .btn-sm {
+        .btn-action {
             border: none;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
+            padding: 12px 22px;
+            border-radius: 12px;
             font-weight: bold;
             font-size: 0.9rem;
             cursor: pointer;
+            transition: 0.2s;
+            color: white;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
         }
 
-        /* Game Board (Small numbers) */
+        .btn-action:active { transform: translateY(2px); box-shadow: none; }
+
+        /* Board 1-90 */
         .board { 
             display: grid; 
             grid-template-columns: repeat(10, 1fr); 
-            gap: 3px; 
-            padding: 10px;
-            background: rgba(15, 23, 42, 0.8);
-            margin: 5px;
-            border-radius: 8px;
+            gap: 4px; 
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            margin: 10px;
+            border-radius: 15px;
         }
 
         .b-cell { 
-            font-size: 0.75rem; 
+            font-size: 0.7rem; 
             padding: 8px 0; 
-            background: var(--card); 
-            border-radius: 4px; 
+            background: #334155; 
+            border-radius: 5px; 
             color: #64748b;
+            font-weight: bold;
             transition: 0.3s;
         }
 
         .b-cell.drawn { 
-            background: #ef4444; 
+            background: linear-gradient(135deg, #ef4444, #991b1b); 
             color: white; 
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
             transform: scale(1.05);
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
         }
 
-        /* Player Ticket Section */
-        #ticket-area { 
-            margin: 15px; 
-            padding: 20px; 
-            background: var(--card); 
-            border-radius: 20px; 
-            border: 2px solid #334155;
+        /* Ticket Design */
+        .ticket-card {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            margin: 20px 12px;
+            padding: 20px;
+            border-radius: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
         .t-row { 
@@ -127,49 +142,51 @@
         }
 
         .t-cell { 
-            background: #f8fafc; 
+            background: #f1f5f9; 
             color: #1e293b; 
-            height: 55px; 
+            height: 60px; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            font-weight: 800; 
-            font-size: 1.5rem; 
-            border-radius: 12px; 
+            font-weight: 900; 
+            font-size: 1.6rem; 
+            border-radius: 15px; 
             cursor: pointer;
-            transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 5px 0 #cbd5e1;
+            transition: 0.1s;
         }
 
-        .t-cell.user-marked { 
-            background: #22c55e !important; 
-            color: white; 
-            transform: scale(0.92); 
-            box-shadow: inset 0 -4px 0 #16a34a; 
+        .t-cell.marked { 
+            background: linear-gradient(135deg, var(--neon-green), #16a34a) !important; 
+            color: white !important; 
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #14532d;
         }
 
-        /* Main Buttons */
-        .btn-main { 
-            background: var(--primary); 
+        /* Large Join/Bingo Button */
+        .btn-giant { 
+            background: linear-gradient(to bottom, var(--gold), #d4ac0d); 
             color: #000; 
-            border: none; 
-            padding: 18px; 
-            border-radius: 12px; 
             width: 90%; 
-            font-weight: 800; 
-            font-size: 1.25rem; 
-            margin: 15px 0;
-            box-shadow: 0 4px 0 #b5950a;
-            active: transform: translateY(2px);
+            padding: 20px; 
+            border-radius: 20px; 
+            font-size: 1.4rem; 
+            font-weight: 900; 
+            border: none; 
+            margin: 20px 0;
+            box-shadow: 0 6px 0 #9a7d0a;
+            cursor: pointer;
         }
 
-        /* Modal Design */
-        .modal { 
+        .btn-giant:active { transform: translateY(4px); box-shadow: 0 2px 0 #9a7d0a; }
+
+        /* Modal */
+        .modal-overlay { 
             display: none; 
             position: fixed; 
+            inset: 0; 
+            background: rgba(0,0,0,0.85); 
             z-index: 1000; 
-            left: 0; top: 0; 
-            width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.85);
             backdrop-filter: blur(5px);
         }
 
@@ -177,184 +194,6 @@
             background: var(--card); 
             margin: 25% auto; 
             padding: 30px; 
-            width: 85%; 
-            border-radius: 20px; 
-            border: 2px solid var(--primary); 
-        }
-
-        #p-count { color: var(--primary); font-size: 1.1rem; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div id="bal">0.00 ETB</div>
-        <div id="pot">POT: 0</div>
-        <div id="tmr">⌛ 20s</div>
-    </div>
-
-    <div id="current-draw">
-        <div class="big-num" id="active-num">?</div>
-    </div>
-
-    <div class="action-bar">
-        <button onclick="openM()" class="btn-sm" style="background:#22c55e">DEPOSIT</button>
-        <button onclick="action('Withdraw')" class="btn-sm" style="background:#3b82f6">WITHDRAW</button>
-    </div>
-
-    <div id="p-count">👤 ተጫዋቾች: 0</div>
-    
-    <div id="join-box">
-        <button onclick="join()" class="btn-main">JOIN (10 ETB)</button>
-    </div>
-
-    <div class="board" id="brd"></div>
-
-    <div id="ticket-area" style="display:none">
-        <p style="color: #94a3b8; font-weight: bold; margin-bottom: 15px;">የእርስዎ ቲኬት (የወጣውን ቁጥር ይንኩ)</p>
-        <div id="t-container"></div>
-        <button id="win-btn" onclick="claimWin()" class="btn-main" style="background:#22c55e; color:white; display:none; box-shadow: 0 4px 0 #15803d;">BINGO! 🏆</button>
-    </div>
-
-    <div id="payModal" class="modal">
-        <div class="modal-content">
-            <h3 style="color:var(--primary); margin-top:0;">የክፍያ አማራጭ</h3>
-            <button onclick="pay('CBE')" style="background:#5d2d91; color:white; width:100%; padding:15px; margin:8px 0; border:none; border-radius:10px; font-weight:bold">CBE Birr</button>
-            <button onclick="pay('Tele')" style="background:#ed1c24; color:white; width:100%; padding:15px; margin:8px 0; border:none; border-radius:10px; font-weight:bold">Telebirr</button>
-            <button onclick="closeM()" style="background:none; color:#94a3b8; border:none; margin-top:15px; font-weight:bold">ዝጋ</button>
-        </div>
-    </div>
-
-    <script>
-        const tg = window.Telegram.WebApp;
-        let phone = localStorage.getItem('u_phone');
-        let myTicket = null;
-        let drawnNumbers = [];
-
-        // ስልክ ቁጥር መጠየቅ
-        if(!phone) {
-            phone = prompt("ለመጫወት ስልክ ቁጥርዎን ያስገቡ:");
-            if(phone) localStorage.setItem('u_phone', phone.trim());
-        }
-
-        // ቦርዱን መፍጠር
-        for(let i=1; i<=90; i++) {
-            document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
-        }
-
-        function update() {
-            fetch('/get_status').then(r => r.json()).then(d => {
-                document.getElementById('p-count').innerText = d.winner ? "🏆 አሸናፊ: " + d.winner : "👤 ተጫዋቾች: " + d.players_count;
-                document.getElementById('pot').innerText = "POT: " + d.pot;
-                document.getElementById('tmr').innerText = d.status === "lobby" ? "⌛ " + d.timer + "s" : "🔴 LIVE";
-                
-                if(d.status === "running") {
-                    drawnNumbers = d.drawn_numbers;
-                    if(drawnNumbers.length > 0) {
-                        let lastNum = drawnNumbers[drawnNumbers.length - 1];
-                        let activeBox = document.getElementById('active-num');
-                        if(activeBox.innerText != lastNum) {
-                            activeBox.innerText = lastNum;
-                            // ትንሿ ቦርድ ላይ ማብራት
-                            document.getElementById(`b-${lastNum}`).classList.add('drawn');
-                        }
-                    }
-                    document.getElementById('join-box').style.display = 'none';
-                } else {
-                    document.getElementById('active-num').innerText = "?";
-                    document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
-                    document.getElementById('join-box').style.display = 'block';
-                    document.getElementById('ticket-area').style.display = 'none';
-                    myTicket = null;
-                }
-            });
-
-            if(phone && !myTicket) {
-                fetch('/user_data/' + phone).then(r => r.json()).then(d => {
-                    document.getElementById('bal').innerText = d.balance.toFixed(2) + " ETB";
-                    if(d.is_joined) {
-                        myTicket = d.ticket;
-                        document.getElementById('ticket-area').style.display = 'block';
-                        document.getElementById('win-btn').style.display = 'block';
-                        renderTicket();
-                    }
-                });
-            }
-        }
-
-        function renderTicket() {
-            document.getElementById('t-container').innerHTML = myTicket.map(row => `
-                <div class="t-row">
-                    ${row.map(n => `<div class="t-cell" id="c-${n}" onclick="userMark(${n})">${n}</div>`).join('')}
-                </div>
-            `).join('');
-        }
-
-        // በእጅ ለመንካት
-        function userMark(num) {
-            if(drawnNumbers.includes(num)) {
-                let cell = document.getElementById(`c-${num}`);
-                if(!cell.classList.contains('user-marked')) {
-                    cell.classList.add('user-marked');
-                    tg.HapticFeedback.impactOccurred('medium'); // ንዝረት
-                }
-            } else {
-                tg.HapticFeedback.notificationOccurred('error');
-                alert("ይህ ቁጥር ገና አልወጣም!");
-            }
-        }
-
-        function claimWin() {
-            let markedCount = document.querySelectorAll('.t-cell.user-marked').length;
-            if(markedCount < 15) {
-                alert("ሁሉንም 15 ቁጥሮች በእጅዎ መንካት አለብዎት!");
-                return;
-            }
-            fetch('/win', {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({phone})
-            }).then(r => r.json()).then(d => {
-                if(d.success) alert("እንኳን ደስ አለዎት! አሸንፈዋል!");
-                else alert("አሸናፊ አይደሉም፣ በትክክል ያብሩ!");
-            });
-        }
-
-        function openM() { document.getElementById('payModal').style.display="block"; }
-        function closeM() { document.getElementById('payModal').style.display="none"; }
-        
-        function pay(method) {
-            let amt = prompt(method + " የሚገቡበትን የገንዘብ መጠን ያስገቡ:");
-            if(amt) {
-                fetch('/request_action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({type: method, phone, amount: amt})
-                });
-                closeM();
-                alert("ጥያቄዎ ተልኳል፣ Admin እስኪያረጋግጥ ይጠብቁ።");
-            }
-        }
-
-        function action(type) {
-            let amt = prompt("የሚወጣውን የገንዘብ መጠን ያስገቡ:");
-            if(amt) fetch('/request_action', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({type: type, phone, amount: amt})
-            });
-        }
-
-        function join() {
-            fetch('/join_game', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})
-            }).then(() => update());
-        }
-
-        setInterval(update, 1000);
-        tg.expand();
-        tg.ready();
-    </script>
-</body>
-</html>
+            width: 80%; 
+            border-radius: 25px; 
+            border: 2
