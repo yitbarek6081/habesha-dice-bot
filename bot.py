@@ -14,7 +14,7 @@ from pymongo import MongoClient
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL")
-ADMIN_ID = 123456789  # <--- ያንተን የቴሌግራም ID እዚህ ይተኩ
+ADMIN_ID = 7956330391  # <--- ያንተን የቴሌግራም ID እዚህ ይተኩ
 PORT = int(os.environ.get("PORT", 10000))
 
 app = Flask(__name__)
@@ -84,3 +84,4 @@ async def start(m: types.Message):
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=PORT), daemon=True).start()
     asyncio.run(dp.start_polling(bot))
+
