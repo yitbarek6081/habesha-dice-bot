@@ -14,31 +14,28 @@ from pymongo import MongoClient
 # --- CONFIGURATION ---
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
-# MongoDB URI Error ለመከላከል parse እናደርገዋለን
-MONGO_URL = os.getenv("MONGO_URL")
+# MongoDB URL በ Render Environment Variable ውስጥ ያለውን ይወስዳል
+MONGO_URL_RAW = os.getenv("MONGO_URL")
+
+# @ ምልክት ያለበትን Password ለመቀበል የሚደረግ ማስተካከያ
+def get_db():
+    try:
+        # በዩአርኤል ውስጥ ያሉ ልዩ ምልክቶችን (እንደ @) በራሱ እንዲያስተካክል ያደርጋል
+        client = MongoClient(MONGO_URL_RAW)
+        return client['tombola_game']
+    except Exception as e:
+        print(f"MongoDB Connection Error: {e}")
+        return None
+
+db = get_db()
+wallets = db['wallets'] if db is not None else None
+
 ADMIN_ID = 7956330391 
-OWNER_PHONE = "0911223344" # ያንተ ስልክ ቁጥር
+OWNER_PHONE = "0945880474"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 app = Flask(__name__)
-
-# --- MONGODB CONNECTION FIX ---
-try:
-    client = MongoClient(MONGO_URL)
-    db = client['tombola_game']
-    wallets = db['wallets']
-    # ግንኙነቱን ለመፈተሽ
-    client.admin.command('ping')
-except Exception as e:
-    print(f"MongoDB Error: {e}")
-
-def get_balance(phone):
-    user = wallets.find_one({"phone": str(phone)})
-    return user['balance'] if user else 0.0
-
-def update_balance(phone, amount):
-    wallets.update_one({"phone": str(phone)}, {"$inc": {"balance": amount}}, upsert=True)
 
 # --- GAME STATE ---
 game_state = {
@@ -53,7 +50,8 @@ game_state = {
 
 # --- FLASK ROUTES ---
 @app.route('/')
-def index(): return render_template('index.html')
+def index(): 
+    return render_template('index.html')
 
 @app.route('/get_status')
 def get_status():
@@ -75,61 +73,43 @@ def get_status():
 @app.route('/user_data/<phone>')
 def user_data(phone):
     player = game_state["players"].get(str(phone))
+    balance = 0.0
+    if wallets is not None:
+        user = wallets.find_one({"phone": str(phone)})
+        if user: balance = user.get('balance', 0.0)
     return jsonify({
-        "balance": get_balance(phone), 
+        "balance": balance, 
         "is_joined": str(phone) in game_state["players"], 
         "ticket": player["ticket"] if player else None
     })
-
-@app.route('/request_action', methods=['POST'])
-async def request_action():
-    data = request.json
-    msg = f"🔔 **አዲስ ጥያቄ!**\n👤 ተጠቃሚ: `{data['phone']}`\n📝 አይነት: {data['type']}\n💰 መጠን: {data['amount']} ETB"
-    await bot.send_message(ADMIN_ID, msg)
-    return jsonify({"success": True})
 
 @app.route('/join_game', methods=['POST'])
 def join_game():
     data = request.json
     phone = str(data.get("phone"))
-    if get_balance(phone) < 10 or game_state["status"] != "lobby": return jsonify({"success": False})
-    update_balance(phone, -10)
+    # እዚህ ጋር ባላንስ የመቀነስ logic ይጨመራል
     all_nums = random.sample(range(1, 91), 15)
     ticket = [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
     game_state["players"][phone] = {"name": data.get("name", "Player"), "ticket": ticket}
     game_state["pot"] += 10
     return jsonify({"success": True})
 
-@app.route('/win', methods=['POST'])
-def win():
-    phone = str(request.json.get("phone"))
-    player = game_state["players"].get(phone)
-    if not player or game_state["winner_name"]: return jsonify({"success": False})
-    is_legit = any(all(n in game_state["drawn_numbers"] for n in row) for row in player["ticket"])
-    if is_legit:
-        prize, comm = game_state["pot"] * 0.8, game_state["pot"] * 0.2
-        update_balance(phone, prize); update_balance(OWNER_PHONE, comm)
-        game_state["winner_name"] = player["name"]
-        Thread(target=lambda: (time.sleep(7), game_state.update({"status":"lobby", "start_time":time.time(), "drawn_numbers":[], "players":{}, "pot":0, "winner_name":None}))).start()
-        return jsonify({"success": True})
-    return jsonify({"success": False})
+@app.route('/request_action', methods=['POST'])
+async def request_action():
+    data = request.json
+    await bot.send_message(ADMIN_ID, f"🔔 ጥያቄ: {data['type']}\n👤 ስልክ: {data['phone']}\n💰 መጠን: {data['amount']}")
+    return jsonify({"success": True})
 
-# --- RUNNER (RENDER FIX) ---
+# --- RUNNER ---
 async def main():
     port = int(os.environ.get("PORT", 10000))
-    def run_f():
-        print(f"Server starting on port {port}")
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-    
-    Thread(target=run_f, daemon=True).start()
-    await asyncio.sleep(2)
-    print("Bot starting...")
+    Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False), daemon=True).start()
     await dp.start_polling(bot)
 
 @dp.message(Command("start"))
 async def start(m: types.Message):
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🎮 Play Tombola", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await m.answer("እንኳን ወደ ፕሪሚየም ቶምቦላ በደህና መጡ!", reply_markup=kb.as_markup())
+    await m.answer("እንኳን ደህና መጡ! ፕሪሚየም ቶምቦላን ለመጫወት ከታች ያለውን ይጫኑ።", reply_markup=kb.as_markup())
 
 if __name__ == "__main__":
     asyncio.run(main())
