@@ -15,7 +15,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL") 
 ADMIN_ID = 7956330391 
-OWNER_PHONE = "0945880474" # <--- ኮሚሽኑ የሚገባበት ያንተ ስልክ ቁጥር
+OWNER_PHONE = "0911223344" # <--- ኮሚሽኑ የሚገባበት ያንቺ ስልክ ቁጥር
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -31,24 +31,12 @@ def get_balance(phone):
     return user['balance'] if user else 0.0
 
 def update_balance(phone, amount):
-    wallets.update_one(
-        {"phone": phone},
-        {"$inc": {"balance": amount}},
-        upsert=True
-    )
+    wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}}, upsert=True)
 
 # --- 3. GAME STATE ---
-game_state = {
-    "status": "lobby",
-    "start_time": time.time(),
-    "drawn_numbers": [],
-    "players": {},
-    "pot": 0,
-    "last_draw_time": 0,
-    "winner_name": None
-}
+game_state = {"status": "lobby", "start_time": time.time(), "drawn_numbers": [], "players": {}, "pot": 0, "last_draw_time": 0, "winner_name": None}
 
-# --- 4. FLASK ROUTES (API) ---
+# --- 4. FLASK ROUTES ---
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -58,18 +46,11 @@ def get_status():
     now = time.time()
     if game_state["status"] == "lobby":
         remaining = 20 - int((now - game_state["start_time"]) % 20)
-        # ቢያንስ 2 ተጫዋች ሲኖር ጨዋታው ይጀምራል
         if remaining <= 1 and len(game_state["players"]) >= 2:
-            game_state.update({
-                "status": "running",
-                "drawn_numbers": [],
-                "last_draw_time": now,
-                "winner_name": None
-            })
+            game_state.update({"status": "running", "drawn_numbers": [], "last_draw_time": now, "winner_name": None})
     else:
         remaining = 0
 
-    # ቁጥሮችን በየ 4 ሰከንዱ ማውጣት
     if game_state["status"] == "running" and not game_state["winner_name"]:
         if now - game_state["last_draw_time"] >= 4 and len(game_state["drawn_numbers"]) < 90:
             new_num = random.randint(1, 90)
@@ -99,7 +80,7 @@ def user_data(phone):
 @app.route('/request_action', methods=['POST'])
 async def request_action():
     data = request.json
-    msg = f"🔔 **አዲስ ጥያቄ!**\n\n👤 ተጠቃሚ: `{data['phone']}`\n📝 አይነት: **{data['type'].upper()}**\n💰 መጠን: {data['amount']} ETB"
+    msg = f"🔔 **አዲስ ጥያቄ!**\n👤 ተጠቃሚ: `{data['phone']}`\n📝 አይነት: **{data['type'].upper()}**\n💰 መጠን: {data['amount']} ETB"
     await bot.send_message(ADMIN_ID, msg, parse_mode="Markdown")
     return jsonify({"success": True})
 
@@ -108,17 +89,12 @@ def join_game():
     data = request.json
     phone = data.get("phone")
     if get_balance(phone) < 10 or game_state["status"] != "lobby":
-        return jsonify({"success": False, "msg": "ባላንስ የሎትም ወይም ጨዋታ ተጀምሯል!"})
+        return jsonify({"success": False, "msg": "Balance low or game started!"})
     
     update_balance(phone, -10)
-    # 15 የቲኬት ቁጥሮችን መፍጠር
     all_nums = random.sample(range(1, 91), 15)
     ticket = [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
-    
-    game_state["players"][phone] = {
-        "name": data.get("name", "Player"),
-        "ticket": ticket
-    }
+    game_state["players"][phone] = {"name": data.get("name", "Player"), "ticket": ticket}
     game_state["pot"] += 10
     return jsonify({"success": True})
 
@@ -129,66 +105,45 @@ def win():
     if not player or game_state["winner_name"]:
         return jsonify({"success": False})
 
-    # አሸናፊውን ማረጋገጥ
     is_legit = any(all(n in game_state["drawn_numbers"] for n in row) for row in player["ticket"])
-    
     if is_legit:
-        total_pot = game_state["pot"]
-        prize = total_pot * 0.80  # 80% ለአሸናፊው
-        commission = total_pot * 0.20  # 20% ያንተ ትርፍ
-        
+        prize, commission = game_state["pot"] * 0.80, game_state["pot"] * 0.20
         update_balance(phone, prize)
         update_balance(OWNER_PHONE, commission)
-        
         game_state["winner_name"] = player["name"]
         
-        # ከ 7 ሰከንድ በኋላ ጨዋታውን ወደ lobby መመለስ
         def reset_game():
             time.sleep(7)
-            game_state.update({
-                "status": "lobby",
-                "start_time": time.time(),
-                "drawn_numbers": [],
-                "players": {},
-                "pot": 0,
-                "winner_name": None
-            })
+            game_state.update({"status": "lobby", "start_time": time.time(), "drawn_numbers": [], "players": {}, "pot": 0, "winner_name": None})
         Thread(target=reset_game).start()
-        
         return jsonify({"success": True, "prize": prize})
     return jsonify({"success": False})
 
 # --- 5. TELEGRAM HANDLERS ---
 @dp.message(Command("start"))
 async def cmd_start(m: types.Message):
-    kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🎮 ቶምቦላ ይጫወቱ", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await m.answer(f"ሰላም {m.from_user.first_name}! እንኳን ደህና መጡ።", reply_markup=kb.as_markup())
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🎮 ቶምቦላ ይጫወቱ", web_app=WebAppInfo(url=WEB_APP_URL)))
+    await m.answer(f"ሰላም {m.from_user.first_name}!", reply_markup=kb.as_markup())
 
 @dp.message(Command("add_credit"))
 async def add_c(m: types.Message):
-    if m.from_user.id != ADMIN_ID:
-        return
+    if m.from_user.id != ADMIN_ID: return
     try:
         parts = m.text.split()
         p, amt = parts[1], float(parts[2])
         update_balance(p, amt)
-        await m.answer(f"✅ ተሞልቷል!\nስልክ: {p}\nባላንስ: {get_balance(p)} ETB")
-    except:
-        await m.answer("አጠቃቀም: `/add_credit 0912345678 100`")
+        await m.answer(f"✅ ተሞልቷል! {p} ባላንስ: {get_balance(p)} ETB")
+    except: await m.answer("Usage: /add_credit 09... 100")
 
-# --- 6. RUNNER ---
+# --- 6. RUNNER (RENDER FIX) ---
 async def main():
     port = int(os.environ.get("PORT", 10000))
-    # Flask በ Thread ውስጥ ማስጀመር
-    Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False), daemon=True).start()
+    def run_flask():
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     
-    print(f"Server is running on port {port}...")
+    Thread(target=run_flask, daemon=True).start()
+    await asyncio.sleep(2)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        pass
-
+    asyncio.run(main())
