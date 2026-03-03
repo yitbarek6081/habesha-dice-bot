@@ -5,18 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* All animations disabled */
-        * { transition: none !important; animation: none !important; transform: none !important; }
+        * { transition: none !important; animation: none !important; }
         body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 5px; }
         .header { display: grid; grid-template-columns: repeat(3, 1fr); background: #1e293b; padding: 10px; border-bottom: 2px solid #f1c40f; }
         .p-info { background: #334155; padding: 8px; font-weight: bold; color: #f1c40f; }
-        .wallet-actions { display: flex; justify-content: space-around; padding: 10px; background: #1e293b; gap: 10px; }
-        .btn-act { flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
-        .dep { background: #22c55e; } .with { background: #3b82f6; }
         .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: #1e293b; margin: 5px 0; }
         .b-cell { font-size: 0.7rem; padding: 5px 0; background: #334155; border-radius: 2px; color: #94a3b8; }
         .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
-        #ticket-area { display: none; margin-top: 10px; padding: 10px; background: #1e293b; border: 1px solid #475569; border-radius: 4px; }
+        #ticket-area { display: none; margin-top: 10px; padding: 10px; background: #1e293b; border-radius: 4px; }
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 5px; }
         .t-cell { background: white; color: black; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3rem; border-radius: 4px; }
         .t-cell.marked { background: #22c55e !important; color: white; }
@@ -26,10 +22,6 @@
 </head>
 <body>
     <div class="header"><div id="bal">0.00</div><div id="pot">POT: 0</div><div id="tmr">20s</div></div>
-    <div class="wallet-actions">
-        <button class="btn-act dep" onclick="alert('Telebirr/CBE: 0945880474')">DEPOSIT</button>
-        <button class="btn-act with" onclick="withdrawReq()">WITHDRAW</button>
-    </div>
     <div class="p-info" id="p-count">👤 ተጫዋቾች: 0</div>
     <div id="join-box"><button onclick="join()" class="btn-join">JOIN (10 ETB)</button></div>
     <div class="board" id="brd"></div>
@@ -57,7 +49,11 @@
                 } else {
                     document.getElementById('tmr').innerText = "🔴 LIVE";
                     drawnNumbers = data.drawn;
-                    drawnNumbers.forEach(n => document.getElementById(`b-${n}`).classList.add('drawn'));
+                    drawnNumbers.forEach(n => {
+                        document.getElementById(`b-${n}`).classList.add('drawn');
+                        let tCell = document.getElementById(`cell-${n}`);
+                        if(tCell) tCell.classList.add('marked'); // Auto-mark
+                    });
                     document.getElementById('join-box').style.display = 'none';
                 }
             });
@@ -72,17 +68,13 @@
                 });
             }
         }
-
         function renderTicket() {
             document.getElementById('t-container').innerHTML = myTicket.map(row => `
-                <div class="t-row">${row.map(n => `<div class="t-cell" id="cell-${n}" onclick="mark(${n})">${n}</div>`).join('')}</div>
+                <div class="t-row">${row.map(n => `<div class="t-cell" id="cell-${n}">${n}</div>`).join('')}</div>
             `).join('');
         }
-
-        function mark(n) { if(drawnNumbers.includes(n)) document.getElementById(`cell-${n}`).classList.add('marked'); }
         function join() { fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}).then(r => r.json()).then(d => { if(d.success) update(); else alert(d.msg); }); }
         function claimWin() { fetch('/win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r => r.json()).then(d => { if(d.success) alert("አሸንፈዋል!"); }); }
-        function withdrawReq() { if(confirm("ጥያቄ ይላክ?")) fetch('/withdraw_request', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(() => alert("ተልኳል!")); }
 
         setInterval(update, 1000);
         tg.ready();
