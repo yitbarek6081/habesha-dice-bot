@@ -6,27 +6,27 @@
     <style>
         body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; user-select: none; }
         .header { background: #1e293b; padding: 15px; border-bottom: 3px solid #f1c40f; display: flex; justify-content: space-around; font-weight: bold; }
-        #current-draw { height: 80px; display: flex; align-items: center; justify-content: center; background: #334155; margin: 10px; border-radius: 10px; border: 2px dashed #f1c40f; }
-        .big-num { font-size: 3.5rem; font-weight: bold; color: #f1c40f; animation: zoomIn 0.4s ease; }
-        @keyframes zoomIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        #current-draw { height: 90px; display: flex; align-items: center; justify-content: center; background: #1e293b; margin: 10px; border-radius: 15px; border: 3px dashed #f1c40f; }
+        .big-num { font-size: 4rem; font-weight: bold; color: #f1c40f; animation: zoomIn 0.5s ease; }
+        @keyframes zoomIn { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; }
-        .b-cell { font-size: 0.7rem; padding: 5px 0; background: #1e293b; border-radius: 2px; color: #475569; }
+        .b-cell { font-size: 0.7rem; padding: 6px 0; background: #1e293b; border-radius: 2px; color: #475569; border: 0.1px solid #334155; }
         .b-cell.drawn { background: #ef4444; color: white; }
         #ticket-area { margin: 10px; padding: 15px; background: #1e293b; border-radius: 12px; border: 2px solid #475569; }
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
-        .t-cell { background: #f8fafc; color: #1e293b; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3rem; border-radius: 8px; cursor: pointer; }
-        .t-cell.user-marked { background: #22c55e !important; color: white; transform: scale(0.95); }
-        .btn-main { background: #f1c40f; color: black; border: none; padding: 15px; border-radius: 8px; width: 90%; font-weight: bold; font-size: 1.1rem; margin: 10px 0; }
+        .t-cell { background: #f8fafc; color: #1e293b; height: 55px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.5rem; border-radius: 10px; cursor: pointer; }
+        .t-cell.user-marked { background: #22c55e !important; color: white; transform: scale(0.95); box-shadow: inset 0 -4px 0 #16a34a; }
+        .btn-main { background: #f1c40f; color: black; border: none; padding: 15px; border-radius: 10px; width: 90%; font-weight: bold; font-size: 1.2rem; margin: 10px 0; }
         .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
-        .modal-content { background: #1e293b; margin: 20% auto; padding: 20px; width: 80%; border-radius: 10px; border: 1px solid #f1c40f; }
+        .modal-content { background: #1e293b; margin: 20% auto; padding: 25px; width: 80%; border-radius: 15px; border: 1px solid #f1c40f; }
     </style>
 </head>
 <body>
     <div class="header"><div id="bal">0.00 ETB</div><div id="pot">POT: 0</div><div id="tmr">20s</div></div>
     <div id="current-draw"><div class="big-num" id="active-num">?</div></div>
-    <div style="padding:10px; background:#334155; display:flex; justify-content:center; gap:10px;">
-        <button onclick="openM()" style="background:#22c55e; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold">DEPOSIT</button>
-        <button onclick="action('With')" style="background:#3b82f6; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold">WITHDRAW</button>
+    <div style="padding:10px; display:flex; justify-content:center; gap:10px;">
+        <button onclick="openM()" style="background:#22c55e; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold">DEPOSIT</button>
+        <button onclick="action('With')" style="background:#3b82f6; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold">WITHDRAW</button>
     </div>
     <div id="p-count" style="padding:10px; color:#f1c40f; font-weight:bold">👤 ተጫዋቾች: 0</div>
     <div id="join-box"><button onclick="join()" class="btn-main">JOIN (10 ETB)</button></div>
@@ -36,10 +36,10 @@
         <button id="win-btn" onclick="claimWin()" class="btn-main" style="background:#22c55e; color:white; display:none">BINGO! 🏆</button>
     </div>
     <div id="payModal" class="modal"><div class="modal-content">
-        <h3 style="color:#f1c40f">ክፍያ</h3>
-        <button onclick="pay('CBE')" style="background:#5d2d91; color:white; width:100%; padding:12px; margin:5px 0; border:none; border-radius:5px; font-weight:bold">CBE Birr</button>
-        <button onclick="pay('Tele')" style="background:#ed1c24; color:white; width:100%; padding:12px; margin:5px 0; border:none; border-radius:5px; font-weight:bold">Telebirr</button>
-        <button onclick="closeM()" style="background:none; color:white; border:none; margin-top:10px">ዝጋ</button>
+        <h3 style="color:#f1c40f">የክፍያ አማራጭ</h3>
+        <button onclick="pay('CBE')" style="background:#5d2d91; color:white; width:100%; padding:15px; margin:5px 0; border:none; border-radius:8px; font-weight:bold">CBE Birr</button>
+        <button onclick="pay('Tele')" style="background:#ed1c24; color:white; width:100%; padding:15px; margin:5px 0; border:none; border-radius:8px; font-weight:bold">Telebirr</button>
+        <button onclick="closeM()" style="background:none; color:white; border:none; margin-top:15px">ዝጋ</button>
     </div></div>
     <script>
         const tg = window.Telegram.WebApp; let phone = localStorage.getItem('u_phone');
@@ -63,16 +63,14 @@
                     document.getElementById('active-num').innerText = "?";
                     document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
                     document.getElementById('join-box').style.display = 'block';
-                    document.getElementById('ticket-area').style.display = 'none';
-                    myTicket = null;
+                    document.getElementById('ticket-area').style.display = 'none'; myTicket = null;
                 }
             });
             if(phone && !myTicket) {
                 fetch('/user_data/'+phone).then(r => r.json()).then(d => {
                     document.getElementById('bal').innerText = d.balance.toFixed(2) + " ETB";
                     if(d.is_joined) {
-                        myTicket = d.ticket; document.getElementById('ticket-area').style.display='block';
-                        document.getElementById('win-btn').style.display='block';
+                        myTicket = d.ticket; document.getElementById('ticket-area').style.display='block'; document.getElementById('win-btn').style.display='block';
                         document.getElementById('t-container').innerHTML = myTicket.map(row => `<div class="t-row">${row.map(n => `<div class="t-cell" id="c-${n}" onclick="userMark(${n})">${n}</div>`).join('')}</div>`).join('');
                     }
                 });
