@@ -3,17 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Premium Tombola - Habesha</title>
+    <title>Premium Tombola</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --gold: #f1c40f; --orange: #e67e22; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; --red: #ef4444; }
-        body { background: radial-gradient(circle at top, #1e293b, #0f172a); color: #fff; font-family: 'Segoe UI', Roboto, sans-serif; text-align: center; margin: 0; user-select: none; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; }
+        body { background: #0f172a; color: white; font-family: sans-serif; margin: 0; padding-bottom: 50px; }
+        .header { background: #1e293b; padding: 10px; display: flex; justify-content: space-around; border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 10; }
+        .stat b { color: var(--gold); font-size: 1.1rem; }
         
-        .header { background: rgba(15, 23, 42, 0.95); padding: 12px; border-bottom: 2px solid var(--gold); display: flex; justify-content: space-around; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
-        .stat { display: flex; flex-direction: column; }
-        .stat small { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
-        .stat b { font-size: 1.1rem; color: var(--gold); }
+        .draw-zone { margin: 15px auto; width: 100px; height: 100px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: 900; color: var(--gold); background: #1e293b; }
+        
+        .btn-row { display: flex; gap: 10px; padding: 10px; }
+        .btn-act { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; color: white; cursor: pointer; }
 
-        .draw-zone { margin: 20px auto; width: 130px; height: 130px; background: var(--card); border: 6px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 35px rgba(241, 196, 15, 0.4); border-style: double; }
-        .big-num { font-size: 5rem; font-weight
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: rgba(0,0,0,0.3); margin: 5px; border-radius: 8px; }
+        .b-cell { font-size: 0.6rem; padding: 5px 0; background: #334155; border-radius: 3px; color: #64748b; }
+        .b-cell.drawn { background: #ef4444; color: white; }
+
+        .ticket-card { background: #1e293b; margin: 10px; padding: 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
+        .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
+        .t-cell { background: white; color: #0f172a; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.4rem; border-radius: 10px; }
+        .t-cell.marked { background: var(--green) !important; color: white !important; }
+
+        .btn-win { background: linear-gradient(var(--gold), #e67e22); color: black; width: 90%; padding: 15px; border-radius: 15px; font-size: 1.3rem; font-weight: bold; border: none; display: none; margin: 10px auto; }
+    </style>
+</head>
+<body onclick="initAudio()">
+    <div class="header">
+        <div class="stat">Wallet<br><b id="bal">0.00</b></div>
+        <div class="stat">Pot<br><b id="pot">0</b></div>
+    </div>
+
+    <div id="active-num" class="draw-zone">?</div>
+
+    <div class="btn-row">
+        <button onclick="action('Deposit')" class="btn-act" style="background:#2ecc71">DEPOSIT</button>
+        <button onclick="action('Withdraw')" class="btn-act" style="background:#3498db">WITHDRAW</button>
+    </div>
+
+    <div id="join-box" style="padding:10px;"><button onclick="joinGame()" style="width:100%; padding:15px; background:var(--gold); border-radius:10px; font-weight:bold; border:none;">JOIN GAME (10 ETB)</button></div>
+
+    <div id="brd" class="board"></div>
+
+    <div id="ticket-area" class="ticket-card" style="display:none">
+        <h3 style="color:var(--gold); margin:0 0 10px 0;">YOUR TICKET</h3>
+        <div id="t-container"></div>
+        <button id="win-btn" onclick="claimWin()" class="btn-win">🎊 TOMBOLA! 🎊</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        let phone = localStorage.getItem('u_phone'), drawnNums = [], markedNums = [], myTicket = [], audioOk = false;
+        function initAudio() { audioOk = true; }
+        function speak(n) { if(audioOk) { const m = new SpeechSynthesisUtterance("ቁጥር " + n); m.lang='am-ET'; window.speechSynthesis.speak(m); } }
+
+        if(!phone) { phone = prompt("ስልክ ያስገቡ:"); if(phone) localStorage.setItem('u_phone', phone); }
+        for(let i=1; i<=90; i++) document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
+
+        function update() {
+            fetch('/get_status').then(r => r.json()).then(d => {
+                document.getElementById('pot').innerText = d.pot + " ETB";
+                drawnNums = d.drawn_numbers || [];
+                if(drawnNums.length > 0) {
+                    let last = drawnNums[drawnNums.length-1];
+                    if(document.getElementById('active-num').innerText != last) {
+                        document.getElementById('active-num').innerText = last; speak(last);
+                        document.getElementById(`b-${last}`).classList.add('drawn');
+                    }
+                }
+                if(d.status === "lobby") {
+                    document.getElementById('join-box').style.display = 'block';
+                    document.getElementById('ticket-area').style.display = 'none';
+                    markedNums = [];
+                } else { document.getElementById('join-box').style.display = 'none'; }
+            });
+            if(phone) fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
+                document.getElementById('bal').innerText = d.balance.toFixed(2);
+                if(d.is_joined) { document.getElementById('ticket-area').style.display='block'; myTicket=d.ticket; renderTicket(d.ticket); }
+            });
+        }
+
+        function renderTicket(ticket) {
+            let h = '';
+            ticket.forEach(row => {
+                h += '<div class="t-row">';
+                row.forEach(n => h += `<div id="tc-${n}" class="t-cell ${markedNums.includes(n)?'marked':''}" onclick="mark(${n})">${n}</div>`);
+                h += '</div>';
+            });
+            document.getElementById('t-container').innerHTML = h;
+        }
+
+        function mark(n) {
+            if(drawnNums.includes(n)) {
+                if(!markedNums.includes(n)) {
+                    markedNums.push(n); document.getElementById(`tc-${n}`).classList.add('marked');
+                    tg.HapticFeedback.impactOccurred('heavy');
+                    myTicket.forEach(r => { if(r.filter(x=>markedNums.includes(x)).length === 5) document.getElementById('win-btn').style.display='block'; });
+                }
+            } else { tg.HapticFeedback.notificationOccurred('error'); tg.showAlert("ቁጥሩ አልወጣም!"); }
+        }
+
+        function claimWin() { confetti(); tg.showAlert("እንኳን ደስ አለዎት!"); document.getElementById('win-btn').style.display='none'; }
+        function action(t) { let a = prompt(t+" መጠን:"); if(a) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:t, phone, amount:a})}); }
+        function joinGame() { fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name:"Player"})}); }
+
+        setInterval(update, 1000); tg.expand();
+    </script>
+</body>
+</html>
