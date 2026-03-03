@@ -11,7 +11,7 @@ from pymongo import MongoClient
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL") 
-ADMIN_ID = 7956330391
+ADMIN_ID = 7956330391 # የእርስዎ ቴሌግራም ID
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -71,15 +71,27 @@ def user_data(phone):
     player = game_state["players"].get(phone)
     return jsonify({"balance": get_balance(phone), "is_joined": phone in game_state["players"], "ticket": player["ticket"] if player else None})
 
+@app.route('/request_action', methods=['POST'])
+async def request_action():
+    data = request.json
+    action_type = data.get("type") # "deposit" ወይም "withdraw"
+    phone = data.get("phone")
+    amount = data.get("amount", "ያልተጠቀሰ")
+    
+    msg = f"🔔 **አዲስ ጥያቄ!**\n\n👤 ተጠቃሚ: `{phone}`\n📝 አይነት: **{action_type.upper()}**\n💰 መጠን: {amount} ETB"
+    await bot.send_message(ADMIN_ID, msg, parse_mode="Markdown")
+    return jsonify({"success": True})
+
 @app.route('/join_game', methods=['POST'])
 def join_game():
-    phone = request.json.get("phone")
+    data = request.json
+    phone = data.get("phone")
     if get_balance(phone) < 10: return jsonify({"success": False, "msg": "ባላንስ የሎትም!"})
     if phone not in game_state["players"] and game_state["status"] == "lobby":
         update_balance(phone, -10)
         all_nums = random.sample(range(1, 91), 15)
         ticket = [sorted(all_nums[0:5]), sorted(all_nums[5:10]), sorted(all_nums[10:15])]
-        game_state["players"][phone] = {"name": request.json.get("name", "Player"), "ticket": ticket}
+        game_state["players"][phone] = {"name": data.get("name", "Player"), "ticket": ticket}
         game_state["pot"] += 10
         return jsonify({"success": True})
     return jsonify({"success": False})
@@ -103,12 +115,7 @@ def win():
 async def cmd_start(m: types.Message):
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="🎮 ቶምቦላ ይጫወቱ", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await m.answer(f"ሰላም! የክፍያ ደረሰኝ እዚህ ይላኩ።", reply_markup=kb.as_markup())
-
-@dp.message(F.photo)
-async def handle_receipt(m: types.Message):
-    await bot.send_photo(ADMIN_ID, m.photo[-1].file_id, caption=f"📩 **አዲስ ደረሰኝ!**\nID: `{m.from_user.id}`\nለመሙላት:\n`/add_credit ስልክ ቁጥር መጠን`", parse_mode="Markdown")
-    await m.answer("ደረሰኝዎ ደርሷል! አረጋግጠን ባላንስ እንሞላለን።")
+    await m.answer(f"ሰላም {m.from_user.first_name}! ለመጫወት ከታች ያለውን ቁልፍ ይጫኑ።", reply_markup=kb.as_markup())
 
 @dp.message(Command("add_credit"))
 async def add_c(m: types.Message):
@@ -117,9 +124,10 @@ async def add_c(m: types.Message):
         parts = m.text.split()
         p, amt = parts[1], float(parts[2])
         update_balance(p, amt)
-        await m.answer(f"✅ ተሞልቷል! {p} አዲስ ባላንስ: {get_balance(p)} ETB")
+        await m.answer(f"✅ ተሞልቷል!\nስልክ: {p}\nባላንስ: {get_balance(p)} ETB")
     except: await m.answer("አጠቃቀም: `/add_credit 09... 100`")
 
+# --- 5. RENDER PORT FIX ---
 async def main():
     port = int(os.environ.get("PORT", 10000))
     Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
