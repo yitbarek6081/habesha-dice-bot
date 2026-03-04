@@ -7,63 +7,91 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; }
-        body { background: #0f172a; color: white; font-family: sans-serif; margin: 0; padding-bottom: 50px; }
-        .header { background: #1e293b; padding: 10px; display: flex; justify-content: space-around; border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 10; }
-        .stat b { color: var(--gold); font-size: 1.1rem; }
+        :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; --blue: #3498db; }
+        body { background: #0f172a; color: white; font-family: sans-serif; margin: 0; padding-bottom: 20px; overflow-x: hidden; }
         
-        .draw-zone { margin: 15px auto; width: 100px; height: 100px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: 900; color: var(--gold); background: #1e293b; }
-        
-        .btn-row { display: flex; gap: 10px; padding: 10px; }
-        .btn-act { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; color: white; cursor: pointer; }
+        /* Top Header */
+        .header { background: #1e293b; padding: 12px; display: flex; justify-content: space-around; border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 100; text-align: center; }
+        .stat b { color: var(--gold); font-size: 1.2rem; display: block; }
+        .stat small { font-size: 0.7rem; color: #94a3b8; }
 
-        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; background: rgba(0,0,0,0.3); margin: 5px; border-radius: 8px; }
-        .b-cell { font-size: 0.6rem; padding: 5px 0; background: #334155; border-radius: 3px; color: #64748b; }
-        .b-cell.drawn { background: #ef4444; color: white; }
+        /* Big Draw Number */
+        .draw-zone { margin: 15px auto; width: 110px; height: 110px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: 900; color: var(--gold); background: #1e293b; box-shadow: 0 0 20px rgba(241, 196, 15, 0.3); }
 
-        .ticket-card { background: #1e293b; margin: 10px; padding: 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
+        /* Action Buttons */
+        .btn-row { display: flex; gap: 10px; padding: 0 15px; margin-bottom: 15px; }
+        .btn-act { flex: 1; padding: 14px; border-radius: 12px; border: none; font-weight: bold; color: white; cursor: pointer; font-size: 1rem; }
+
+        /* Join Section */
+        #join-box { padding: 0 15px; margin-bottom: 15px; }
+        .btn-join { width: 100%; padding: 16px; background: var(--gold); color: black; border-radius: 12px; font-weight: 900; border: none; font-size: 1.2rem; box-shadow: 0 4px 0 #b8860b; }
+
+        /* Board */
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 10px; background: rgba(0,0,0,0.3); margin: 0 10px 15px 10px; border-radius: 10px; }
+        .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 4px; color: #64748b; text-align: center; }
+        .b-cell.drawn { background: #ef4444; color: white; box-shadow: 0 0 5px #ef4444; }
+
+        /* Ticket UI */
+        .ticket-card { background: #1e293b; margin: 15px; padding: 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
-        .t-cell { background: white; color: #0f172a; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.4rem; border-radius: 10px; }
-        .t-cell.marked { background: var(--green) !important; color: white !important; }
+        .t-cell { background: white; color: #0f172a; height: 55px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.6rem; border-radius: 12px; box-shadow: 0 4px 0 #cbd5e1; }
+        .t-cell.marked { background: var(--green) !important; color: white !important; transform: translateY(3px); box-shadow: none; }
 
-        .btn-win { background: linear-gradient(var(--gold), #e67e22); color: black; width: 90%; padding: 15px; border-radius: 15px; font-size: 1.3rem; font-weight: bold; border: none; display: none; margin: 10px auto; }
+        .win-btn { background: linear-gradient(var(--gold), #e67e22); color: black; width: 100%; padding: 18px; border-radius: 15px; font-size: 1.5rem; font-weight: 900; border: none; display: none; margin-top: 15px; }
     </style>
 </head>
-<body onclick="initAudio()">
+<body onclick="enableAudio()">
+
     <div class="header">
-        <div class="stat">Wallet<br><b id="bal">0.00</b></div>
-        <div class="stat">Pot<br><b id="pot">0</b></div>
+        <div class="stat"><small>WALLET</small><b id="bal">0.00</b></div>
+        <div class="stat"><small>PLAYERS</small><b id="p-count">0</b></div>
+        <div class="stat"><small>POT</small><b id="pot">0 ETB</b></div>
     </div>
 
     <div id="active-num" class="draw-zone">?</div>
 
     <div class="btn-row">
-        <button onclick="action('Deposit')" class="btn-act" style="background:#2ecc71">DEPOSIT</button>
-        <button onclick="action('Withdraw')" class="btn-act" style="background:#3498db">WITHDRAW</button>
+        <button onclick="deposit()" class="btn-act" style="background:var(--green)">DEPOSIT</button>
+        <button onclick="withdraw()" class="btn-act" style="background:var(--blue)">WITHDRAW</button>
     </div>
 
-    <div id="join-box" style="padding:10px;"><button onclick="joinGame()" style="width:100%; padding:15px; background:var(--gold); border-radius:10px; font-weight:bold; border:none;">JOIN GAME (10 ETB)</button></div>
+    <div id="join-box">
+        <button onclick="joinGame()" class="btn-join">JOIN GAME (10 ETB)</button>
+    </div>
 
     <div id="brd" class="board"></div>
 
     <div id="ticket-area" class="ticket-card" style="display:none">
-        <h3 style="color:var(--gold); margin:0 0 10px 0;">YOUR TICKET</h3>
+        <h3 style="color:var(--gold); margin:0 0 15px 0; text-align:center;">YOUR TICKET</h3>
         <div id="t-container"></div>
-        <button id="win-btn" onclick="claimWin()" class="btn-win">🎊 TOMBOLA! 🎊</button>
+        <button id="win-btn" onclick="claimWin()" class="win-btn">🎊 TOMBOLA! 🎊</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        let phone = localStorage.getItem('u_phone'), drawnNums = [], markedNums = [], myTicket = [], audioOk = false;
-        function initAudio() { audioOk = true; }
-        function speak(n) { if(audioOk) { const m = new SpeechSynthesisUtterance("ቁጥር " + n); m.lang='am-ET'; window.speechSynthesis.speak(m); } }
+        const ADMIN_PHONE = "0945880474";
+        let phone = localStorage.getItem('u_phone'), drawnNums = [], markedNums = [], myTicket = [], audioReady = false;
 
-        if(!phone) { phone = prompt("ስልክ ያስገቡ:"); if(phone) localStorage.setItem('u_phone', phone); }
+        function enableAudio() { audioReady = true; }
+        function speak(n) { if(audioReady) { const m = new SpeechSynthesisUtterance("ቁጥር " + n); m.lang='am-ET'; window.speechSynthesis.speak(m); } }
+
+        // Registration Logic
+        if(!phone) {
+            let p = prompt("እንኳን ደህና መጡ! ለመመዝገብ ስልክ ቁጥርዎን ያስገቡ:");
+            if(p) {
+                phone = p.trim();
+                localStorage.setItem('u_phone', phone);
+                fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})});
+            }
+        }
+
+        // Board setup
         for(let i=1; i<=90; i++) document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
         function update() {
             fetch('/get_status').then(r => r.json()).then(d => {
                 document.getElementById('pot').innerText = d.pot + " ETB";
+                document.getElementById('p-count').innerText = d.player_count;
                 drawnNums = d.drawn_numbers || [];
                 if(drawnNums.length > 0) {
                     let last = drawnNums[drawnNums.length-1];
@@ -72,13 +100,11 @@
                         document.getElementById(`b-${last}`).classList.add('drawn');
                     }
                 }
-                if(d.status === "lobby") {
-                    document.getElementById('join-box').style.display = 'block';
-                    document.getElementById('ticket-area').style.display = 'none';
-                    markedNums = [];
-                } else { document.getElementById('join-box').style.display = 'none'; }
+                document.getElementById('join-box').style.display = d.status === "lobby" ? 'block' : 'none';
             });
+            
             if(phone) fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
+                if(d.error) return;
                 document.getElementById('bal').innerText = d.balance.toFixed(2);
                 if(d.is_joined) { document.getElementById('ticket-area').style.display='block'; myTicket=d.ticket; renderTicket(d.ticket); }
             });
@@ -104,9 +130,19 @@
             } else { tg.HapticFeedback.notificationOccurred('error'); tg.showAlert("ቁጥሩ አልወጣም!"); }
         }
 
-        function claimWin() { confetti(); tg.showAlert("እንኳን ደስ አለዎት!"); document.getElementById('win-btn').style.display='none'; }
-        function action(t) { let a = prompt(t+" መጠን:"); if(a) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:t, phone, amount:a})}); }
-        function joinGame() { fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name:"Player"})}); }
+        function deposit() {
+            alert("የአድሚን ስልክ: " + ADMIN_PHONE + "\n\nእባክዎ ስልኩን ኮፒ አድርገው በቴሌብር ወይም CBE ብር ይላኩ። ከዚያ የላኩበትን ደረሰኝ (SMS) ኮፒ አድርገው እዚህ ይላኩ።");
+            let rec = prompt("የደረሰኝ ኮድ ወይም SMS እዚህ ያስገቡ:");
+            if(rec) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Deposit', phone, amount:'Pending', receipt: rec})});
+        }
+
+        function withdraw() {
+            let amt = prompt("የሚወጣው የብር መጠን:");
+            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount: amt})});
+        }
+
+        function claimWin() { confetti(); tg.showAlert("እንኳን ደስ አለዎት! ቶምቦላ በልተዋል።"); }
+        function joinGame() { fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}); }
 
         setInterval(update, 1000); tg.expand();
     </script>
