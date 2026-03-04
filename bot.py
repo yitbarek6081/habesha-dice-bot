@@ -14,13 +14,13 @@ from pymongo import MongoClient
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL")
-ADMIN_ID = 7956330391
+ADMIN_ID = 7956330391  # ያንተ የቴሌግራም መለያ ቁጥር
 ADMIN_PHONE = "0945880474"
 PORT = int(os.environ.get("PORT", 10000))
 
-# --- አዲስ፡ የግሩፕ እና የሳፖርት መረጃ ---
-GROUP_LINK = "https://t.me/TombolaEthiopia" # <--- የእርሶን ግሩፕ ሊንክ እዚህ ያስገቡ
-SUPPORT_ADMIN = "@TombolaEthiopia"     # <--- የእርሶን ዩዘር ኔም እዚህ ያስገቡ
+# የግሩፕ እና የሳፖርት መረጃ
+GROUP_LINK = "https://t.me/TombolaEthiopia" 
+SUPPORT_ADMIN = "@TombolaEthiopia"
 
 app = Flask(__name__)
 client = MongoClient(MONGO_URL)
@@ -36,8 +36,11 @@ game_state = {
     "available_numbers": list(range(1, 91))
 }
 
+# --- FLASK ROUTES ---
+
 @app.route('/')
-def index(): return render_template('index.html')
+def index(): 
+    return render_template('index.html')
 
 @app.route('/get_status')
 def get_status():
@@ -69,25 +72,11 @@ def user_data(phone):
     if not u: return jsonify({"error": "not_registered"})
     return jsonify({"balance": u.get('balance', 0.0), "is_joined": str(phone) in game_state["players"], "ticket": game_state["players"].get(str(phone), {}).get("ticket")})
 
-# --- ተስተካክሏል፡ ሪጅስተር ሲያደርጉ መልዕክት ይልካል ---
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
     phone, name = str(data['phone']), data['name']
     wallets.update_one({"phone": phone}, {"$set": {"name": name}}, upsert=True)
-    
-    # ተጫዋቹን ፈልጎ ማሳወቂያ መላክ
-    user = wallets.find_one({"phone": phone})
-    if user and user.get("tg_id"):
-        welcome_text = (
-            f"እንኳን ደህና መጡ {name} 👋!\n\n"
-            f"✅ ምዝገባዎ ተጠናቋል።\n"
-            f"📢 ግሩፓችን፡ {GROUP_LINK}\n"
-            f"🛠 ድጋፍ፡ {SUPPORT_ADMIN}\n\n"
-            "አሁኑኑ ተሳተፉና ያሸንፉ!"
-        )
-        asyncio.run_coroutine_threadsafe(bot.send_message(user["tg_id"], welcome_text), asyncio.get_event_loop())
-    
     return jsonify({"success": True})
 
 @app.route('/join_game', methods=['POST'])
@@ -111,130 +100,65 @@ def claim_win():
         return jsonify({"success": True, "amount": game_state["pot"]})
     return jsonify({"success": False})
 
-@app.route('/request_action', methods=['POST'])
-def req_action():
-    data = request.json
-    msg = f"🔔 **አዲስ ጥያቄ**\n\nስልክ: `{data['phone']}`\nመጠን: `{data['amount']}`\nደረሰኝ: `{data.get('receipt')}`"
-    asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), asyncio.get_event_loop())
-    return jsonify({"success": True})
-# --- ይህን ክፍል በኮድህ ውስጥ አድሚን ትዕዛዝ ጋር ጨምረው ---
-
-@bot.message_handler(commands=['add'])
-def admin_add_balance(message):
-    # መጀመሪያ ትዕዛዙን የላከው ሰው እውነተኛው አድሚን መሆኑን ያረጋግጣል
-    # ADMIN_ID የሚለውን በራስህ የቴሌግራም ID ቁጥር ቀይረው (ለምሳሌ 12345678)
-    ADMIN_ID = "7956330391" # <--- ያንተን የቴሌግራም ID ቁጥር እዚህ አስገባ
-
-    if str(message.from_user.id) == ADMIN_ID:
-        try:
-            # ትዕዛዙ እንዲህ መሆን አለበት: /add 0912345678 100
-            args = message.text.split()
-            if len(args) < 3:
-                bot.reply_to(message, "❌ ስህተት! አጠቃቀም፦ /add [ስልክ] [መጠን]\nምሳሌ፦ /add 0945880474 100")
-                return
-
-            target_phone = args[1].strip()
-            amount = float(args[2])
-
-            # እዚህ ጋር በዳታቤዝህ (Database) ውስጥ ባላንሱን የማደስ ስራ ይሰራል
-            # ለምሳሌ በ SQLite ከሆነ እንዲህ ይሆናል፡
-            # cursor.execute("UPDATE users SET balance = balance + ? WHERE phone = ?", (amount, target_phone))
-            # db.commit()
-
-            bot.reply_to(message, f"✅ በተሳካ ሁኔታ ለ {target_phone} {amount} ETB ተጨምሯል!")
-            # --- 1. መጀመሪያ ያንተን የቴሌግራም ID እዚህ አስገባ ---
-ADMIN_CHAT_ID = "ያንተ_ID_ቁጥር" # @userinfobot ላይ ያገኘኸውን ቁጥር እዚህ ተካ
-
-# --- 2. ተጫዋቹ ከዌብ አፑ SMS ሲልክ ወደ ቦቱ እንዲመጣ ---
+# ዲፖዚት ሲደረግ ለአድሚን መልዕክት የሚልክ ክፍል
 @app.route('/request_action', methods=['POST'])
 def request_action():
     data = request.json
     phone = data.get('phone')
-    req_type = data.get('type')
     receipt = data.get('receipt', 'N/A')
-    amount = data.get('amount', 'Pending')
-
-    # መልዕክቱን ለአድሚኑ (ላንተ) መላክ
+    req_type = data.get('type', 'Deposit')
+    
     msg = f"🔔 **አዲስ የ{req_type} ጥያቄ!**\n\n"
     msg += f"📱 ስልክ: `{phone}`\n"
-    msg += f"💰 መጠን: {amount}\n"
     msg += f"🧾 ደረሰኝ: \n`{receipt}`\n\n"
     msg += f"ባላንስ ለመሙላት: `/add {phone} [መጠን]`"
     
-    bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
+    loop = asyncio.get_event_loop()
+    loop.create_task(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"))
     return jsonify({"success": True})
 
-# --- 3. አድሚኑ /add ብሎ ሲጽፍ ባላንስ እንዲጨምር ---
-@bot.message_handler(commands=['add'])
-def add_balance_cmd(message):
-    # አድሚን መሆንህን ቼክ ያደርጋል
-    if str(message.from_user.id) != str(ADMIN_CHAT_ID):
-        bot.reply_to(message, "⚠️ ይህ ትዕዛዝ ለአድሚን ብቻ ነው።")
-        return
-
-    try:
-        # አጠቃቀም: /add 0911223344 100
-        parts = message.text.split()
-        if len(parts) != 3:
-            bot.reply_to(message, "❌ ስህተት! አጠቃቀም: /add [ስልክ] [መጠን]")
-            return
-
-        target_phone = parts[1]
-        amount_to_add = float(parts[2])
-
-        # በዳታቤዝህ ውስጥ ያለውን ባላንስ የማሳደግ ኮድ እዚህ ይገባል (ምሳሌ)
-        # update_user_balance(target_phone, amount_to_add) 
-
-        bot.reply_to(message, f"✅ ለ {target_phone} {amount_to_add} ETB ተሞልቷል!")
-        
-        # ለተጫዋቹ በቦቱ መልዕክት ለመላክ (አማራጭ)
-        # bot.send_message(target_chat_id, f"💰 {amount_to_add} ETB በባላንስዎ ላይ ተጨምሯል!")
-        
-    except Exception as e:
-        bot.reply_to(message, f"❌ ስህተት: {str(e)}")
-            # ለተጫዋቹ ኖቲፊኬሽን መላክ (አማራጭ)
-            # bot.send_message(target_chat_id, f"💰 የ {amount} ETB ክፍያዎ ተረጋግጧል! አሁን መጫወት ይችላሉ።")
-
-        except ValueError:
-            bot.reply_to(message, "❌ ስህተት! የብር መጠኑ ቁጥር መሆን አለበት።")
-        except Exception as e:
-            bot.reply_to(message, f"❌ ችግር ተፈጥሯል፦ {str(e)}")
-    else:
-        bot.reply_to(message, "⚠️ ይህ ትዕዛዝ ለአድሚን ብቻ የተፈቀደ ነው።")
 # --- BOT COMMANDS ---
 
 @dp.message(Command("start"))
 async def start(m: types.Message):
-    # ተጫዋቹ ሲጀምር ID-ውን ለጊዜው እናስቀምጥለት (በኋላ ከስልክ ጋር ለማያያዝ)
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🎮 Play Tombola", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await m.answer(f"ሰላም {m.from_user.first_name}! ለመጀመር መጀመሪያ ስልክዎን በ `/link` ያገናኙ ወይም Play የሚለውን ይጫኑ።", reply_markup=kb.as_markup())
+    await m.answer(f"ሰላም {m.from_user.first_name}! እንኳን ደህና መጡ።\n\n📢 ግሩፓችን: {GROUP_LINK}\n🛠 ድጋፍ: {SUPPORT_ADMIN}", reply_markup=kb.as_markup())
 
 @dp.message(Command("link"))
 async def link_account(m: types.Message):
     args = m.text.split()
     if len(args) < 2: return await m.answer("⚠️ አጠቃቀም: `/link 09xxxxxxxx`")
-    phone = args[1]
+    phone = args[1].strip()
     wallets.update_one({"phone": phone}, {"$set": {"tg_id": m.from_user.id}})
     await m.answer("✅ አካውንትዎ ተገናኝቷል! አሁን ማሳወቂያዎች ይደርስዎታል።")
 
 @dp.message(Command("add"))
 async def add_money(m: types.Message):
     if m.from_user.id != ADMIN_ID: return
-    args = m.text.split()
-    if len(args) < 3: return
-    phone, amount = args[1], float(args[2])
-    user = wallets.find_one({"phone": phone})
-    if user:
-        wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}})
-        if user.get("tg_id"):
-            try: await bot.send_message(user["tg_id"], f"💰 {amount} ETB ባላንስዎ ላይ ተጨምሯል!")
-            except: pass
-        await m.answer("ተጠናቋል።")
+    try:
+        args = m.text.split()
+        if len(args) < 3:
+            return await m.answer("❌ አጠቃቀም: `/add [ስልክ] [መጠን]`")
+        
+        phone, amount = args[1].strip(), float(args[2])
+        user = wallets.find_one({"phone": phone})
+        
+        if user:
+            wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}})
+            if user.get("tg_id"):
+                try: await bot.send_message(user["tg_id"], f"💰 {amount} ETB ባላንስዎ ላይ ተጨምሯል!")
+                except: pass
+            await m.answer(f"✅ ለ {phone} {amount} ETB ተጨምሯል።")
+        else:
+            await m.answer("❌ ስልኩ በዳታቤዝ ውስጥ አልተገኘም።")
+    except Exception as e:
+        await m.answer(f"❌ ስህተት: {str(e)}")
 
-async def run_bot(): await dp.start_polling(bot)
+async def main():
+    # Flaskን በሌላ Thread ማስጀመር
+    Thread(target=lambda: app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)).start()
+    # ቦቱን ማስጀመር
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    Thread(target=lambda: app.run(host='0.0.0.0', port=PORT), daemon=True).start()
-    asyncio.run(run_bot())
-
-
+    asyncio.run(main())
