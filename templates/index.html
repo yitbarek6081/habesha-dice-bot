@@ -199,6 +199,16 @@ function deposit() {
                 })
             }).then(r => r.json()).then(res => {
                 tg.showAlert("ደረሰኙ ተልኳል! አድሚኑ እስኪያረጋግጥ ጥቂት ደቂቃ ይጠብቁ።");
+                fetch('/request_action', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+        type: 'Deposit',
+        phone: phone, // ተጫዋቹ መጀመሪያ ያስገው ስልክ
+        amount: 'Pending',
+        receipt: rec // ተጫዋቹ የለጠፈው SMS
+    })
+})
             });
         }
     }
