@@ -10,41 +10,38 @@
         :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; --blue: #3498db; }
         body { background: #0f172a; color: white; font-family: sans-serif; margin: 0; padding-bottom: 20px; overflow-x: hidden; }
         
-        /* Top Header */
         .header { background: #1e293b; padding: 12px; display: flex; justify-content: space-around; border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 100; text-align: center; }
         .stat b { color: var(--gold); font-size: 1.2rem; display: block; }
         .stat small { font-size: 0.7rem; color: #94a3b8; }
 
-        /* Big Draw Number */
         .draw-zone { margin: 15px auto; width: 110px; height: 110px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: 900; color: var(--gold); background: #1e293b; box-shadow: 0 0 20px rgba(241, 196, 15, 0.3); }
 
-        /* Action Buttons */
         .btn-row { display: flex; gap: 10px; padding: 0 15px; margin-bottom: 15px; }
         .btn-act { flex: 1; padding: 14px; border-radius: 12px; border: none; font-weight: bold; color: white; cursor: pointer; font-size: 1rem; }
 
-        /* Join Section */
         #join-box { padding: 0 15px; margin-bottom: 15px; }
         .btn-join { width: 100%; padding: 16px; background: var(--gold); color: black; border-radius: 12px; font-weight: 900; border: none; font-size: 1.2rem; box-shadow: 0 4px 0 #b8860b; }
+        .btn-join:disabled { background: #64748b; box-shadow: none; opacity: 0.7; }
 
-        /* Board */
         .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 10px; background: rgba(0,0,0,0.3); margin: 0 10px 15px 10px; border-radius: 10px; }
         .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 4px; color: #64748b; text-align: center; }
         .b-cell.drawn { background: #ef4444; color: white; box-shadow: 0 0 5px #ef4444; }
 
-        /* Ticket UI */
         .ticket-card { background: #1e293b; margin: 15px; padding: 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
         .t-cell { background: white; color: #0f172a; height: 55px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.6rem; border-radius: 12px; box-shadow: 0 4px 0 #cbd5e1; }
         .t-cell.marked { background: var(--green) !important; color: white !important; transform: translateY(3px); box-shadow: none; }
 
         .win-btn { background: linear-gradient(var(--gold), #e67e22); color: black; width: 100%; padding: 18px; border-radius: 15px; font-size: 1.5rem; font-weight: 900; border: none; display: none; margin-top: 15px; }
+        
+        #timer-ui { transition: all 0.3s; }
     </style>
 </head>
 <body onclick="enableAudio()">
 
     <div class="header">
         <div class="stat"><small>WALLET</small><b id="bal">0.00</b></div>
-        <div class="stat"><small>PLAYERS</small><b id="p-count">0</b></div>
+        <div class="stat"><small>TIME / STATUS</small><b id="timer-ui">Lobby</b></div>
         <div class="stat"><small>POT</small><b id="pot">0 ETB</b></div>
     </div>
 
@@ -56,7 +53,8 @@
     </div>
 
     <div id="join-box">
-        <button onclick="joinGame()" class="btn-join">JOIN GAME (10 ETB)</button>
+        <button id="join-btn" onclick="joinGame()" class="btn-join">JOIN GAME (10 ETB)</button>
+        <p id="wait-msg" style="text-align:center; color:#94a3b8; font-size:0.8rem; margin-top:5px;"></p>
     </div>
 
     <div id="brd" class="board"></div>
@@ -75,7 +73,6 @@
         function enableAudio() { audioReady = true; }
         function speak(n) { if(audioReady) { const m = new SpeechSynthesisUtterance("ቁጥር " + n); m.lang='am-ET'; window.speechSynthesis.speak(m); } }
 
-        // Registration Logic
         if(!phone) {
             let p = prompt("እንኳን ደህና መጡ! ለመመዝገብ ስልክ ቁጥርዎን ያስገቡ:");
             if(p) {
@@ -85,28 +82,68 @@
             }
         }
 
-        // Board setup
         for(let i=1; i<=90; i++) document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
         function update() {
             fetch('/get_status').then(r => r.json()).then(d => {
                 document.getElementById('pot').innerText = d.pot + " ETB";
-                document.getElementById('p-count').innerText = d.player_count;
+                
+                // ታይመር እና የሁለት ሰው ግዴታ ማሳያ
+                let timerUI = document.getElementById('timer-ui');
+                let waitMsg = document.getElementById('wait-msg');
+                if(d.status === "lobby") {
+                    if(d.player_count < 2) {
+                        timerUI.innerText = "Waiting...";
+                        waitMsg.innerText = "Need 2 players to start (" + d.player_count + "/2)";
+                    } else {
+                        timerUI.innerText = d.timer + "s";
+                        timerUI.style.color = "#f1c40f";
+                        waitMsg.innerText = "Game starting soon!";
+                    }
+                    // አሸናፊ ከተገኘ በኋላ ሪሴት ከሆነ ቦርዱን አጽዳ
+                    if(drawnNums.length > 0 && d.drawn_numbers.length === 0) {
+                        document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
+                        document.getElementById('active-num').innerText = "?";
+                        markedNums = [];
+                        document.getElementById('win-btn').style.display = 'none';
+                    }
+                } else {
+                    timerUI.innerText = "LIVE 🔴";
+                    timerUI.style.color = "#ef4444";
+                    waitMsg.innerText = "";
+                }
+
                 drawnNums = d.drawn_numbers || [];
                 if(drawnNums.length > 0) {
                     let last = drawnNums[drawnNums.length-1];
                     if(document.getElementById('active-num').innerText != last) {
-                        document.getElementById('active-num').innerText = last; speak(last);
+                        document.getElementById('active-num').innerText = last; 
+                        speak(last);
                         document.getElementById(`b-${last}`).classList.add('drawn');
                     }
                 }
-                document.getElementById('join-box').style.display = d.status === "lobby" ? 'block' : 'none';
+                
+                // አሸናፊ ከተገኘ ለሁሉም አሳይ
+                if(d.winner) {
+                    timerUI.innerText = "Winner: " + d.winner;
+                }
             });
             
             if(phone) fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
                 if(d.error) return;
                 document.getElementById('bal').innerText = d.balance.toFixed(2);
-                if(d.is_joined) { document.getElementById('ticket-area').style.display='block'; myTicket=d.ticket; renderTicket(d.ticket); }
+                const joinBtn = document.getElementById('join-btn');
+                
+                if(d.is_joined) {
+                    document.getElementById('ticket-area').style.display='block'; 
+                    myTicket=d.ticket; 
+                    renderTicket(d.ticket);
+                    joinBtn.innerText = "JOINED ✅";
+                    joinBtn.disabled = true;
+                } else {
+                    joinBtn.innerText = "JOIN GAME (10 ETB)";
+                    joinBtn.disabled = false;
+                }
             });
         }
 
@@ -125,26 +162,72 @@
                 if(!markedNums.includes(n)) {
                     markedNums.push(n); document.getElementById(`tc-${n}`).classList.add('marked');
                     tg.HapticFeedback.impactOccurred('heavy');
-                    myTicket.forEach(r => { if(r.filter(x=>markedNums.includes(x)).length === 5) document.getElementById('win-btn').style.display='block'; });
+                    myTicket.forEach(r => { 
+                        if(r.filter(x=>markedNums.includes(x)).length === 5) document.getElementById('win-btn').style.display='block'; 
+                    });
                 }
             } else { tg.HapticFeedback.notificationOccurred('error'); tg.showAlert("ቁጥሩ አልወጣም!"); }
         }
 
         function deposit() {
-            alert("የአድሚን ስልክ: " + ADMIN_PHONE + "\n\nእባክዎ ስልኩን ኮፒ አድርገው በቴሌብር ወይም CBE ብር ይላኩ። ከዚያ የላኩበትን ደረሰኝ (SMS) ኮፒ አድርገው እዚህ ይላኩ።");
+            // ስልክ ቁጥሩን ኮፒ ማድረግ
+            const el = document.createElement('textarea');
+            el.value = ADMIN_PHONE;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            tg.showAlert("የአድሚን ስልክ (" + ADMIN_PHONE + ") ኮፒ ተደርጓል!\n\nእባክዎ በቴሌብር ወይም CBE ብር ይላኩና ደረሰኙን እዚህ ያስገቡ።");
+            
             let rec = prompt("የደረሰኝ ኮድ ወይም SMS እዚህ ያስገቡ:");
-            if(rec) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Deposit', phone, amount:'Pending', receipt: rec})});
+            if(rec) fetch('/request_action', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({type:'Deposit', phone, amount:'Pending', receipt: rec})
+            });
         }
 
         function withdraw() {
             let amt = prompt("የሚወጣው የብር መጠን:");
-            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount: amt})});
+            if(amt) fetch('/request_action', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({type:'Withdraw', phone, amount: amt})
+            });
         }
 
-        function claimWin() { confetti(); tg.showAlert("እንኳን ደስ አለዎት! ቶምቦላ በልተዋል።"); }
-        function joinGame() { fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}); }
+        function claimWin() {
+            fetch('/claim_win', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone})
+            }).then(r => r.json()).then(d => {
+                if(d.success) {
+                    confetti();
+                    tg.showAlert("እንኳን ደስ አለዎት! " + d.amount + " ብር በልተዋል።");
+                    document.getElementById('win-btn').style.display = 'none';
+                }
+            });
+        }
 
-        setInterval(update, 1000); tg.expand();
+        function joinGame() {
+            fetch('/join_game', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone})
+            }).then(r => r.json()).then(d => {
+                if(d.success) {
+                    tg.showAlert("በተሳካ ሁኔታ ገብተዋል!");
+                    update();
+                } else {
+                    tg.showAlert(d.message);
+                }
+            });
+        }
+
+        setInterval(update, 1000); 
+        tg.expand();
     </script>
 </body>
 </html>
