@@ -169,12 +169,40 @@
             tg.close();
         }
 
-        function deposit() {
-            const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-            tg.showAlert("የአድሚን ስልክ ኮፒ ተደርጓል! ደረሰኙን እዚህ ያስገቡ።");
-            let rec = prompt("የደረሰኝ SMS ኮድ:");
-            if(rec) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Deposit', phone, amount:'Pending', receipt: rec})});
+       // 1. የዲፖዚት ተግባር በሁለት ምርጫ
+function deposit() {
+    // ተጫዋቹ ምርጫ እንዲመርጥ መጠየቅ
+    const choice = confirm("ለመክፈል የሚከተሉትን ደረጃዎች ይከተሉ፡\n\n1. 'OK' ን በመጫን የአድሚን ስልክ ቁጥር (0945880474) ይቅዱ።\n2. ብር ከላኩ በኋላ 'Cancel' ን ተጭነው ደረሰኙን ያስገቡ።");
+
+    if (choice) {
+        // ስልክ ቁጥር ኮፒ የማድረግ ሂደት
+        const el = document.createElement('textarea');
+        el.value = ADMIN_PHONE;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        tg.showAlert("የአድሚን ስልክ ቁጥር (" + ADMIN_PHONE + ") ኮፒ ተደርጓል! በቴሌብር ወይም በባንክ ብር ልከው ሲጨርሱ ደረሰኙን ይላኩ።");
+    } else {
+        // የደረሰኝ SMS ኮድ መቀበያ
+        let rec = prompt("የላኩበትን የደረሰኝ SMS ሙሉውን ኮፒ አድርገው እዚህ ጋር 'Paste' ያድርጉና 'OK' ይበሉ፡");
+        if (rec && rec.trim() !== "") {
+            // ወደ ሰርቨር መላክ
+            fetch('/request_action', {
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({
+                    type: 'Deposit', 
+                    phone: phone, 
+                    amount: 'Pending', 
+                    receipt: rec
+                })
+            }).then(r => r.json()).then(res => {
+                tg.showAlert("ደረሰኙ ተልኳል! አድሚኑ እስኪያረጋግጥ ጥቂት ደቂቃ ይጠብቁ።");
+            });
         }
+    }
+}
 
         function withdraw() {
             let amt = prompt("የሚወጣው መጠን:");
