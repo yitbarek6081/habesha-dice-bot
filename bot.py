@@ -142,7 +142,56 @@ def admin_add_balance(message):
             # db.commit()
 
             bot.reply_to(message, f"✅ በተሳካ ሁኔታ ለ {target_phone} {amount} ETB ተጨምሯል!")
-            
+            # --- 1. መጀመሪያ ያንተን የቴሌግራም ID እዚህ አስገባ ---
+ADMIN_CHAT_ID = "ያንተ_ID_ቁጥር" # @userinfobot ላይ ያገኘኸውን ቁጥር እዚህ ተካ
+
+# --- 2. ተጫዋቹ ከዌብ አፑ SMS ሲልክ ወደ ቦቱ እንዲመጣ ---
+@app.route('/request_action', methods=['POST'])
+def request_action():
+    data = request.json
+    phone = data.get('phone')
+    req_type = data.get('type')
+    receipt = data.get('receipt', 'N/A')
+    amount = data.get('amount', 'Pending')
+
+    # መልዕክቱን ለአድሚኑ (ላንተ) መላክ
+    msg = f"🔔 **አዲስ የ{req_type} ጥያቄ!**\n\n"
+    msg += f"📱 ስልክ: `{phone}`\n"
+    msg += f"💰 መጠን: {amount}\n"
+    msg += f"🧾 ደረሰኝ: \n`{receipt}`\n\n"
+    msg += f"ባላንስ ለመሙላት: `/add {phone} [መጠን]`"
+    
+    bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
+    return jsonify({"success": True})
+
+# --- 3. አድሚኑ /add ብሎ ሲጽፍ ባላንስ እንዲጨምር ---
+@bot.message_handler(commands=['add'])
+def add_balance_cmd(message):
+    # አድሚን መሆንህን ቼክ ያደርጋል
+    if str(message.from_user.id) != str(ADMIN_CHAT_ID):
+        bot.reply_to(message, "⚠️ ይህ ትዕዛዝ ለአድሚን ብቻ ነው።")
+        return
+
+    try:
+        # አጠቃቀም: /add 0911223344 100
+        parts = message.text.split()
+        if len(parts) != 3:
+            bot.reply_to(message, "❌ ስህተት! አጠቃቀም: /add [ስልክ] [መጠን]")
+            return
+
+        target_phone = parts[1]
+        amount_to_add = float(parts[2])
+
+        # በዳታቤዝህ ውስጥ ያለውን ባላንስ የማሳደግ ኮድ እዚህ ይገባል (ምሳሌ)
+        # update_user_balance(target_phone, amount_to_add) 
+
+        bot.reply_to(message, f"✅ ለ {target_phone} {amount_to_add} ETB ተሞልቷል!")
+        
+        # ለተጫዋቹ በቦቱ መልዕክት ለመላክ (አማራጭ)
+        # bot.send_message(target_chat_id, f"💰 {amount_to_add} ETB በባላንስዎ ላይ ተጨምሯል!")
+        
+    except Exception as e:
+        bot.reply_to(message, f"❌ ስህተት: {str(e)}")
             # ለተጫዋቹ ኖቲፊኬሽን መላክ (አማራጭ)
             # bot.send_message(target_chat_id, f"💰 የ {amount} ETB ክፍያዎ ተረጋግጧል! አሁን መጫወት ይችላሉ።")
 
@@ -187,4 +236,5 @@ async def run_bot(): await dp.start_polling(bot)
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=PORT), daemon=True).start()
     asyncio.run(run_bot())
+
 
