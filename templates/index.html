@@ -8,41 +8,47 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; --blue: #3498db; }
-        body { background: #0f172a; color: white; font-family: sans-serif; margin: 0; padding-bottom: 20px; overflow-x: hidden; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 20px; }
         
-        .header { background: #1e293b; padding: 12px; display: flex; justify-content: space-around; border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 100; text-align: center; }
-        .stat b { color: var(--gold); font-size: 1.2rem; display: block; }
-        .stat small { font-size: 0.7rem; color: #94a3b8; }
+        /* Header Section */
+        .header { background: var(--card); padding: 10px 5px; display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 100; text-align: center; }
+        .stat b { color: var(--gold); font-size: 0.95rem; display: block; }
+        .stat small { font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; }
 
-        .draw-zone { margin: 15px auto; width: 110px; height: 110px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: 900; color: var(--gold); background: #1e293b; box-shadow: 0 0 20px rgba(241, 196, 15, 0.3); }
+        /* Draw Number Display */
+        .draw-zone { margin: 15px auto; width: 85px; height: 85px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.8rem; font-weight: 900; color: var(--gold); background: var(--card); box-shadow: 0 0 15px rgba(241, 196, 15, 0.2); }
 
-        .btn-row { display: flex; gap: 10px; padding: 0 15px; margin-bottom: 15px; }
-        .btn-act { flex: 1; padding: 14px; border-radius: 12px; border: none; font-weight: bold; color: white; cursor: pointer; font-size: 1rem; }
+        .btn-row { display: flex; gap: 8px; padding: 0 12px; margin-bottom: 12px; }
+        .btn-act { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; color: white; font-size: 0.85rem; cursor: pointer; }
 
-        #join-box { padding: 0 15px; margin-bottom: 15px; }
-        .btn-join { width: 100%; padding: 16px; background: var(--gold); color: black; border-radius: 12px; font-weight: 900; border: none; font-size: 1.2rem; box-shadow: 0 4px 0 #b8860b; }
-        .btn-join:disabled { background: #64748b; box-shadow: none; opacity: 0.7; }
+        .btn-join { width: 94%; margin: 0 3%; padding: 15px; background: var(--gold); color: black; border-radius: 10px; font-weight: 900; border: none; font-size: 1.1rem; cursor: pointer; }
+        .btn-join:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
 
-        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 10px; background: rgba(0,0,0,0.3); margin: 0 10px 15px 10px; border-radius: 10px; }
-        .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 4px; color: #64748b; text-align: center; }
-        .b-cell.drawn { background: #ef4444; color: white; box-shadow: 0 0 5px #ef4444; }
+        /* Game Board & Ticket Layout */
+        .game-container { display: flex; flex-wrap: wrap; gap: 15px; padding: 10px; justify-content: center; }
+        .main-board-wrapper { flex: 1; min-width: 300px; max-width: 450px; }
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; }
+        .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 3px; color: #94a3b8; text-align: center; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
 
-        .ticket-card { background: #1e293b; margin: 15px; padding: 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
-        .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
-        .t-cell { background: white; color: #0f172a; height: 55px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.6rem; border-radius: 12px; box-shadow: 0 4px 0 #cbd5e1; }
-        .t-cell.marked { background: var(--green) !important; color: white !important; transform: translateY(3px); box-shadow: none; }
+        /* Ticket Design */
+        .ticket-wrapper { flex: 1; min-width: 300px; max-width: 400px; }
+        .ticket-card { background: var(--card); padding: 15px; border-radius: 15px; border: 2px solid rgba(241, 196, 15, 0.2); }
+        .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; padding: 5px; border-radius: 8px; background: rgba(255,255,255,0.03); }
+        .t-cell { background: white; color: #0f172a; height: 55px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem; border-radius: 8px; cursor: pointer; border-bottom: 4px solid #cbd5e1; }
+        .t-cell.marked { background: var(--green) !important; color: white !important; border-bottom: none; transform: translateY(3px); }
 
-        .win-btn { background: linear-gradient(var(--gold), #e67e22); color: black; width: 100%; padding: 18px; border-radius: 15px; font-size: 1.5rem; font-weight: 900; border: none; display: none; margin-top: 15px; }
-        
-        #timer-ui { transition: all 0.3s; }
+        .win-btn { background: linear-gradient(135deg, var(--gold), #e67e22); color: black; width: 100%; padding: 18px; border-radius: 12px; font-size: 1.5rem; font-weight: 900; border: none; margin-top: 15px; display: none; animation: pulse 1.2s infinite; cursor: pointer; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body onclick="enableAudio()">
 
     <div class="header">
-        <div class="stat"><small>WALLET</small><b id="bal">0.00</b></div>
-        <div class="stat"><small>TIME / STATUS</small><b id="timer-ui">Lobby</b></div>
-        <div class="stat"><small>POT</small><b id="pot">0 ETB</b></div>
+        <div class="stat"><small>Wallet</small><b id="bal">0.00</b></div>
+        <div class="stat"><small>Time</small><b id="timer-ui">Lobby</b></div>
+        <div class="stat"><small>Pot</small><b id="pot">0</b></div>
+        <div class="stat"><small>Players</small><b id="p-count">0</b></div>
     </div>
 
     <div id="active-num" class="draw-zone">?</div>
@@ -52,17 +58,21 @@
         <button onclick="withdraw()" class="btn-act" style="background:var(--blue)">WITHDRAW</button>
     </div>
 
-    <div id="join-box">
-        <button id="join-btn" onclick="joinGame()" class="btn-join">JOIN GAME (10 ETB)</button>
-        <p id="wait-msg" style="text-align:center; color:#94a3b8; font-size:0.8rem; margin-top:5px;"></p>
-    </div>
+    <button id="join-btn" onclick="joinGame()" class="btn-join">JOIN GAME (10 ETB)</button>
 
-    <div id="brd" class="board"></div>
+    <div class="game-container">
+        <div class="main-board-wrapper">
+            <h4 style="text-align:center; color:#94a3b8;">GAME BOARD</h4>
+            <div id="brd" class="board"></div>
+        </div>
 
-    <div id="ticket-area" class="ticket-card" style="display:none">
-        <h3 style="color:var(--gold); margin:0 0 15px 0; text-align:center;">YOUR TICKET</h3>
-        <div id="t-container"></div>
-        <button id="win-btn" onclick="claimWin()" class="win-btn">🎊 TOMBOLA! 🎊</button>
+        <div id="ticket-area" class="ticket-wrapper" style="display:none">
+            <h4 style="text-align:center; color:var(--gold);">YOUR TICKET (3 ROWS)</h4>
+            <div class="ticket-card">
+                <div id="t-container"></div>
+                <button id="win-btn" onclick="claimWin()" class="win-btn">🎊 TOMBOLA! 🎊</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -74,12 +84,8 @@
         function speak(n) { if(audioReady) { const m = new SpeechSynthesisUtterance("ቁጥር " + n); m.lang='am-ET'; window.speechSynthesis.speak(m); } }
 
         if(!phone) {
-            let p = prompt("እንኳን ደህና መጡ! ለመመዝገብ ስልክ ቁጥርዎን ያስገቡ:");
-            if(p) {
-                phone = p.trim();
-                localStorage.setItem('u_phone', phone);
-                fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})});
-            }
+            let p = prompt("እንኳን ደህና መጡ! ስልክ ቁጥርዎን ያስገቡ:");
+            if(p) { phone = p.trim(); localStorage.setItem('u_phone', phone); fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}); }
         }
 
         for(let i=1; i<=90; i++) document.getElementById('brd').innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
@@ -87,147 +93,92 @@
         function update() {
             fetch('/get_status').then(r => r.json()).then(d => {
                 document.getElementById('pot').innerText = d.pot + " ETB";
-                
-                // ታይመር እና የሁለት ሰው ግዴታ ማሳያ
+                document.getElementById('p-count').innerText = d.player_count;
                 let timerUI = document.getElementById('timer-ui');
-                let waitMsg = document.getElementById('wait-msg');
+                
                 if(d.status === "lobby") {
-                    if(d.player_count < 2) {
-                        timerUI.innerText = "Waiting...";
-                        waitMsg.innerText = "Need 2 players to start (" + d.player_count + "/2)";
-                    } else {
-                        timerUI.innerText = d.timer + "s";
-                        timerUI.style.color = "#f1c40f";
-                        waitMsg.innerText = "Game starting soon!";
-                    }
-                    // አሸናፊ ከተገኘ በኋላ ሪሴት ከሆነ ቦርዱን አጽዳ
+                    timerUI.innerText = d.player_count < 2 ? "Wait" : d.timer + "s";
                     if(drawnNums.length > 0 && d.drawn_numbers.length === 0) {
                         document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
                         document.getElementById('active-num').innerText = "?";
                         markedNums = [];
                         document.getElementById('win-btn').style.display = 'none';
                     }
-                } else {
-                    timerUI.innerText = "LIVE 🔴";
-                    timerUI.style.color = "#ef4444";
-                    waitMsg.innerText = "";
-                }
+                } else { timerUI.innerText = "LIVE 🔴"; }
 
                 drawnNums = d.drawn_numbers || [];
                 if(drawnNums.length > 0) {
                     let last = drawnNums[drawnNums.length-1];
                     if(document.getElementById('active-num').innerText != last) {
-                        document.getElementById('active-num').innerText = last; 
-                        speak(last);
+                        document.getElementById('active-num').innerText = last; speak(last);
                         document.getElementById(`b-${last}`).classList.add('drawn');
                     }
-                }
-                
-                // አሸናፊ ከተገኘ ለሁሉም አሳይ
-                if(d.winner) {
-                    timerUI.innerText = "Winner: " + d.winner;
                 }
             });
             
             if(phone) fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
                 if(d.error) return;
                 document.getElementById('bal').innerText = d.balance.toFixed(2);
-                const joinBtn = document.getElementById('join-btn');
-                
                 if(d.is_joined) {
                     document.getElementById('ticket-area').style.display='block'; 
-                    myTicket=d.ticket; 
-                    renderTicket(d.ticket);
-                    joinBtn.innerText = "JOINED ✅";
-                    joinBtn.disabled = true;
-                } else {
-                    joinBtn.innerText = "JOIN GAME (10 ETB)";
-                    joinBtn.disabled = false;
+                    myTicket=d.ticket; renderTicket(d.ticket);
+                    document.getElementById('join-btn').innerText = "JOINED ✅";
+                    document.getElementById('join-btn').disabled = true;
                 }
             });
         }
 
         function renderTicket(ticket) {
             let h = '';
-            ticket.forEach(row => {
-                h += '<div class="t-row">';
-                row.forEach(n => h += `<div id="tc-${n}" class="t-cell ${markedNums.includes(n)?'marked':''}" onclick="mark(${n})">${n}</div>`);
+            ticket.forEach((row, idx) => {
+                h += `<div class="t-row" id="row-${idx}">`;
+                row.forEach(n => h += `<div id="tc-${n}" class="t-cell ${markedNums.includes(n)?'marked':''}" onclick="mark(${n}, ${idx})">${n}</div>`);
                 h += '</div>';
             });
             document.getElementById('t-container').innerHTML = h;
         }
 
-        function mark(n) {
+        function mark(n, rowIdx) {
             if(drawnNums.includes(n)) {
                 if(!markedNums.includes(n)) {
                     markedNums.push(n); document.getElementById(`tc-${n}`).classList.add('marked');
-                    tg.HapticFeedback.impactOccurred('heavy');
-                    myTicket.forEach(r => { 
-                        if(r.filter(x=>markedNums.includes(x)).length === 5) document.getElementById('win-btn').style.display='block'; 
-                    });
+                    tg.HapticFeedback.impactOccurred('medium');
+                    
+                    // አሸናፊነትን በየረድፉ ቼክ ማድረግ (5 ቁጥሮች በአንድ ረድፍ)
+                    let rowNumbers = myTicket[rowIdx];
+                    let isRowComplete = rowNumbers.every(num => markedNums.includes(num));
+                    
+                    if(isRowComplete) {
+                        document.getElementById('win-btn').style.display = 'block';
+                        tg.HapticFeedback.notificationOccurred('success');
+                    }
                 }
-            } else { tg.HapticFeedback.notificationOccurred('error'); tg.showAlert("ቁጥሩ አልወጣም!"); }
+            } else { tg.showAlert("ይህ ቁጥር ገና አልወጣም!"); }
         }
 
         function deposit() {
-            // ስልክ ቁጥሩን ኮፒ ማድረግ
-            const el = document.createElement('textarea');
-            el.value = ADMIN_PHONE;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-
-            tg.showAlert("የአድሚን ስልክ (" + ADMIN_PHONE + ") ኮፒ ተደርጓል!\n\nእባክዎ በቴሌብር ወይም CBE ብር ይላኩና ደረሰኙን እዚህ ያስገቡ።");
-            
-            let rec = prompt("የደረሰኝ ኮድ ወይም SMS እዚህ ያስገቡ:");
-            if(rec) fetch('/request_action', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({type:'Deposit', phone, amount:'Pending', receipt: rec})
-            });
+            const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
+            tg.showAlert("የአድሚን ስልክ ኮፒ ተደርጓል! ደረሰኙን እዚህ ያስገቡ።");
+            let rec = prompt("የደረሰኝ SMS ኮድ:");
+            if(rec) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Deposit', phone, amount:'Pending', receipt: rec})});
         }
 
         function withdraw() {
-            let amt = prompt("የሚወጣው የብር መጠን:");
-            if(amt) fetch('/request_action', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({type:'Withdraw', phone, amount: amt})
-            });
+            let amt = prompt("የሚወጣው መጠን:");
+            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount: amt})});
         }
 
         function claimWin() {
-            fetch('/claim_win', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone})
-            }).then(r => r.json()).then(d => {
-                if(d.success) {
-                    confetti();
-                    tg.showAlert("እንኳን ደስ አለዎት! " + d.amount + " ብር በልተዋል።");
-                    document.getElementById('win-btn').style.display = 'none';
-                }
-            });
+            fetch('/claim_win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            .then(r => r.json()).then(d => { if(d.success) { confetti(); tg.showAlert("እንኳን ደስ አለዎት! ቶምቦላ በልተዋል።"); document.getElementById('win-btn').style.display = 'none'; } });
         }
 
         function joinGame() {
-            fetch('/join_game', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone})
-            }).then(r => r.json()).then(d => {
-                if(d.success) {
-                    tg.showAlert("በተሳካ ሁኔታ ገብተዋል!");
-                    update();
-                } else {
-                    tg.showAlert(d.message);
-                }
-            });
+            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            .then(r => r.json()).then(d => { if(d.success) { update(); } else { tg.showAlert(d.message); } });
         }
 
-        setInterval(update, 1000); 
-        tg.expand();
+        setInterval(update, 1000); tg.expand();
     </script>
 </body>
 </html>
