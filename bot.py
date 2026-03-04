@@ -14,7 +14,7 @@ from pymongo import MongoClient
 TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 MONGO_URL = os.getenv("MONGO_URL")
-ADMIN_ID = 5606497334
+ADMIN_ID = 7956330391
 ADMIN_PHONE = "0945880474"
 PORT = int(os.environ.get("PORT", 10000))
 
@@ -117,7 +117,41 @@ def req_action():
     msg = f"🔔 **አዲስ ጥያቄ**\n\nስልክ: `{data['phone']}`\nመጠን: `{data['amount']}`\nደረሰኝ: `{data.get('receipt')}`"
     asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), asyncio.get_event_loop())
     return jsonify({"success": True})
+# --- ይህን ክፍል በኮድህ ውስጥ አድሚን ትዕዛዝ ጋር ጨምረው ---
 
+@bot.message_handler(commands=['add'])
+def admin_add_balance(message):
+    # መጀመሪያ ትዕዛዙን የላከው ሰው እውነተኛው አድሚን መሆኑን ያረጋግጣል
+    # ADMIN_ID የሚለውን በራስህ የቴሌግራም ID ቁጥር ቀይረው (ለምሳሌ 12345678)
+    ADMIN_ID = "7956330391" # <--- ያንተን የቴሌግራም ID ቁጥር እዚህ አስገባ
+
+    if str(message.from_user.id) == ADMIN_ID:
+        try:
+            # ትዕዛዙ እንዲህ መሆን አለበት: /add 0912345678 100
+            args = message.text.split()
+            if len(args) < 3:
+                bot.reply_to(message, "❌ ስህተት! አጠቃቀም፦ /add [ስልክ] [መጠን]\nምሳሌ፦ /add 0945880474 100")
+                return
+
+            target_phone = args[1].strip()
+            amount = float(args[2])
+
+            # እዚህ ጋር በዳታቤዝህ (Database) ውስጥ ባላንሱን የማደስ ስራ ይሰራል
+            # ለምሳሌ በ SQLite ከሆነ እንዲህ ይሆናል፡
+            # cursor.execute("UPDATE users SET balance = balance + ? WHERE phone = ?", (amount, target_phone))
+            # db.commit()
+
+            bot.reply_to(message, f"✅ በተሳካ ሁኔታ ለ {target_phone} {amount} ETB ተጨምሯል!")
+            
+            # ለተጫዋቹ ኖቲፊኬሽን መላክ (አማራጭ)
+            # bot.send_message(target_chat_id, f"💰 የ {amount} ETB ክፍያዎ ተረጋግጧል! አሁን መጫወት ይችላሉ።")
+
+        except ValueError:
+            bot.reply_to(message, "❌ ስህተት! የብር መጠኑ ቁጥር መሆን አለበት።")
+        except Exception as e:
+            bot.reply_to(message, f"❌ ችግር ተፈጥሯል፦ {str(e)}")
+    else:
+        bot.reply_to(message, "⚠️ ይህ ትዕዛዝ ለአድሚን ብቻ የተፈቀደ ነው።")
 # --- BOT COMMANDS ---
 
 @dp.message(Command("start"))
@@ -153,3 +187,4 @@ async def run_bot(): await dp.start_polling(bot)
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=PORT), daemon=True).start()
     asyncio.run(run_bot())
+
