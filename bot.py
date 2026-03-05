@@ -30,6 +30,9 @@ wallets = db['wallets']
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# የአይኦግራም (Bot) ሉፕ ለማከማቸት
+bot_loop = None
+
 game_state = {
     "status": "lobby", "start_countdown": None, "drawn_numbers": [], 
     "players": {}, "pot": 0, "last_draw_time": 0, "winner": None,
@@ -100,22 +103,29 @@ def claim_win():
         return jsonify({"success": True, "amount": game_state["pot"]})
     return jsonify({"success": False})
 
-# ዲፖዚት ሲደረግ ለአድሚን መልዕክት የሚልክ ክፍል
+# ዲፖዚት ሲደረግ ለአድሚን መልዕክት የሚልክ ክፍል (Thread Safe Version)
 @app.route('/request_action', methods=['POST'])
 def request_action():
     data = request.json
     phone = data.get('phone')
     receipt = data.get('receipt', 'N/A')
     req_type = data.get('type', 'Deposit')
+    amount = data.get('amount', 'Pending')
     
     msg = f"🔔 **አዲስ የ{req_type} ጥያቄ!**\n\n"
     msg += f"📱 ስልክ: `{phone}`\n"
+    msg += f"💰 መጠን: `{amount}`\n"
     msg += f"🧾 ደረሰኝ: \n`{receipt}`\n\n"
     msg += f"ባላንስ ለመሙላት: `/add {phone} [መጠን]`"
     
-    loop = asyncio.get_event_loop()
-    loop.create_task(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"))
-    return jsonify({"success": True})
+    # Flask (Thread) ውስጥ ሆነን ወደ Bot (Main Loop) መልዕክት መላክ
+    if bot_loop:
+        asyncio.run_coroutine_threadsafe(
+            bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), 
+            bot_loop
+        )
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "Bot loop not initialized"})
 
 # --- BOT COMMANDS ---
 
@@ -154,11 +164,23 @@ async def add_money(m: types.Message):
     except Exception as e:
         await m.answer(f"❌ ስህተት: {str(e)}")
 
+# --- MAIN RUNNER ---
+
 async def main():
+    global bot_loop
+    bot_loop = asyncio.get_running_loop() # የቦቱን ሉፕ እዚህ ጋር እንይዛለን
+    
     # Flaskን በሌላ Thread ማስጀመር
-    Thread(target=lambda: app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)).start()
+    flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False))
+    flask_thread.daemon = True
+    flask_thread.start()
+    
     # ቦቱን ማስጀመር
+    print("Bot is starting...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot stopped.")
