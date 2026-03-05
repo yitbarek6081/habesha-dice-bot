@@ -10,49 +10,79 @@
         :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; --blue: #3498db; --red: #e74c3c; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; padding-bottom: 30px; overflow-x: hidden; }
         
+        /* 1. CSS ማስተካከያ - ለአሸናፊ ማሳያ ስታይል */
+        #winner-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.98);
+            display: none; /* መጀመሪያ አይታይም */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            text-align: center;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .congrats-text {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 20px rgba(241, 196, 15, 0.6);
+            margin-bottom: 10px;
+            animation: bounce 1s infinite;
+        }
+
+        .winner-name-big {
+            font-size: 2rem;
+            color: white;
+            background: linear-gradient(90deg, #f1c40f, #e67e22);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; } to { opacity: 1; }
+        }
+
+        /* የነበሩ ስታይሎች */
         .top-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
         .stat-item small { display: block; color: #94a3b8; font-size: 0.65rem; text-transform: uppercase; }
         .stat-item b { color: var(--gold); font-size: 0.9rem; }
-
-        /* አሸናፊ ሲኖር የሚመጣ ሜሴጅ */
-        #winner-announcement { 
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(30, 41, 59, 0.95); border: 2px solid var(--gold);
-            padding: 20px; border-radius: 15px; text-align: center; z-index: 1000;
-            display: none; width: 80%; box-shadow: 0 0 30px rgba(241, 196, 15, 0.5);
-        }
-
         .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
         .btn-act { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: white; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
         .draw-circle { width: 70px; height: 70px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; background: var(--card); color: var(--gold); }
-
         .join-container { text-align: center; margin-bottom: 20px; }
         .btn-join-main { width: 85%; padding: 14px; border-radius: 30px; border: none; background: var(--gold); color: black; font-weight: 900; font-size: 1.1rem; cursor: pointer; }
         .btn-join-main.joined { background: var(--red); color: white; }
-
         .boards-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 10px; align-items: start; }
         .board-box { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 8px; min-height: 320px; }
         .board-title { text-align: center; font-size: 0.75rem; color: var(--gold); margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; }
-
         #brd { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
         .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 3px; color: #94a3b8; text-align: center; }
         .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.1); }
         .b-cell.on-my-ticket { border: 1px solid var(--gold); color: var(--gold); }
-
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 8px; }
         .t-cell { background: white; color: #0f172a; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 5px; border-bottom: 3px solid #cbd5e1; }
         .t-cell.marked { background: var(--green) !important; color: white !important; border-bottom: none; transform: translateY(2px); }
-
         .win-btn { background: linear-gradient(135deg, var(--gold), #e67e22); color: black; width: 100%; padding: 12px; border-radius: 10px; font-size: 1.1rem; font-weight: 900; border: none; margin-top: 10px; display: none; cursor: pointer; animation: pulse 1s infinite; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body onclick="enableAudio()">
 
-    <div id="winner-announcement">
-        <h2 style="color: var(--gold); margin: 0;">🏆 አሸናፊ ተገኘ!</h2>
-        <p id="winner-name" style="font-size: 1.4rem; margin: 10px 0; font-weight: bold;"></p>
-        <p style="font-size: 0.9rem; color: #94a3b8;">ቀጣይ ጨዋታ በ5 ሰከንድ ውስጥ ይጀምራል...</p>
+    <div id="winner-overlay">
+        <div class="congrats-text">🎊 CONGRATULATIONS! 🎊</div>
+        <div style="font-size: 1.2rem; color: #94a3b8; margin-bottom: 5px;">አሸናፊ</div>
+        <div id="big-winner-name" class="winner-name-big">---</div>
+        <p style="color: #64748b; margin-top: 20px;">ቀጣይ ጨዋታ በ5 ሰከንድ ውስጥ ይጀምራል...</p>
     </div>
 
     <div class="top-stats">
@@ -98,27 +128,27 @@
         const boardEl = document.getElementById('brd');
         for(let i=1; i<=90; i++) boardEl.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
+        // 3. Script ማስተካከያ - update() ፈንክሽን ማሻሻያ
         function update() {
             fetch('/get_status').then(r => r.json()).then(d => {
-                // ኮሚሽን ተቀንሶ የሚታይ ገቢ (80%)
                 document.getElementById('pot').innerText = (d.pot * 0.8).toFixed(0) + " ETB";
                 document.getElementById('p-count').innerText = d.player_count;
                 
                 let timerUI = document.getElementById('timer-ui');
                 let joinBtn = document.getElementById('join-btn');
-                let winDisplay = document.getElementById('winner-announcement');
+                let overlay = document.getElementById('winner-overlay');
+                let bigName = document.getElementById('big-winner-name');
 
-                // የአሸናፊ ማሳያ ስልት (5 ሰከንድ)
+                // የአሸናፊ ማሳያ አኒሜሽን ስልት
                 if(d.winner) {
-                    winDisplay.style.display = 'block';
-                    document.getElementById('winner-name').innerText = d.winner;
+                    bigName.innerText = d.winner;
+                    overlay.style.display = 'flex';
                 } else {
-                    winDisplay.style.display = 'none';
+                    overlay.style.display = 'none';
                     if(d.status === "lobby") {
                         timerUI.innerText = d.timer + "s";
                         joinBtn.disabled = false;
                         if(!isJoined) joinBtn.innerText = "Join (10 Birr)";
-                        // ጌሙ ሲያልቅ እና ዳታው ሲጸዳ ፔጁን ሪፍሬሽ ለማድረግ
                         if(drawnNums.length > 0 && d.drawn_numbers.length === 0) location.reload();
                     } else {
                         timerUI.innerText = "LIVE 🔴";
@@ -138,7 +168,6 @@
                 }
             });
 
-            // የተጠቃሚ መረጃ
             if(phone) fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
                 document.getElementById('bal').innerText = d.balance.toFixed(2);
                 if(d.is_joined && !isJoined) {
@@ -150,17 +179,11 @@
             });
         }
 
-        // Join እና Leave ሲስተም
         function handleJoinAction() {
             if(isJoined) {
                 if(confirm("ከጨዋታው ወጥተው 10 ብርዎ እንዲመለስ ይፈልጋሉ?")) {
                     fetch('/unjoin_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-                    .then(r=>r.json()).then(d=> { 
-                        if(d.success) {
-                            isJoined = false;
-                            location.reload(); 
-                        } else alert("መውጣት አይቻልም!"); 
-                    });
+                    .then(r=>r.json()).then(d=> { if(d.success) { isJoined = false; location.reload(); } else alert("መውጣት አይቻልም!"); });
                 }
             } else {
                 fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
@@ -184,7 +207,6 @@
                 if(!markedNums.includes(n)) {
                     markedNums.push(n); el.classList.add('marked');
                     tg.HapticFeedback.impactOccurred('medium');
-                    // አንድ መስመር ሙሉ በሙሉ ከተሞላ ቶምቦላ እንዲል
                     if(myTicket[rIdx].every(num => markedNums.includes(num))) document.getElementById('win-btn-el').style.display='block';
                 }
             }
@@ -192,7 +214,12 @@
 
         function claimWin() {
             fetch('/claim_win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r=>r.json()).then(d=> { if(d.success) { confetti(); document.getElementById('win-btn-el').style.display='none'; } });
+            .then(r=>r.json()).then(d=> { 
+                if(d.success) { 
+                    confetti({ particleCount: 200, spread: 80, origin: { y: 0.6 } }); 
+                    document.getElementById('win-btn-el').style.display='none'; 
+                } 
+            });
         }
 
         function deposit() {
