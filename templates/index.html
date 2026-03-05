@@ -8,42 +8,42 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --card: #1e293b; --green: #2ecc71; --blue: #3498db; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; padding-bottom: 30px; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; padding-bottom: 30px; overflow-x: hidden; }
         
-        /* Header: Wallet, Time, Pot, Players */
         .top-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
         .stat-item small { display: block; color: #94a3b8; font-size: 0.65rem; text-transform: uppercase; }
         .stat-item b { color: var(--gold); font-size: 0.9rem; }
 
-        /* Action Row: Deposit | ? | Withdraw */
         .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
-        .btn-act { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: white; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
-        .draw-circle { width: 70px; height: 70px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; background: var(--card); color: var(--gold); box-shadow: 0 0 15px rgba(241, 196, 15, 0.2); }
+        .btn-act { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: white; font-weight: bold; cursor: pointer; font-size: 0.8rem; transition: 0.3s; }
+        .btn-act:active { background: var(--gold); color: black; }
+        .draw-circle { width: 70px; height: 70px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; background: var(--card); color: var(--gold); box-shadow: 0 0 15px rgba(241, 196, 15, 0.2); transition: transform 0.2s; }
 
-        /* Join Button */
         .join-container { text-align: center; margin-bottom: 20px; }
-        .btn-join-main { width: 85%; padding: 14px; border-radius: 30px; border: none; background: var(--gold); color: black; font-weight: 900; font-size: 1.1rem; cursor: pointer; }
-        .btn-join-main:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
+        .btn-join-main { width: 85%; padding: 14px; border-radius: 30px; border: none; background: var(--gold); color: black; font-weight: 900; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
+        .btn-join-main:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; box-shadow: none; }
 
-        /* Boards Grid - Side by Side */
         .boards-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 10px; align-items: start; }
-        .board-box { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 8px; min-height: 300px; }
+        .board-box { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 8px; min-height: 320px; }
         .board-title { text-align: center; font-size: 0.75rem; color: var(--gold); margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; font-weight: bold; }
 
-        /* Game Board - 5 Columns */
         #brd { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
-        .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 3px; color: #94a3b8; text-align: center; }
-        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
+        .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 3px; color: #94a3b8; text-align: center; transition: 0.3s; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.05); }
+        .b-cell.on-my-ticket { border: 1px solid var(--gold); color: var(--gold); }
 
-        /* Ticket Styles */
-        .t-row { display: grid; grid-template-columns: repeat(1, 1fr); gap: 5px; margin-bottom: 8px; }
-        .t-cell { background: white; color: #0f172a; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 5px; cursor: pointer; border-bottom: 3px solid #cbd5e1; }
-        .t-cell.marked { background: var(--green) !important; color: white !important; border-bottom: none; transform: translateY(2px); }
+        /* እዚህ ጋር ነው የቲኬት ረድፎች የተስተካከሉት */
+        .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 8px; }
+        .t-cell { background: white; color: #0f172a; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 5px; cursor: pointer; border-bottom: 3px solid #cbd5e1; position: relative; }
+        .t-cell.match-found { border: 2px solid var(--gold); animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.7; } }
+        
+        .t-cell.marked { background: var(--green) !important; color: white !important; border-bottom: none; transform: translateY(2px); animation: none; }
 
-        .win-btn { background: linear-gradient(135deg, var(--gold), #e67e22); color: black; width: 100%; padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 900; border: none; margin-top: 10px; display: none; animation: pulse 1.2s infinite; }
+        .win-btn { background: linear-gradient(135deg, var(--gold), #e67e22); color: black; width: 100%; padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 900; border: none; margin-top: 10px; display: none; animation: pulse 1.2s infinite; cursor: pointer; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
-        .footer-link { margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
+        .footer-link { margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; text-align: center; }
         .footer-link a { color: #24A1DE; text-decoration: none; font-weight: bold; font-size: 0.9rem; }
     </style>
 </head>
@@ -82,7 +82,7 @@
     </div>
 
     <div class="footer-link">
-        <a href="https://t.me/TombolaEthiopia" target="_blank">● Join Group</a>
+        <a href="https://t.me/TombolaEthiopia" target="_blank">● Join Telegram Group</a>
     </div>
 
     <script>
@@ -91,15 +91,14 @@
         let phone = localStorage.getItem('u_phone'), drawnNums = [], markedNums = [], myTicket = [], audioReady = false;
 
         function enableAudio() { audioReady = true; }
-        function speak(n) { if(audioReady) { const m = new SpeechSynthesisUtterance("ቁጥር " + n); m.lang='am-ET'; window.speechSynthesis.speak(m); } }
+        function speak(n) { if(audioReady) { const m = new SpeechSynthesisUtterance(n.toString()); m.lang='en-US'; window.speechSynthesis.speak(m); } }
 
-        // Initialize Board (1-90)
         const boardEl = document.getElementById('brd');
         for(let i=1; i<=90; i++) boardEl.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
         if(!phone) {
-            let p = prompt("እንኳን ደህና መጡ! ስልክ ቁጥርዎን ያስገቡ:");
-            if(p) { phone = p.trim(); localStorage.setItem('u_phone', phone); fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}); }
+            let p = prompt("እንኳን ደህና መጡ! ስልክ ቁጥርዎን ያስገቡ (ለምሳሌ: 0912345678):");
+            if(p && p.length >= 10) { phone = p.trim(); localStorage.setItem('u_phone', phone); fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}); }
         }
 
         function update() {
@@ -111,10 +110,14 @@
                 if(d.status === "lobby") {
                     timerUI.innerText = d.player_count < 2 ? "Wait" : d.timer + "s";
                     if(drawnNums.length > 0 && d.drawn_numbers.length === 0) {
-                        document.querySelectorAll('.b-cell').forEach(c => c.classList.remove('drawn'));
+                        document.querySelectorAll('.b-cell').forEach(c => { c.classList.remove('drawn'); c.classList.remove('on-my-ticket'); });
                         document.getElementById('active-num').innerText = "?";
                         markedNums = [];
+                        myTicket = [];
+                        document.getElementById('t-container').innerHTML = '<p style="font-size: 0.6rem; color: #64748b; text-align: center; margin-top: 20px;">ትኬት ለመቀበል መጀመሪያ ጌሙን ይቀላቀሉ</p>';
                         document.getElementById('win-btn-el').style.display = 'none';
+                        document.getElementById('join-btn').innerText = "Join (10 Birr)";
+                        document.getElementById('join-btn').disabled = false;
                     }
                 } else { timerUI.innerText = "LIVE 🔴"; }
 
@@ -122,8 +125,14 @@
                 if(drawnNums.length > 0) {
                     let last = drawnNums[drawnNums.length-1];
                     if(document.getElementById('active-num').innerText != last) {
-                        document.getElementById('active-num').innerText = last; speak(last);
+                        document.getElementById('active-num').innerText = last;
+                        speak(last);
                         document.getElementById(`b-${last}`).classList.add('drawn');
+                        
+                        if(myTicket.flat().includes(last)) {
+                            let cell = document.getElementById(`tc-${last}`);
+                            if(cell && !markedNums.includes(last)) cell.classList.add('match-found');
+                        }
                     }
                 }
             });
@@ -132,7 +141,9 @@
                 if(d.error) return;
                 document.getElementById('bal').innerText = d.balance.toFixed(2);
                 if(d.is_joined && !myTicket.length) {
-                    myTicket=d.ticket; renderTicket(d.ticket);
+                    myTicket=d.ticket; 
+                    renderTicket(d.ticket);
+                    d.ticket.flat().forEach(n => document.getElementById(`b-${n}`).classList.add('on-my-ticket'));
                     document.getElementById('join-btn').innerText = "JOINED ✅";
                     document.getElementById('join-btn').disabled = true;
                 }
@@ -141,9 +152,13 @@
 
         function renderTicket(ticket) {
             let h = '';
+            // ቲኬቱ 3 ረድፎች ኖረውት እያንዳንዱ 5 ቁጥር ይይዛል
             ticket.forEach((row, idx) => {
                 h += `<div class="t-row">`;
-                row.forEach(n => h += `<div id="tc-${n}" class="t-cell ${markedNums.includes(n)?'marked':''}" onclick="mark(${n}, ${idx})">${n}</div>`);
+                row.forEach(n => {
+                    let isDrawn = drawnNums.includes(n);
+                    h += `<div id="tc-${n}" class="t-cell ${markedNums.includes(n)?'marked':''} ${isDrawn && !markedNums.includes(n)?'match-found':''}" onclick="mark(${n}, ${idx})">${n}</div>`;
+                });
                 h += '</div>';
             });
             document.getElementById('t-container').innerHTML = h;
@@ -152,33 +167,41 @@
         function mark(n, rowIdx) {
             if(drawnNums.includes(n)) {
                 if(!markedNums.includes(n)) {
-                    markedNums.push(n); document.getElementById(`tc-${n}`).classList.add('marked');
+                    markedNums.push(n); 
+                    let el = document.getElementById(`tc-${n}`);
+                    el.classList.remove('match-found');
+                    el.classList.add('marked');
                     tg.HapticFeedback.impactOccurred('medium');
+                    
+                    // Row Win Check
                     if(myTicket[rowIdx].every(num => markedNums.includes(num))) {
                         document.getElementById('win-btn-el').style.display = 'block';
                         tg.HapticFeedback.notificationOccurred('success');
                     }
                 }
-            } else { tg.showAlert("ይህ ቁጥር ገና አልወጣም!"); }
+            } else { 
+                tg.showAlert("ይህ ቁጥር ገና አልወጣም!"); 
+            }
         }
 
         function deposit() {
             const choice = confirm("ለመክፈል የሚከተሉትን ደረጃዎች ይከተሉ፡\n\n1. 'OK' ን በመጫን የአድሚን ስልክ ቁጥር (0945880474) ይቅዱ።\n2. ብር ከላኩ በኋላ 'Cancel' ን ተጭነው ደረሰኙን ያስገቡ።");
             if (choice) {
                 const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                tg.showAlert("የአድሚን ስልክ ቁጥር ኮፒ ተደርጓል!");
+                tg.showAlert("ቁጥሩ ኮፒ ተደርጓል!");
             } else {
-                let rec = prompt("የደረሰኝ SMS ሙሉውን እዚህ 'Paste' ያድርጉ:");
-                if (rec) {
+                let rec = prompt("የደረሰኝ SMS እዚህ ያስገቡ:");
+                if (rec && rec.length > 5) {
                     fetch('/request_action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'Deposit', phone: phone, amount: 'Pending', receipt: rec }) })
-                    .then(() => tg.showAlert("ደረሰኙ ተልኳል!"));
+                    .then(() => tg.showAlert("ተልኳል!"));
                 }
             }
         }
 
         function withdraw() {
             let amt = prompt("የሚወጣው መጠን:");
-            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount: amt})});
+            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount: amt})})
+            .then(() => tg.showAlert("ተልኳል!"));
         }
 
         function claimWin() {
@@ -191,7 +214,8 @@
             .then(r => r.json()).then(d => { if(d.success) { update(); } else { tg.showAlert("በቂ ባላንስ የሎትም!"); } });
         }
 
-        setInterval(update, 1000); tg.expand();
+        setInterval(update, 1000); 
+        tg.expand();
     </script>
 </body>
 </html>
