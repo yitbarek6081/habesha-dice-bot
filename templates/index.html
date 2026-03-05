@@ -106,8 +106,19 @@
                 document.getElementById('p-count').innerText = d.player_count;
                 let timerUI = document.getElementById('timer-ui');
                 
+                if(d.winner) {
+                    timerUI.innerText = "OVER";
+                    document.getElementById('active-num').innerText = "🏆";
+                    document.getElementById('join-btn').innerText = "Winner: " + d.winner;
+                    document.getElementById('join-btn').disabled = true;
+                    document.getElementById('join-btn').style.background = "#475569";
+                    return;
+                }
+
                 if(d.status === "lobby") {
                     timerUI.innerText = d.player_count < 2 ? "Wait" : d.timer + "s";
+                    document.getElementById('join-btn').disabled = false;
+                    
                     if(drawnNums.length > 0 && d.drawn_numbers.length === 0) {
                         document.querySelectorAll('.b-cell').forEach(c => { c.classList.remove('drawn'); c.classList.remove('on-my-ticket'); });
                         document.getElementById('active-num').innerText = "?";
@@ -116,9 +127,15 @@
                         document.getElementById('t-container').innerHTML = '<p style="font-size: 0.6rem; color: #64748b; text-align: center; margin-top: 20px;">ትኬት ለመቀበል መጀመሪያ ጌሙን ይቀላቀሉ</p>';
                         document.getElementById('win-btn-el').style.display = 'none';
                         document.getElementById('join-btn').innerText = "Join (10 Birr)";
-                        document.getElementById('join-btn').disabled = false;
+                        document.getElementById('join-btn').style.background = "var(--gold)";
                     }
-                } else { timerUI.innerText = "LIVE 🔴"; }
+                } else { 
+                    timerUI.innerText = "LIVE 🔴"; 
+                    if(document.getElementById('join-btn').innerText.includes("Join")) {
+                        document.getElementById('join-btn').innerText = "Game in Progress...";
+                        document.getElementById('join-btn').disabled = true;
+                    }
+                }
 
                 drawnNums = d.drawn_numbers || [];
                 if(drawnNums.length > 0) {
@@ -143,8 +160,12 @@
                     myTicket=d.ticket; 
                     renderTicket(d.ticket);
                     d.ticket.flat().forEach(n => document.getElementById(`b-${n}`).classList.add('on-my-ticket'));
-                    document.getElementById('join-btn').innerText = "JOINED ✅";
-                    document.getElementById('join-btn').disabled = true;
+                    
+                    // Button UI Update for Joined players
+                    let jBtn = document.getElementById('join-btn');
+                    jBtn.innerText = "JOINED ✅ (LEAVE?)";
+                    jBtn.style.background = "#ef4444"; // Red for leave
+                    jBtn.disabled = false;
                 }
             });
         }
@@ -182,19 +203,17 @@
         }
 
         function deposit() {
-            const warning = "⚠️ ማስጠንቀቂያ፦ የሌላ ሰው ወይም የቆየ ደረሰኝ መላክ አካውንትዎን በቋሚነት ያስዘጋል!\n\nለመቀጠል 'OK' ይበሉና የአድሚኑን ቁጥር ይቅዱ።";
+            const warning = "⚠️ ማስጠንቀቂያ፦ የሌላ ሰው ወይም የቆየ ደረሰኝ መላክ አካውንትዎን ያስዘጋል!";
             if (confirm(warning)) {
                 const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                tg.showAlert("ቁጥሩ ኮፒ ተደርጓል! ብር ከላኩ በኋላ የደረሰኙን SMS እዚህ ያስገቡ።");
-                
+                tg.showAlert("ቁጥሩ ኮፒ ተደርጓል! SMS እዚህ ያስገቡ።");
                 setTimeout(() => {
-                    let rec = prompt("የደረሰኝ SMS እዚህ 'Paste' ያድርጉ:");
+                    let rec = prompt("የደረሰኝ SMS እዚህ ያስገቡ:");
                     if (rec && rec.length > 5) {
-                        fetch('/request_action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'Deposit', phone: phone, amount: 'Pending', receipt: rec }) })
+                        fetch('/request_action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'Deposit', phone: phone, receipt: rec }) })
                         .then(r => r.json()).then(d => {
-                            if(d.success) tg.showAlert("ደረሰኙ ተልኳል! አድሚኑ ሲያረጋግጥ ባላንስዎ ይሞላል።");
-                            else if(d.error === "Duplicate") tg.showAlert("❌ ስህተት፦ ይህ ደረሰኝ ቀደም ብሎ ጥቅም ላይ ውሏል!");
-                            else tg.showAlert("ስህተት ተፈጥሯል፣ እባክዎ ደግመው ይሞክሩ።");
+                            if(d.success) tg.showAlert("ተልኳል! አድሚኑ ሲያረጋግጥ ይሞላል።");
+                            else tg.showAlert("ስህተት፦ ደረሰኙ ተደግሟል ወይም አልተላከም።");
                         });
                     }
                 }, 1000);
@@ -202,52 +221,9 @@
         }
 
         function withdraw() {
-            let currentBalance = parseFloat(document.getElementById('bal').innerText);
-            
-            if (currentBalance <= 0) {
-                tg.showAlert("❌ ባላንስዎ 0 ስለሆነ ማውጣት አይችሉም።");
-                return;
-            }
-
-            let amt = prompt("የሚወጣውን መጠን ያስገቡ (ያለዎት ባላንስ: " + currentBalance + " ETB):");
-            
-            if (amt) {
-                let withdrawAmount = parseFloat(amt);
-                if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
-                    tg.showAlert("❌ እባክዎ ትክክለኛ መጠን ያስገቡ!");
-                } else if (withdrawAmount > currentBalance) {
-                    tg.showAlert("❌ በቂ ባላንስ የሎትም! ማውጣት የሚችሉት ከ " + currentBalance + " ETB በታች ነው።");
-                } else {
-                    fetch('/request_action', {
-                        method: 'POST', 
-                        headers: {'Content-Type': 'application/json'}, 
-                        body: JSON.stringify({type: 'Withdraw', phone: phone, amount: withdrawAmount})
-                    })
-                    .then(r => r.json()).then(d => {
-                        if(d.success) {
-                            tg.showAlert("✅ የ " + withdrawAmount + " ETB የመውጣት ጥያቄዎ ለአድሚን ተልኳል!");
-                        } else if(d.error === "Inadequate Balance") {
-                            tg.showAlert("❌ በቂ ባላንስ የሎትም!");
-                        } else {
-                            tg.showAlert("❌ ስህተት ተፈጥሯል፣ ደግመው ይሞክሩ።");
-                        }
-                    });
-                }
-            }
-        }
-
-        function claimWin() {
-            fetch('/claim_win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r => r.json()).then(d => { if(d.success) { confetti(); tg.showAlert("እንኳን ደስ አለዎት!"); document.getElementById('win-btn-el').style.display = 'none'; } });
-        }
-
-        function joinGame() {
-            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r => r.json()).then(d => { if(d.success) { update(); } else { tg.showAlert("በቂ ባላንስ የሎትም ወይም ጌሙ ተጀምሯል!"); } });
-        }
-
-        setInterval(update, 1000); 
-        tg.expand();
-    </script>
-</body>
-</html>
+            let bal = parseFloat(document.getElementById('bal').innerText);
+            if (bal <= 0) return tg.showAlert("ባላንስ የሎትም!");
+            let amt = prompt("የሚወጣ መጠን (Max: " + bal + "):");
+            if (amt && parseFloat(amt) <= bal) {
+                fetch('/request_action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type: 'Withdraw', phone: phone, amount: amt}) })
+                .then(r => r.json
