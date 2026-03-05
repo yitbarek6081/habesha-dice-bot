@@ -52,7 +52,7 @@ def get_status():
     now = time.time()
     player_count = len(game_state["players"])
     
-    # አሸናፊ ከተገኘ ከ 5 ሰከንድ በኋላ ጌሙን ሪሴት ያደርጋል
+    # 1. አሸናፊ ከተገኘ ከ 5 ሰከንድ በኋላ ጌሙን ሪሴት ያደርጋል (ለአኒሜሽን ማሳያ)
     if game_state["winner"] and (now - game_state["last_draw_time"] > 5):
         game_state.update({
             "status": "lobby", "players": {}, "pot": 0, "winner": None, 
@@ -66,13 +66,13 @@ def get_status():
         
         timer = max(0, 20 - int(now - game_state["start_countdown"]))
         
-        # ቢያንስ 2 ሰው ከሌለ ታይመሩ በየ 20 ሰከንዱ ራሱን ያድሳል
+        # 2. ቢያንስ 2 ሰው ከሌለ ታይመሩ በየ 20 ሰከንዱ ራሱን ያድሳል
         if timer == 0:
             if player_count >= 2:
                 game_state.update({"status": "running", "last_draw_time": now})
                 random.shuffle(game_state["available_numbers"])
             else:
-                game_state["start_countdown"] = now # ታይመሩን ደግሞ ይጀምረዋል
+                game_state["start_countdown"] = now # ታይመሩን ዳግመኛ ይጀምረዋል
                 timer = 20
     else:
         timer = 0
@@ -91,12 +91,11 @@ def get_status():
         "winner": game_state["winner"]
     })
 
-# --- አዲስ፡ ተጫዋቹ ሳይጀመር እንዲወጣ (Unjoin) ---
 @app.route('/unjoin_game', methods=['POST'])
 def unjoin():
     p = str(request.json['phone'])
     if p in game_state["players"] and game_state["status"] == "lobby":
-        wallets.update_one({"phone": p}, {"$inc": {"balance": 10}}) # 10 ብር ይመለሳል
+        wallets.update_one({"phone": p}, {"$inc": {"balance": 10}}) 
         del game_state["players"][p]
         game_state["pot"] -= 10
         return jsonify({"success": True})
@@ -120,20 +119,87 @@ def claim_win():
     if p in game_state["players"] and not game_state["winner"]:
         game_state["winner"] = game_state["players"][p]["name"]
         
-        # የኮሚሽን ስሌት (80% ለአሸናፊው)
+        # 3. የኮሚሽን ስሌት (80% ለአሸናፊው፣ 20% ለቤት)
         total_pot = game_state["pot"]
-        win_amount = total_pot * 0.8  # 80%
-        house_commission = total_pot * 0.2 # 20%
+        win_amount = total_pot * 0.8 
+        house_commission = total_pot * 0.2 
         
+        # ለአሸናፊው 80% መጨመር
         wallets.update_one({"phone": p}, {"$inc": {"balance": win_amount}})
-        game_state["last_draw_time"] = time.time()
         
-        # ለአድሚኑ ማሳወቅ
+        # ኮሚሽኑን ለአድሚን ዋሌት ገቢ ማድረግ
+        wallets.update_one({"phone": ADMIN_PHONE}, {"$inc": {"balance": house_commission}}, upsert=True)
+        
+        game_state["last_draw_time"] = time.time() # 5 ሰከንዱ ከዚህ ይቆጠራል
+        
         if bot_loop:
-            msg = f"🏆 **አሸናፊ ተገኝቷል!**\n👤 ስም: `{game_state['winner']}`\n💰 ጠቅላላ: `{total_pot} ETB`\n💵 አሸናፊ ድርሻ (80%): `{win_amount} ETB`\n🏠 ኮሚሽን (20%): `{house_commission} ETB`"
+            msg = (f"🏆 **አሸናፊ ተገኝቷል!**\n\n"
+                   f"👤 ስም: `{game_state['winner']}`\n"
+                   f"💰 ጠቅላላ ፖት: `{total_pot} ETB`\n"
+                   f"💵 ለአሸናፊው (80%): `{win_amount:.2f} ETB`\n"
+                   f"🏠 የቤት ኮሚሽን (20%): `{house_commission:.2f} ETB`")
             asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), bot_loop)
             
         return jsonify({"success": True, "amount": win_amount})
     return jsonify({"success": False})
 
-# ... (ቀሪው request_action እና የBot Commands እንዳለ ይቀጥላል) ...
+# --- USER DATA ---
+@app.route('/user_data/<phone>')
+def user_data(phone):
+    user = wallets.find_one({"phone": phone})
+    if not user: return jsonify({"balance": 0, "is_joined": False})
+    return jsonify({
+        "balance": user.get("balance", 0),
+        "is_joined": phone in game_state["players"],
+        "ticket": game_state["players"][phone]["ticket"] if phone in game_state["players"] else []
+    })
+
+# --- REGISTER ---
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.json
+    if not wallets.find_one({"phone": data['phone']}):
+        wallets.insert_one({"phone": data['phone'], "name": data['name'], "balance": 0})
+    return jsonify({"success": True})
+
+# --- REQUEST ACTION ---
+@app.route('/request_action', methods=['POST'])
+def request_action():
+    data = request.json
+    if bot_loop:
+        if data['type'] == 'Deposit':
+            msg = f"💰 **የተቀማጭ ጥያቄ (Deposit)**\n👤 ስልክ: `{data['phone']}`\n📄 ዝርዝር: {data['receipt']}\n\nለመሙላት: `/add {data['phone']} መጠን`"
+        else:
+            msg = f"💸 **የወጪ ጥያቄ (Withdraw)**\n👤 ስልክ: `{data['phone']}`\n💵 መጠን: `{data['amount']} ETB`"
+        asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg), bot_loop)
+    return jsonify({"success": True})
+
+# --- BOT COMMANDS ---
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🎮 ጨዋታውን ክፈት", web_app=WebAppInfo(url=WEB_APP_URL)))
+    await message.answer("እንኳን ወደ ፕሪሚየም ቶምቦላ በሰላም መጡ! ለመጫወት ከታች ያለውን ቁልፍ ይጫኑ።", reply_markup=builder.as_markup())
+
+@dp.message(Command("add"))
+async def cmd_add(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    try:
+        _, ph, amt = message.text.split()
+        wallets.update_one({"phone": ph}, {"$inc": {"balance": float(amt)}}, upsert=True)
+        await message.answer(f"✅ ለ {ph} {amt} ብር ተጨምሯል!")
+    except:
+        await message.answer("ስህተት! አጠቃቀም: `/add 0912345678 100`")
+
+# --- SERVER START ---
+def run_flask():
+    app.run(host='0.0.0.0', port=PORT)
+
+async def main():
+    global bot_loop
+    bot_loop = asyncio.get_running_loop()
+    Thread(target=run_flask).start()
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())
