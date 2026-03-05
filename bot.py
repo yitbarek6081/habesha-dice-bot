@@ -9,6 +9,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import WebAppInfo, InlineKeyboardButton
 from pymongo import MongoClient
+import hashlib
 
 # --- CONFIG ---
 TOKEN = os.getenv("BOT_TOKEN")
@@ -26,11 +27,11 @@ app = Flask(__name__)
 client = MongoClient(MONGO_URL)
 db = client['tombola_game']
 wallets = db['wallets']
+receipt_history = db['receipt_history'] 
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# የአይኦግራም (Bot) ሉፕ ለማከማቸት
 bot_loop = None
 
 game_state = {
@@ -103,29 +104,40 @@ def claim_win():
         return jsonify({"success": True, "amount": game_state["pot"]})
     return jsonify({"success": False})
 
-# ዲፖዚት ሲደረግ ለአድሚን መልዕክት የሚልክ ክፍል (Thread Safe Version)
 @app.route('/request_action', methods=['POST'])
 def request_action():
     data = request.json
     phone = data.get('phone')
-    receipt = data.get('receipt', 'N/A')
     req_type = data.get('type', 'Deposit')
-    amount = data.get('amount', 'Pending')
+    amount = data.get('amount', '0')
+    receipt = data.get('receipt', '').strip()
+
+    if req_type == 'Deposit':
+        if not receipt or len(receipt) < 10:
+            return jsonify({"success": False, "error": "Invalid receipt"})
+
+        receipt_id = hashlib.md5(receipt.encode()).hexdigest()
+        if receipt_history.find_one({"receipt_id": receipt_id}):
+            return jsonify({"success": False, "error": "Duplicate"})
+
+        receipt_history.insert_one({"receipt_id": receipt_id, "phone": phone, "time": time.time()})
+        
+        msg = f"🔔 **አዲስ የዲፖዚት ጥያቄ!**\n\n📱 ስልክ: `{phone}`\n🧾 ደረሰኝ: \n`{receipt}`\n\nባላንስ ለመሙላት: `/add {phone} [መጠን]`"
+
+    else: # Withdraw process
+        user = wallets.find_one({"phone": phone})
+        if not user or user.get("balance", 0) < float(amount):
+            return jsonify({"success": False, "error": "Inadequate Balance"})
+        
+        msg = f"💸 **አዲስ የዊዝድሮው ጥያቄ!**\n\n"
+        msg += f"📱 ስልክ: `{phone}`\n"
+        msg += f"💰 መጠን: `{amount} ETB`\n\n"
+        msg += f"ባላንስ ለመቀነስ (ለማረጋገጥ): `/add {phone} -{amount}`"
     
-    msg = f"🔔 **አዲስ የ{req_type} ጥያቄ!**\n\n"
-    msg += f"📱 ስልክ: `{phone}`\n"
-    msg += f"💰 መጠን: `{amount}`\n"
-    msg += f"🧾 ደረሰኝ: \n`{receipt}`\n\n"
-    msg += f"ባላንስ ለመሙላት: `/add {phone} [መጠን]`"
-    
-    # Flask (Thread) ውስጥ ሆነን ወደ Bot (Main Loop) መልዕክት መላክ
     if bot_loop:
-        asyncio.run_coroutine_threadsafe(
-            bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), 
-            bot_loop
-        )
+        asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), bot_loop)
         return jsonify({"success": True})
-    return jsonify({"success": False, "error": "Bot loop not initialized"})
+    return jsonify({"success": False})
 
 # --- BOT COMMANDS ---
 
@@ -156,9 +168,11 @@ async def add_money(m: types.Message):
         if user:
             wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}})
             if user.get("tg_id"):
-                try: await bot.send_message(user["tg_id"], f"💰 {amount} ETB ባላንስዎ ላይ ተጨምሯል!")
+                try: 
+                    msg = f"💰 {amount} ETB ባላንስዎ ላይ ተጨምሯል!" if amount > 0 else f"💸 {abs(amount)} ETB ከባላንስዎ ላይ ተቀንሷል።"
+                    await bot.send_message(user["tg_id"], msg)
                 except: pass
-            await m.answer(f"✅ ለ {phone} {amount} ETB ተጨምሯል።")
+            await m.answer(f"✅ ለ {phone} {amount} ETB ተስተካክሏል።")
         else:
             await m.answer("❌ ስልኩ በዳታቤዝ ውስጥ አልተገኘም።")
     except Exception as e:
@@ -168,14 +182,12 @@ async def add_money(m: types.Message):
 
 async def main():
     global bot_loop
-    bot_loop = asyncio.get_running_loop() # የቦቱን ሉፕ እዚህ ጋር እንይዛለን
+    bot_loop = asyncio.get_running_loop()
     
-    # Flaskን በሌላ Thread ማስጀመር
     flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False))
     flask_thread.daemon = True
     flask_thread.start()
     
-    # ቦቱን ማስጀመር
     print("Bot is starting...")
     await dp.start_polling(bot)
 
