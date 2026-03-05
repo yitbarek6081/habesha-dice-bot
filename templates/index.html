@@ -14,43 +14,51 @@
         .stat-item small { display: block; color: #94a3b8; font-size: 0.65rem; text-transform: uppercase; }
         .stat-item b { color: var(--gold); font-size: 0.9rem; }
 
+        /* አሸናፊ ሲኖር የሚመጣ ሜሴጅ */
+        #winner-announcement { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(30, 41, 59, 0.95); border: 2px solid var(--gold);
+            padding: 20px; border-radius: 15px; text-align: center; z-index: 1000;
+            display: none; width: 80%; box-shadow: 0 0 30px rgba(241, 196, 15, 0.5);
+        }
+
         .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
-        .btn-act { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: white; font-weight: bold; cursor: pointer; font-size: 0.8rem; transition: 0.3s; }
-        .btn-act:active { background: var(--gold); color: black; }
-        .draw-circle { width: 70px; height: 70px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; background: var(--card); color: var(--gold); box-shadow: 0 0 15px rgba(241, 196, 15, 0.2); }
+        .btn-act { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: white; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
+        .draw-circle { width: 70px; height: 70px; border: 4px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; background: var(--card); color: var(--gold); }
 
         .join-container { text-align: center; margin-bottom: 20px; }
-        .btn-join-main { width: 85%; padding: 14px; border-radius: 30px; border: none; background: var(--gold); color: black; font-weight: 900; font-size: 1.1rem; cursor: pointer; transition: 0.3s; }
+        .btn-join-main { width: 85%; padding: 14px; border-radius: 30px; border: none; background: var(--gold); color: black; font-weight: 900; font-size: 1.1rem; cursor: pointer; }
         .btn-join-main.joined { background: var(--red); color: white; }
-        .btn-join-main:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
 
         .boards-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 10px; align-items: start; }
         .board-box { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 8px; min-height: 320px; }
-        .board-title { text-align: center; font-size: 0.75rem; color: var(--gold); margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; font-weight: bold; }
+        .board-title { text-align: center; font-size: 0.75rem; color: var(--gold); margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; }
 
         #brd { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
         .b-cell { font-size: 0.65rem; padding: 6px 0; background: #334155; border-radius: 3px; color: #94a3b8; text-align: center; }
-        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; }
+        .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.1); }
         .b-cell.on-my-ticket { border: 1px solid var(--gold); color: var(--gold); }
 
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 8px; }
-        .t-cell { background: white; color: #0f172a; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 5px; border-bottom: 3px solid #cbd5e1; cursor: pointer; }
-        .t-cell.match-found { border: 2px solid var(--gold); animation: blink 1s infinite; }
+        .t-cell { background: white; color: #0f172a; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 5px; border-bottom: 3px solid #cbd5e1; }
         .t-cell.marked { background: var(--green) !important; color: white !important; border-bottom: none; transform: translateY(2px); }
-        
-        @keyframes blink { 50% { opacity: 0.7; } }
 
-        .win-btn { background: linear-gradient(135deg, var(--gold), #e67e22); color: black; width: 100%; padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 900; border: none; margin-top: 10px; display: none; cursor: pointer; }
-        .footer-link { margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; text-align: center; }
-        .footer-link a { color: #24A1DE; text-decoration: none; font-size: 0.9rem; }
+        .win-btn { background: linear-gradient(135deg, var(--gold), #e67e22); color: black; width: 100%; padding: 12px; border-radius: 10px; font-size: 1.1rem; font-weight: 900; border: none; margin-top: 10px; display: none; cursor: pointer; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body onclick="enableAudio()">
 
+    <div id="winner-announcement">
+        <h2 style="color: var(--gold); margin: 0;">🏆 አሸናፊ ተገኘ!</h2>
+        <p id="winner-name" style="font-size: 1.4rem; margin: 10px 0; font-weight: bold;"></p>
+        <p style="font-size: 0.9rem; color: #94a3b8;">ቀጣይ ጨዋታ በ5 ሰከንድ ውስጥ ይጀምራል...</p>
+    </div>
+
     <div class="top-stats">
         <div class="stat-item"><small>Wallet</small><b id="bal">0.00</b></div>
-        <div class="stat-item"><small>Time</small><b id="timer-ui">Lobby</b></div>
-        <div class="stat-item"><small>Pot</small><b id="pot">0</b></div>
+        <div class="stat-item"><small>Timer</small><b id="timer-ui">20s</b></div>
+        <div class="stat-item"><small>Pot (80%)</small><b id="pot">0</b></div>
         <div class="stat-item"><small>Players</small><b id="p-count">0</b></div>
     </div>
 
@@ -86,30 +94,39 @@
         function enableAudio() { audioReady = true; }
         function speak(n) { if(audioReady) { const m = new SpeechSynthesisUtterance(n.toString()); m.lang='en-US'; window.speechSynthesis.speak(m); } }
 
-        // Render Board
+        // Render Game Board
         const boardEl = document.getElementById('brd');
         for(let i=1; i<=90; i++) boardEl.innerHTML += `<div class="b-cell" id="b-${i}">${i}</div>`;
 
-        if(!phone) {
-            let p = prompt("እንኳን ደህና መጡ! ስልክ ቁጥርዎን ያስገቡ:");
-            if(p && p.length >= 10) { phone = p.trim(); localStorage.setItem('u_phone', phone); fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}); }
-        }
-
         function update() {
             fetch('/get_status').then(r => r.json()).then(d => {
-                document.getElementById('pot').innerText = d.pot + " ETB";
+                // ኮሚሽን ተቀንሶ የሚታይ ገቢ (80%)
+                document.getElementById('pot').innerText = (d.pot * 0.8).toFixed(0) + " ETB";
                 document.getElementById('p-count').innerText = d.player_count;
+                
                 let timerUI = document.getElementById('timer-ui');
                 let joinBtn = document.getElementById('join-btn');
+                let winDisplay = document.getElementById('winner-announcement');
 
-                if(d.status === "lobby") {
-                    timerUI.innerText = d.player_count < 2 ? "Wait" : d.timer + "s";
-                    if(drawnNums.length > 0 && d.drawn_numbers.length === 0) location.reload();
-                } else { 
-                    timerUI.innerText = "LIVE 🔴"; 
-                    if(!isJoined) { joinBtn.disabled = true; joinBtn.innerText = "Game Started"; }
+                // የአሸናፊ ማሳያ ስልት (5 ሰከንድ)
+                if(d.winner) {
+                    winDisplay.style.display = 'block';
+                    document.getElementById('winner-name').innerText = d.winner;
+                } else {
+                    winDisplay.style.display = 'none';
+                    if(d.status === "lobby") {
+                        timerUI.innerText = d.timer + "s";
+                        joinBtn.disabled = false;
+                        if(!isJoined) joinBtn.innerText = "Join (10 Birr)";
+                        // ጌሙ ሲያልቅ እና ዳታው ሲጸዳ ፔጁን ሪፍሬሽ ለማድረግ
+                        if(drawnNums.length > 0 && d.drawn_numbers.length === 0) location.reload();
+                    } else {
+                        timerUI.innerText = "LIVE 🔴";
+                        if(!isJoined) { joinBtn.disabled = true; joinBtn.innerText = "Started"; }
+                    }
                 }
 
+                // ቁጥሮችን መጣል
                 drawnNums = d.drawn_numbers || [];
                 if(drawnNums.length > 0) {
                     let last = drawnNums[drawnNums.length-1];
@@ -121,6 +138,7 @@
                 }
             });
 
+            // የተጠቃሚ መረጃ
             if(phone) fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
                 document.getElementById('bal').innerText = d.balance.toFixed(2);
                 if(d.is_joined && !isJoined) {
@@ -132,41 +150,22 @@
             });
         }
 
+        // Join እና Leave ሲስተም
         function handleJoinAction() {
             if(isJoined) {
                 if(confirm("ከጨዋታው ወጥተው 10 ብርዎ እንዲመለስ ይፈልጋሉ?")) {
                     fetch('/unjoin_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-                    .then(r=>r.json()).then(d=> { if(d.success) location.reload(); else alert("መውጣት አይቻልም!"); });
+                    .then(r=>r.json()).then(d=> { 
+                        if(d.success) {
+                            isJoined = false;
+                            location.reload(); 
+                        } else alert("መውጣት አይቻልም!"); 
+                    });
                 }
             } else {
                 fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
                 .then(r=>r.json()).then(d=> { if(d.success) update(); else alert("በቂ ባላንስ የሎትም!"); });
             }
-        }
-
-        function deposit() {
-            tg.showConfirm("⚠️ ማስጠንቀቂያ፦ የሌላ ሰው ደረሰኝ መላክ አካውንት ያስዘጋል!", (ok) => {
-                if(ok) {
-                    const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                    tg.showAlert("የአድሚን ስልክ (" + ADMIN_PHONE + ") ኮፒ ሆኗል። ብር ልከው ሲጨርሱ SMS እዚህ ያስገቡ።");
-                    setTimeout(() => {
-                        let rec = prompt("የባንክ SMS እዚህ ይለጥፉ (Paste):");
-                        if(rec && rec.length > 10) {
-                            fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Deposit', phone, receipt:rec})})
-                            .then(r=>r.json()).then(d=> { if(d.success) tg.showAlert("ተልኳል! አድሚኑ ሲያረጋግጥ ይሞላል።"); });
-                        }
-                    }, 1000);
-                }
-            });
-        }
-
-        function withdraw() {
-            let bal = parseFloat(document.getElementById('bal').innerText);
-            let amt = prompt("የሚወጣው መጠን (ያለዎት: " + bal + " ETB):");
-            if(amt && parseFloat(amt) <= bal) {
-                fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount:amt})})
-                .then(r=>r.json()).then(d=> { if(d.success) tg.showAlert("ጥያቄዎ ተልኳል!"); });
-            } else { alert("ስህተት!"); }
         }
 
         function renderTicket(t) {
@@ -183,15 +182,39 @@
             if(drawnNums.includes(n)) {
                 let el = document.getElementById(`tc-${n}`);
                 if(!markedNums.includes(n)) {
-                    markedNums.push(n); el.classList.add('marked'); tg.HapticFeedback.impactOccurred('medium');
+                    markedNums.push(n); el.classList.add('marked');
+                    tg.HapticFeedback.impactOccurred('medium');
+                    // አንድ መስመር ሙሉ በሙሉ ከተሞላ ቶምቦላ እንዲል
                     if(myTicket[rIdx].every(num => markedNums.includes(num))) document.getElementById('win-btn-el').style.display='block';
                 }
-            } else { tg.showAlert("ይህ ቁጥር ገና አልወጣም!"); }
+            }
         }
 
         function claimWin() {
             fetch('/claim_win', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
             .then(r=>r.json()).then(d=> { if(d.success) { confetti(); document.getElementById('win-btn-el').style.display='none'; } });
+        }
+
+        function deposit() {
+            const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
+            tg.showAlert("የአድሚን ስልክ (" + ADMIN_PHONE + ") ኮፒ ሆኗል። ብር ልከው ሲጨርሱ SMS እዚህ ያስገቡ።");
+            setTimeout(() => {
+                let rec = prompt("የባንክ SMS እዚህ ይለጥፉ (Paste):");
+                if(rec) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Deposit', phone, receipt:rec})}).then(r=>r.json()).then(d=> { if(d.success) tg.showAlert("ተልኳል!"); });
+            }, 1000);
+        }
+
+        function withdraw() {
+            let bal = parseFloat(document.getElementById('bal').innerText);
+            let amt = prompt("የሚወጣው መጠን:");
+            if(amt && parseFloat(amt) <= bal) {
+                fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount:amt})}).then(r=>r.json()).then(d=> { if(d.success) tg.showAlert("ጥያቄው ተልኳል!"); });
+            }
+        }
+
+        if(!phone) {
+            let p = prompt("ስልክ ቁጥርዎን ያስገቡ:");
+            if(p) { phone = p.trim(); localStorage.setItem('u_phone', phone); fetch('/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, name: tg.initDataUnsafe.user?.first_name || "Player"})}); }
         }
 
         setInterval(update, 1000); tg.expand();
