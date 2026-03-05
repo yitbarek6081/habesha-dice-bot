@@ -32,7 +32,6 @@
         .b-cell.drawn { background: #ef4444; color: white; font-weight: bold; transform: scale(1.05); }
         .b-cell.on-my-ticket { border: 1px solid var(--gold); color: var(--gold); }
 
-        /* እዚህ ጋር ነው የቲኬት ረድፎች የተስተካከሉት */
         .t-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 8px; }
         .t-cell { background: white; color: #0f172a; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 5px; cursor: pointer; border-bottom: 3px solid #cbd5e1; position: relative; }
         .t-cell.match-found { border: 2px solid var(--gold); animation: blink 1s infinite; }
@@ -152,7 +151,6 @@
 
         function renderTicket(ticket) {
             let h = '';
-            // ቲኬቱ 3 ረድፎች ኖረውት እያንዳንዱ 5 ቁጥር ይይዛል
             ticket.forEach((row, idx) => {
                 h += `<div class="t-row">`;
                 row.forEach(n => {
@@ -173,7 +171,6 @@
                     el.classList.add('marked');
                     tg.HapticFeedback.impactOccurred('medium');
                     
-                    // Row Win Check
                     if(myTicket[rowIdx].every(num => markedNums.includes(num))) {
                         document.getElementById('win-btn-el').style.display = 'block';
                         tg.HapticFeedback.notificationOccurred('success');
@@ -185,23 +182,58 @@
         }
 
         function deposit() {
-            const choice = confirm("ለመክፈል የሚከተሉትን ደረጃዎች ይከተሉ፡\n\n1. 'OK' ን በመጫን የአድሚን ስልክ ቁጥር (0945880474) ይቅዱ።\n2. ብር ከላኩ በኋላ 'Cancel' ን ተጭነው ደረሰኙን ያስገቡ።");
-            if (choice) {
+            const warning = "⚠️ ማስጠንቀቂያ፦ የሌላ ሰው ወይም የቆየ ደረሰኝ መላክ አካውንትዎን በቋሚነት ያስዘጋል!\n\nለመቀጠል 'OK' ይበሉና የአድሚኑን ቁጥር ይቅዱ።";
+            if (confirm(warning)) {
                 const el = document.createElement('textarea'); el.value = ADMIN_PHONE; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                tg.showAlert("ቁጥሩ ኮፒ ተደርጓል!");
-            } else {
-                let rec = prompt("የደረሰኝ SMS እዚህ ያስገቡ:");
-                if (rec && rec.length > 5) {
-                    fetch('/request_action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'Deposit', phone: phone, amount: 'Pending', receipt: rec }) })
-                    .then(() => tg.showAlert("ተልኳል!"));
-                }
+                tg.showAlert("ቁጥሩ ኮፒ ተደርጓል! ብር ከላኩ በኋላ የደረሰኙን SMS እዚህ ያስገቡ።");
+                
+                setTimeout(() => {
+                    let rec = prompt("የደረሰኝ SMS እዚህ 'Paste' ያድርጉ:");
+                    if (rec && rec.length > 5) {
+                        fetch('/request_action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'Deposit', phone: phone, amount: 'Pending', receipt: rec }) })
+                        .then(r => r.json()).then(d => {
+                            if(d.success) tg.showAlert("ደረሰኙ ተልኳል! አድሚኑ ሲያረጋግጥ ባላንስዎ ይሞላል።");
+                            else if(d.error === "Duplicate") tg.showAlert("❌ ስህተት፦ ይህ ደረሰኝ ቀደም ብሎ ጥቅም ላይ ውሏል!");
+                            else tg.showAlert("ስህተት ተፈጥሯል፣ እባክዎ ደግመው ይሞክሩ።");
+                        });
+                    }
+                }, 1000);
             }
         }
 
         function withdraw() {
-            let amt = prompt("የሚወጣው መጠን:");
-            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'Withdraw', phone, amount: amt})})
-            .then(() => tg.showAlert("ተልኳል!"));
+            let currentBalance = parseFloat(document.getElementById('bal').innerText);
+            
+            if (currentBalance <= 0) {
+                tg.showAlert("❌ ባላንስዎ 0 ስለሆነ ማውጣት አይችሉም።");
+                return;
+            }
+
+            let amt = prompt("የሚወጣውን መጠን ያስገቡ (ያለዎት ባላንስ: " + currentBalance + " ETB):");
+            
+            if (amt) {
+                let withdrawAmount = parseFloat(amt);
+                if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+                    tg.showAlert("❌ እባክዎ ትክክለኛ መጠን ያስገቡ!");
+                } else if (withdrawAmount > currentBalance) {
+                    tg.showAlert("❌ በቂ ባላንስ የሎትም! ማውጣት የሚችሉት ከ " + currentBalance + " ETB በታች ነው።");
+                } else {
+                    fetch('/request_action', {
+                        method: 'POST', 
+                        headers: {'Content-Type': 'application/json'}, 
+                        body: JSON.stringify({type: 'Withdraw', phone: phone, amount: withdrawAmount})
+                    })
+                    .then(r => r.json()).then(d => {
+                        if(d.success) {
+                            tg.showAlert("✅ የ " + withdrawAmount + " ETB የመውጣት ጥያቄዎ ለአድሚን ተልኳል!");
+                        } else if(d.error === "Inadequate Balance") {
+                            tg.showAlert("❌ በቂ ባላንስ የሎትም!");
+                        } else {
+                            tg.showAlert("❌ ስህተት ተፈጥሯል፣ ደግመው ይሞክሩ።");
+                        }
+                    });
+                }
+            }
         }
 
         function claimWin() {
@@ -211,7 +243,7 @@
 
         function joinGame() {
             fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
-            .then(r => r.json()).then(d => { if(d.success) { update(); } else { tg.showAlert("በቂ ባላንስ የሎትም!"); } });
+            .then(r => r.json()).then(d => { if(d.success) { update(); } else { tg.showAlert("በቂ ባላንስ የሎትም ወይም ጌሙ ተጀምሯል!"); } });
         }
 
         setInterval(update, 1000); 
