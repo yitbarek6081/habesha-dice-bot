@@ -154,6 +154,36 @@ async def link_account(m: types.Message):
     wallets.update_one({"phone": phone}, {"$set": {"tg_id": m.from_user.id}})
     await m.answer("✅ አካውንትዎ ተገናኝቷል! አሁን ማሳወቂያዎች ይደርስዎታል።")
 
+# አዲስ፡ ሁሉንም ተጫዋቾች ለማየት
+@dp.message(Command("users"))
+async def list_users(m: types.Message):
+    if m.from_user.id != ADMIN_ID: return
+    all_u = wallets.find().sort("balance", -1)
+    msg = "👥 **የተመዘገቡ ተጫዋቾች**\n\n"
+    count = 0
+    for u in all_u:
+        count += 1
+        msg += f"{count}. 👤 {u.get('name')} | 📱 `{u.get('phone')}` | 💰 `{u.get('balance', 0):.2f}`\n"
+        if len(msg) > 3800: # ቴሌግራም ከ 4096 በላይ አይቀበልም
+            await m.answer(msg, parse_mode="Markdown")
+            msg = ""
+    if count == 0: await m.answer("❌ እስካሁን ምንም ተጫዋች አልተመዘገበም።")
+    elif msg: await m.answer(msg, parse_mode="Markdown")
+
+# አዲስ፡ የአንድን ሰው መረጃ ቼክ ለማድረግ
+@dp.message(Command("check"))
+async def check_user(m: types.Message):
+    if m.from_user.id != ADMIN_ID: return
+    args = m.text.split()
+    if len(args) < 2: return await m.answer("⚠️ አጠቃቀም: `/check 09xxxxxxxx`")
+    phone = args[1].strip()
+    u = wallets.find_one({"phone": phone})
+    if u:
+        msg = f"🔍 **የተጫዋች መረጃ**\n\n👤 ስም: `{u.get('name')}`\n📱 ስልክ: `{u.get('phone')}`\n💰 ባላንስ: `{u.get('balance', 0):.2f} ETB`"
+        await m.answer(msg, parse_mode="Markdown")
+    else:
+        await m.answer("❌ ተጫዋቹ አልተገኘም።")
+
 @dp.message(Command("add"))
 async def add_money(m: types.Message):
     if m.from_user.id != ADMIN_ID: return
