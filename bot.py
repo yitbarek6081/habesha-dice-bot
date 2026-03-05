@@ -50,8 +50,14 @@ def index():
 def get_status():
     now = time.time()
     player_count = len(game_state["players"])
+    
+    # አሸናፊ ከተገኘ ከ15 ሰከንድ በኋላ ጌሙን ሪሴት ያደርጋል
     if game_state["winner"] and (now - game_state["last_draw_time"] > 15):
-        game_state.update({"status": "lobby", "players": {}, "pot": 0, "winner": None, "drawn_numbers": [], "available_numbers": list(range(1, 91))})
+        game_state.update({
+            "status": "lobby", "players": {}, "pot": 0, "winner": None, 
+            "drawn_numbers": [], "available_numbers": list(range(1, 91)),
+            "start_countdown": None
+        })
     
     if game_state["status"] == "lobby":
         if player_count >= 2:
@@ -60,21 +66,36 @@ def get_status():
             if timer == 0:
                 game_state.update({"status": "running", "last_draw_time": now})
                 random.shuffle(game_state["available_numbers"])
-        else: timer = 20
-    else: timer = 0
+        else: 
+            timer = 20
+            game_state["start_countdown"] = None
+    else: 
+        timer = 0
 
+    # ቁጥር የመጣል ሒደት
     if game_state["status"] == "running" and not game_state["winner"]:
         if now - game_state["last_draw_time"] >= 4 and game_state["available_numbers"]:
             game_state["drawn_numbers"].append(game_state["available_numbers"].pop())
             game_state["last_draw_time"] = now
 
-    return jsonify({"status": game_state["status"], "timer": timer, "pot": game_state["pot"], "player_count": player_count, "drawn_numbers": game_state["drawn_numbers"], "winner": game_state["winner"]})
+    return jsonify({
+        "status": game_state["status"], 
+        "timer": timer, 
+        "pot": game_state["pot"], 
+        "player_count": player_count, 
+        "drawn_numbers": game_state["drawn_numbers"], 
+        "winner": game_state["winner"]
+    })
 
 @app.route('/user_data/<phone>')
 def user_data(phone):
     u = wallets.find_one({"phone": str(phone)})
     if not u: return jsonify({"error": "not_registered"})
-    return jsonify({"balance": u.get('balance', 0.0), "is_joined": str(phone) in game_state["players"], "ticket": game_state["players"].get(str(phone), {}).get("ticket")})
+    return jsonify({
+        "balance": u.get('balance', 0.0), 
+        "is_joined": str(phone) in game_state["players"], 
+        "ticket": game_state["players"].get(str(phone), {}).get("ticket")
+    })
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -87,12 +108,28 @@ def register():
 def join():
     p = str(request.json['phone'])
     user = wallets.find_one({"phone": p})
-    if not user or user.get("balance", 0) < 10 or game_state["status"] != "lobby": return jsonify({"success": False})
+    if not user or user.get("balance", 0) < 10 or game_state["status"] != "lobby": 
+        return jsonify({"success": False})
+    
     wallets.update_one({"phone": p}, {"$inc": {"balance": -10}})
     all_n = random.sample(range(1, 91), 15)
-    game_state["players"][p] = {"name": user.get("name", "Player"), "ticket": [sorted(all_n[0:5]), sorted(all_n[5:10]), sorted(all_n[10:15])]}
+    game_state["players"][p] = {
+        "name": user.get("name", "Player"), 
+        "ticket": [sorted(all_n[0:5]), sorted(all_n[5:10]), sorted(all_n[10:15])]
+    }
     game_state["pot"] += 10
     return jsonify({"success": True})
+
+# --- አዲስ፡ መውጫ እና ብር ተመላሽ ---
+@app.route('/unjoin_game', methods=['POST'])
+def unjoin():
+    p = str(request.json['phone'])
+    if p in game_state["players"] and game_state["status"] == "lobby":
+        wallets.update_one({"phone": p}, {"$inc": {"balance": 10}})
+        del game_state["players"][p]
+        game_state["pot"] -= 10
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "Cannot leave now"})
 
 @app.route('/claim_win', methods=['POST'])
 def claim_win():
@@ -101,6 +138,12 @@ def claim_win():
         game_state["winner"] = game_state["players"][p]["name"]
         wallets.update_one({"phone": p}, {"$inc": {"balance": game_state["pot"]}})
         game_state["last_draw_time"] = time.time()
+        
+        # ለአድሚኑ ማሳወቂያ መላክ
+        if bot_loop:
+            win_msg = f"🏆 **አሸናፊ ተገኝቷል!**\n\n👤 ስም: `{game_state['winner']}`\n💰 መጠን: `{game_state['pot']} ETB`"
+            asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, win_msg, parse_mode="Markdown"), bot_loop)
+            
         return jsonify({"success": True, "amount": game_state["pot"]})
     return jsonify({"success": False})
 
@@ -121,7 +164,6 @@ def request_action():
             return jsonify({"success": False, "error": "Duplicate"})
 
         receipt_history.insert_one({"receipt_id": receipt_id, "phone": phone, "time": time.time()})
-        
         msg = f"🔔 **አዲስ የዲፖዚት ጥያቄ!**\n\n📱 ስልክ: `{phone}`\n🧾 ደረሰኝ: \n`{receipt}`\n\nባላንስ ለመሙላት: `/add {phone} [መጠን]`"
 
     else: # Withdraw process
@@ -129,10 +171,7 @@ def request_action():
         if not user or user.get("balance", 0) < float(amount):
             return jsonify({"success": False, "error": "Inadequate Balance"})
         
-        msg = f"💸 **አዲስ የዊዝድሮው ጥያቄ!**\n\n"
-        msg += f"📱 ስልክ: `{phone}`\n"
-        msg += f"💰 መጠን: `{amount} ETB`\n\n"
-        msg += f"ባላንስ ለመቀነስ (ለማረጋገጥ): `/add {phone} -{amount}`"
+        msg = f"💸 **አዲስ የዊዝድሮው ጥያቄ!**\n\n📱 ስልክ: `{phone}`\n💰 መጠን: `{amount} ETB`\n\nባላንስ ለመቀነስ: `/add {phone} -{amount}`"
     
     if bot_loop:
         asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), bot_loop)
@@ -154,7 +193,6 @@ async def link_account(m: types.Message):
     wallets.update_one({"phone": phone}, {"$set": {"tg_id": m.from_user.id}})
     await m.answer("✅ አካውንትዎ ተገናኝቷል! አሁን ማሳወቂያዎች ይደርስዎታል።")
 
-# አዲስ፡ ሁሉንም ተጫዋቾች ለማየት
 @dp.message(Command("users"))
 async def list_users(m: types.Message):
     if m.from_user.id != ADMIN_ID: return
@@ -164,47 +202,30 @@ async def list_users(m: types.Message):
     for u in all_u:
         count += 1
         msg += f"{count}. 👤 {u.get('name')} | 📱 `{u.get('phone')}` | 💰 `{u.get('balance', 0):.2f}`\n"
-        if len(msg) > 3800: # ቴሌግራም ከ 4096 በላይ አይቀበልም
+        if len(msg) > 3800:
             await m.answer(msg, parse_mode="Markdown")
             msg = ""
     if count == 0: await m.answer("❌ እስካሁን ምንም ተጫዋች አልተመዘገበም።")
     elif msg: await m.answer(msg, parse_mode="Markdown")
-
-# አዲስ፡ የአንድን ሰው መረጃ ቼክ ለማድረግ
-@dp.message(Command("check"))
-async def check_user(m: types.Message):
-    if m.from_user.id != ADMIN_ID: return
-    args = m.text.split()
-    if len(args) < 2: return await m.answer("⚠️ አጠቃቀም: `/check 09xxxxxxxx`")
-    phone = args[1].strip()
-    u = wallets.find_one({"phone": phone})
-    if u:
-        msg = f"🔍 **የተጫዋች መረጃ**\n\n👤 ስም: `{u.get('name')}`\n📱 ስልክ: `{u.get('phone')}`\n💰 ባላንስ: `{u.get('balance', 0):.2f} ETB`"
-        await m.answer(msg, parse_mode="Markdown")
-    else:
-        await m.answer("❌ ተጫዋቹ አልተገኘም።")
 
 @dp.message(Command("add"))
 async def add_money(m: types.Message):
     if m.from_user.id != ADMIN_ID: return
     try:
         args = m.text.split()
-        if len(args) < 3:
-            return await m.answer("❌ አጠቃቀም: `/add [ስልክ] [መጠን]`")
-        
+        if len(args) < 3: return await m.answer("❌ አጠቃቀም: `/add [ስልክ] [መጠን]`")
         phone, amount = args[1].strip(), float(args[2])
         user = wallets.find_one({"phone": phone})
-        
         if user:
             wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}})
             if user.get("tg_id"):
                 try: 
-                    msg = f"💰 {amount} ETB ባላንስዎ ላይ ተጨምሯል!" if amount > 0 else f"💸 {abs(amount)} ETB ከባላንስዎ ላይ ተቀንሷል።"
-                    await bot.send_message(user["tg_id"], msg)
+                    n_msg = f"💰 {amount} ETB ባላንስዎ ላይ ተጨምሯል!" if amount > 0 else f"💸 {abs(amount)} ETB ከባላንስዎ ላይ ተቀንሷል።"
+                    await bot.send_message(user["tg_id"], n_msg)
                 except: pass
             await m.answer(f"✅ ለ {phone} {amount} ETB ተስተካክሏል።")
         else:
-            await m.answer("❌ ስልኩ በዳታቤዝ ውስጥ አልተገኘም።")
+            await m.answer("❌ ስልኩ አልተገኘም።")
     except Exception as e:
         await m.answer(f"❌ ስህተት: {str(e)}")
 
@@ -226,4 +247,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Bot stopped.")
-
