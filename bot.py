@@ -118,7 +118,7 @@ def claim_win():
         
         if bot_loop:
             msg = (f"🏆 **አሸናፊ ተገኝቷል!**\n\n👤 ስም: `{game_state['winner']}`\n💰 ፖት: `{total_pot} ETB`")
-            asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg, parse_mode="Markdown"), bot_loop)
+            asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg), bot_loop)
         return jsonify({"success": True, "amount": win_amount})
     return jsonify({"success": False})
 
@@ -144,9 +144,9 @@ def request_action():
     data = request.json
     if bot_loop:
         if data['type'] == 'Deposit':
-            msg = f"💰 **Deposit**\n👤 ስልክ: `{data['phone']}`\n📄 ዝርዝር: {data['receipt']}"
+            msg = f"💰 **የተቀማጭ ጥያቄ**\n👤 ስልክ: `{data['phone']}`\n📄 ዝርዝር: {data['receipt']}"
         else:
-            msg = f"💸 **Withdraw**\n👤 ስልክ: `{data['phone']}`\n💵 መጠን: `{data['amount']} ETB`"
+            msg = f"💸 **የወጪ ጥያቄ**\n👤 ስልክ: `{data['phone']}`\n💵 መጠን: `{data['amount']} ETB`"
         asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg), bot_loop)
     return jsonify({"success": True})
 
@@ -154,7 +154,7 @@ def request_action():
 async def cmd_start(message: types.Message):
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🎮 ጨዋታውን ክፈት", web_app=WebAppInfo(url=WEB_APP_URL)))
-    await message.answer("እንኳን በደህና መጡ!", reply_markup=builder.as_markup())
+    await message.answer("እንኳን ደህና መጡ!", reply_markup=builder.as_markup())
 
 @dp.message(Command("add"))
 async def cmd_add(message: types.Message):
