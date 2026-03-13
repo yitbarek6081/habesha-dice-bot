@@ -8,29 +8,20 @@
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 10px; overflow-x: hidden; }
-        
         #reg-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .reg-input { width: 80%; padding: 15px; border-radius: 12px; border: 2px solid var(--gold); background: var(--blue); color: white; text-align: center; margin-bottom: 20px; }
-
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--blue); padding: 12px; border-radius: 12px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.8rem; }
         .stats-bar span { display: block; font-size: 1.1rem; color: var(--gold); font-weight: bold; }
-
         .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
         .btn-side { flex: 1; padding: 10px; border-radius: 10px; border: none; font-weight: bold; color: white; cursor: pointer; height: 55px; }
         .dep-btn { background: var(--green); }
         .with-btn { background: var(--orange); }
-        
         #timer { font-size: 3rem; font-weight: 900; min-width: 80px; text-align: center; }
-
-        /* Bingo Card Styling */
         .bingo-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; background: #334155; padding: 8px; border-radius: 8px; margin-top: 10px; }
         .cell { background: white; color: black; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 5px; font-size: 1.1rem; cursor: pointer; }
         .cell.selected { background: var(--gold); color: black; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .cell.free { background: #e74c3c; color: white; font-size: 0.7rem; }
-
         .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 15px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 15px; color: black; }
-        .buy-btn:disabled { background: #475569; color: #94a3b8; }
-        
         #ball-box { font-size: 4rem; font-weight: 900; color: var(--gold); text-align: center; margin: 20px 0; border: 4px solid var(--gold); border-radius: 50%; width: 120px; height: 120px; line-height: 120px; margin-left: auto; margin-right: auto; background: var(--blue); }
     </style>
 </head>
@@ -55,7 +46,6 @@
     </div>
 
     <div id="lobby-ui">
-        <p style="text-align: center; color: var(--gold);">ቢያንስ 2 ተጫዋች ሲገባ ጨዋታው ይጀምራል።</p>
         <div id="ticket-info" style="text-align: center; margin-bottom: 10px;">የተገዛ ካርቴላ፡ <span id="my-tickets">0</span>/2</div>
         <button id="buy-btn" class="buy-btn" onclick="buyTicket()">ካርቴላ ግዛ (10 ብር)</button>
     </div>
@@ -70,7 +60,6 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
         let userPhone = localStorage.getItem('bingo_phone');
-        let currentStatus = "lobby";
 
         if(userPhone) document.getElementById('reg-screen').style.display = 'none';
 
@@ -81,15 +70,6 @@
                 localStorage.setItem('bingo_phone', val);
                 document.getElementById('reg-screen').style.display = 'none';
             }
-        }
-
-        function handleDeposit() {
-            tg.showConfirm("ለAdmin የክፍያ SMS መላክ ይፈልጋሉ?", (ok) => { if(ok) tg.sendData("deposit"); });
-        }
-
-        function handleWithdraw() {
-            let amt = prompt("የሚወጣ መጠን:");
-            if(amt >= 10) fetch('/withdraw', {method:'POST', body: JSON.stringify({phone: userPhone, amount: amt}), headers:{'Content-Type':'application/json'}});
         }
 
         function buyTicket() {
