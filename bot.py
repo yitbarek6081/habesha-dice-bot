@@ -29,7 +29,7 @@ def generate_fixed_tickets():
         cols = [random.sample(range(r[0], r[1]+1), 5) for r in ranges]
         for r in range(5):
             row = [cols[c][r] for c in range(5)]
-            if r == 2: row[2] = 0 
+            if r == 2: row[2] = 0 # FREE Space
             ticket.append(row)
         pool[str(i)] = ticket
     random.seed(time.time())
@@ -49,7 +49,6 @@ def index(): return render_template('index.html')
 @app.route('/get_status')
 def get_status():
     now = time.time()
-    player_count = len(game_state["players"])
     bought_nums = []
     for p in game_state["players"].values(): bought_nums.extend(p.get("selected_nums", []))
 
@@ -58,7 +57,7 @@ def get_status():
         elapsed = now - game_state["start_countdown"]
         if elapsed < 30: timer, sub = 30 - int(elapsed), "open"
         elif elapsed < 35:
-            if player_count >= 2: timer, sub = 35 - int(elapsed), "closed"
+            if len(game_state["players"]) >= 2: timer, sub = 35 - int(elapsed), "closed"
             else: game_state["start_countdown"] = now; timer, sub = 30, "open"
         else:
             game_state.update({"status": "running", "sub_status": "live", "last_draw_time": now})
@@ -83,32 +82,37 @@ def join():
     data = request.json
     p, t_num = str(data['phone']), str(data['ticket_num'])
     user = wallets.find_one({"phone": p})
+    
+    # 1. ተይዞ እንደሆነ ቼክ
     for pd in game_state["players"].values():
         if t_num in pd.get("selected_nums", []): return jsonify({"success": False, "msg": "ተይዟል!"})
-    if not user or user.get("balance", 0) < 10 or game_state["sub_status"] != "open": return jsonify({"success": False})
 
+    # 2. ባላንስ እና ሰዓት ቼክ
+    if not user or user.get("balance", 0) < 10 or game_state["sub_status"] != "open":
+        return jsonify({"success": False, "msg": "መግዛት አይቻልም!"})
+
+    # 3. የ 2 ካርታ ገደብ
     player_data = game_state["players"].get(p, {"name": user.get("name", "Player"), "tickets": [], "selected_nums": []})
+    if len(player_data["tickets"]) >= 2:
+        return jsonify({"success": False, "msg": "አንድ ተጫዋች ከ2 ካርታ በላይ መግዛት አይችልም!"})
+
+    wallets.update_one({"phone": p}, {"$inc": {"balance": -10}})
     player_data["tickets"].append(TICKET_POOL[t_num])
     player_data["selected_nums"].append(t_num)
     game_state["players"][p] = player_data
     game_state["pot"] += 10
-    wallets.update_one({"phone": p}, {"$inc": {"balance": -10}})
     return jsonify({"success": True})
 
 @app.route('/claim_win', methods=['POST'])
 def claim_win():
     data = request.json
-    p = str(data['phone'])
-    marked = set(data['marked_numbers'])
-    marked.add(0) # FREE space
+    p, marked = str(data['phone']), set(data['marked_numbers'])
+    marked.add(0)
     
     if p in game_state["players"] and not game_state["winner"]:
         drawn = set(game_state["drawn_numbers"])
         drawn.add(0)
-        
-        # ቼክ፡ ተጫዋቹ ያጠቆረው ያልተጠራ ቁጥር ካለ ውድቅ አድርግ
-        if not marked.issubset(drawn):
-            return jsonify({"success": False, "msg": "ያልተጠራ ቁጥር አጥቁረዋል!"})
+        if not marked.issubset(drawn): return jsonify({"success": False, "msg": "ያልተጠራ ቁጥር አጥቁረዋል!"})
 
         def check_bingo(t):
             s = 5
@@ -121,11 +125,14 @@ def claim_win():
 
         if any(check_bingo(t) for t in game_state["players"][p]["tickets"]):
             game_state["winner"] = game_state["players"][p]["name"]
-            win_amt = game_state["pot"] * 0.8
-            wallets.update_one({"phone": p}, {"$inc": {"balance": win_amt}})
+            wallets.update_one({"phone": p}, {"$inc": {"balance": game_state["pot"] * 0.8}})
             return jsonify({"success": True})
-            
-    return jsonify({"success": False, "msg": "ገና ነዎት ወይም ተበልተዋል!"})
+    return jsonify({"success": False, "msg": "አልተሟላም!"})
+
+@app.route('/user_data/<phone>')
+def user_data(phone):
+    user = wallets.find_one({"phone": phone})
+    return jsonify({"balance": user.get("balance", 0) if user else 0, "tickets": game_state["players"][phone]["tickets"] if phone in game_state["players"] else []})
 
 @app.route('/request_action', methods=['POST'])
 def request_action():
@@ -134,11 +141,6 @@ def request_action():
         msg = f"💰 **Deposit**\nPh: `{data['phone']}`\nDetail: {data['receipt']}" if data['type'] == 'Deposit' else f"💸 **Withdraw**\nPh: `{data['phone']}`\nAmt: `{data['amount']} ETB`"
         asyncio.run_coroutine_threadsafe(bot.send_message(ADMIN_ID, msg), bot_loop)
     return jsonify({"success": True})
-
-@app.route('/user_data/<phone>')
-def user_data(phone):
-    user = wallets.find_one({"phone": phone})
-    return jsonify({"balance": user.get("balance", 0) if user else 0, "tickets": game_state["players"][phone]["tickets"] if phone in game_state["players"] else []})
 
 def run_flask(): app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 async def main():
