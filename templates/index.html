@@ -5,51 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO</title>
     <style>
-        :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; }
+        :root { --gold: #f1c40f; --bg: #0f172a; --red: #e74c3c; --blue: #1e293b; }
+        body { background: var(--bg); color: white; font-family: sans-serif; padding: 10px; margin: 0; }
         
-        /* Registration Overlay */
-        #reg-screen { position: fixed; inset: 0; background: var(--bg); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
-        input { width: 80%; padding: 15px; border-radius: 10px; border: none; margin: 10px 0; font-size: 1.2rem; }
+        /* Registration Screen */
+        #reg-screen { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .reg-input { width: 80%; padding: 15px; border-radius: 10px; border: 2px solid var(--gold); background: var(--blue); color: white; font-size: 1.2rem; margin-bottom: 15px; }
 
-        /* Stats Bar */
-        .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: var(--blue); padding: 15px; border-radius: 15px; border: 1px solid var(--gold); margin-bottom: 10px; }
-        .stats-bar div { text-align: center; font-size: 0.8rem; }
-        .stats-bar span { display: block; font-size: 1.2rem; color: var(--gold); font-weight: bold; }
+        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; background: var(--blue); padding: 10px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.7rem; }
+        .stats-bar span { display: block; font-size: 1rem; color: var(--gold); font-weight: bold; }
 
-        /* Action Buttons */
-        .actions { display: flex; gap: 10px; margin-bottom: 15px; }
-        .btn-act { flex: 1; padding: 10px; background: #27ae60; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
-        .withdraw { background: #c0392b; }
+        .welcome-msg { color: var(--gold); text-align: center; font-weight: bold; margin: 10px 0; }
+        #timer { text-align:center; font-size:4rem; font-weight:900; margin: 10px 0; }
 
-        /* Timer and Lobby */
-        #timer-box { text-align: center; margin: 30px 0; }
-        #timer { font-size: 5rem; font-weight: 900; color: white; text-shadow: 0 0 20px rgba(255,255,255,0.3); }
-        .status-msg { color: var(--gold); font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; }
-
-        .grid-store { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-height: 250px; overflow-y: auto; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 15px; }
-        .t-num { background: #334155; padding: 15px 0; border-radius: 10px; text-align: center; cursor: pointer; font-weight: bold; }
-        .t-num.selected { background: var(--gold); color: black; box-shadow: 0 0 15px var(--gold); }
+        .grid-store { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; max-height: 200px; overflow-y: auto; }
+        .t-num { background: #334155; padding: 12px 0; border-radius: 5px; cursor: pointer; text-align: center; font-weight: bold; }
+        .t-num.selected { background: var(--gold); color: black; }
         .t-num.bought { background: #000; color: #444; text-decoration: line-through; pointer-events: none; }
 
-        /* Game Board */
-        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; text-align: center; font-weight: 900; font-size: 1.5rem; color: var(--gold); margin-bottom: 5px; }
-        .bingo-card { background: #E0E5B6; padding: 8px; border-radius: 10px; margin-top: 15px; }
-        .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; border: 2px solid #444; }
-        .cell { background: white; height: 45px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
-        .cell.marked { background: #e74c3c !important; color: white; position: relative; }
-        .cell.marked::after { content: '✔'; position: absolute; font-size: 0.7rem; top: 2px; right: 2px; color: white; }
+        /* Game Board Header */
+        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; text-align: center; font-weight: 900; font-size: 1.8rem; color: var(--gold); margin-bottom: 10px; }
+        #active-num { width: 90px; height: 90px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 10px auto; font-size: 2.5rem; font-weight: bold; background: var(--blue); color: var(--gold); box-shadow: 0 0 15px var(--gold); }
 
-        #active-num-circle { width: 80px; height: 80px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 2.5rem; font-weight: bold; background: var(--blue); }
+        .bingo-card { background: #E0E5B6; padding: 5px; border-radius: 5px; margin-top: 10px; }
+        .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #333; }
+        .cell { background: white; height: 40px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; cursor: pointer; }
+        .cell.marked { background: var(--red) !important; color: white; }
+        
+        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 10px; font-weight: bold; font-size: 1.1rem; }
     </style>
 </head>
 <body>
-
     <div id="reg-screen">
-        <h2 style="color:var(--gold)">BESH BINGO</h2>
+        <h1 style="color:var(--gold)">BESH BINGO</h1>
         <p>ለመጀመር ስልክ ቁጥርዎን ያስገቡ</p>
-        <input type="tel" id="phone-input" placeholder="09xxxxxxxx" maxlength="10">
-        <button class="btn-act" onclick="register()" style="width:80%; padding:15px; background:var(--gold); color:black;">ግባ / Register</button>
+        <input type="tel" id="phone-input" class="reg-input" placeholder="09xxxxxxxx">
+        <button class="buy-btn" onclick="register()" style="width:80%">ግባ / Register</button>
     </div>
 
     <div class="stats-bar">
@@ -58,31 +49,24 @@
         <div>PLAYERS <span id="p-count">0</span></div>
     </div>
 
-    <div class="actions">
-        <button class="btn-act" onclick="alert('Admin ያነጋግሩ')">DEPOSIT</button>
-        <button class="btn-act withdraw" onclick="alert('Admin ያነጋግሩ')">WITHDRAW</button>
-    </div>
-
-    <div id="lobby-ui">
-        <div id="timer-box">
-            <div id="status-text" class="status-msg">ካርቴላ ይምረጡ</div>
-            <div id="timer">30</div>
-        </div>
+    <div id="lobby">
+        <div id="status-text" class="welcome-msg">ካርቴላ ይምረጡ</div>
+        <div id="timer">30</div>
         <div class="grid-store" id="picker"></div>
-        <button id="buy-btn" onclick="buyTicket()" disabled style="width:100%; padding:20px; margin-top:15px; background:var(--gold); border:none; border-radius:15px; font-weight:bold; font-size:1.2rem; color:black;">ካርቴላ ይግዙ (10 ብር)</button>
+        <button id="buy-btn" class="buy-btn" onclick="buyTicket()" disabled style="margin-top:10px;">ካርቴላ ግዛ (10 ብር)</button>
     </div>
 
-    <div id="game-ui" style="display:none;">
-        <div id="active-num-circle">?</div>
+    <div id="game" style="display:none;">
+        <div id="active-num">?</div>
         <div class="bingo-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
         <div id="my-cards"></div>
-        <button id="win-btn" onclick="claimWin()" style="display:none; width:100%; padding:20px; background:var(--gold); color:black; font-weight:bold; margin-top:20px; border-radius:15px; font-size:1.5rem;">🎊 BINGO! 🎊</button>
+        <button id="win-btn" onclick="claimWin()" style="display:none; width:100%; padding:15px; background:var(--gold); color:black; font-weight:bold; margin-top:10px; border-radius:10px;">🎊 BINGO! 🎊</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         let phone = localStorage.getItem('bingo_phone');
-        let selectedNum = null, myMarked = new Set([0]), lastTickJSON = "";
+        let selectedNum = null, myMarked = new Set([0]);
 
         if(phone) document.getElementById('reg-screen').style.display = 'none';
 
@@ -95,14 +79,12 @@
             }
         }
 
-        // 500 ካርቴላዎች
         const picker = document.getElementById('picker');
         for(let i=1; i<=500; i++) picker.innerHTML += `<div class="t-num" id="tn-${i}" onclick="selectNum(${i})">${i}</div>`;
 
         function selectNum(n) {
             if(selectedNum) document.getElementById(`tn-${selectedNum}`).classList.remove('selected');
-            selectedNum = n;
-            document.getElementById(`tn-${n}`).classList.add('selected');
+            selectedNum = n; document.getElementById(`tn-${n}`).classList.add('selected');
             document.getElementById('buy-btn').disabled = false;
         }
 
@@ -113,35 +95,32 @@
                 document.getElementById('prize').innerText = d.win_prize;
                 document.getElementById('p-count').innerText = d.player_count;
 
-                if(d.sub_status === "open") {
-                    document.getElementById('status-text').innerText = "ምዝገባ ክፍት ነው";
-                    document.getElementById('lobby-ui').style.display = 'block';
-                    document.getElementById('game-ui').style.display = 'none';
-                } else if(d.sub_status === "closed") {
-                    document.getElementById('status-text').innerText = "ጨዋታው ሊጀምር ነው...";
-                    document.getElementById('status-text').style.color = "#e74c3c";
+                if(d.status === "lobby") {
+                    document.getElementById('lobby').style.display='block';
+                    document.getElementById('game').style.display='none';
+                    if(d.sub_status === "closed") document.getElementById('status-text').innerText = "ጨዋታው ሊጀምር ነው...";
+                    d.bought_numbers.forEach(n => {
+                        let el = document.getElementById(`tn-${n}`);
+                        if(el) el.classList.add('bought');
+                    });
                 } else {
-                    document.getElementById('lobby-ui').style.display = 'none';
-                    document.getElementById('game-ui').style.display = 'block';
-                    if(d.drawn_numbers.length > 0) document.getElementById('active-num-circle').innerText = d.drawn_numbers[d.drawn_numbers.length-1];
+                    document.getElementById('lobby').style.display='none';
+                    document.getElementById('game').style.display='block';
+                    if(d.drawn_numbers.length > 0) document.getElementById('active-num').innerText = d.drawn_numbers[d.drawn_numbers.length-1];
                 }
             });
 
             fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
                 document.getElementById('balance').innerText = d.balance;
-                let tStr = JSON.stringify(d.tickets);
-                if(lastTickJSON !== tStr) {
-                    lastTickJSON = tStr;
-                    let h = '';
-                    d.tickets.forEach(t => {
-                        h += `<div class="bingo-card"><div class="card-grid">`;
-                        t.forEach(row => row.forEach(n => {
-                            h += `<div class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
-                        }));
-                        h += `</div></div>`;
-                    });
-                    document.getElementById('my-cards').innerHTML = h;
-                }
+                let h = '';
+                d.tickets.forEach(t => {
+                    h += `<div class="bingo-card"><div class="card-grid">`;
+                    t.forEach(row => row.forEach(n => {
+                        h += `<div class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
+                    }));
+                    h += `</div></div>`;
+                });
+                document.getElementById('my-cards').innerHTML = h;
             });
         }
 
@@ -151,10 +130,9 @@
         }
 
         function mark(n) {
-            if(n === 0) return;
+            if(n===0) return;
             if(myMarked.has(n)) myMarked.delete(n); else myMarked.add(n);
-            update();
-            if(myMarked.size >= 5) document.getElementById('win-btn').style.display = 'block';
+            document.getElementById('win-btn').style.display = myMarked.size >= 5 ? 'block' : 'none';
         }
 
         setInterval(update, 1000);
