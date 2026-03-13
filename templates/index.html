@@ -8,61 +8,36 @@
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 10px; overflow-x: hidden; }
         
-        /* የላይኛው የWallet እና የሽልማት መረጃ */
-        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--blue); padding: 12px; border-radius: 12px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; }
+        #reg-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .reg-input { width: 80%; padding: 15px; border-radius: 12px; border: 2px solid var(--gold); background: var(--blue); color: white; font-size: 1.2rem; margin-bottom: 20px; outline: none; text-align: center; }
+
+        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--blue); padding: 12px; border-radius: 12px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.8rem; }
         .stats-bar span { display: block; font-size: 1.1rem; color: var(--gold); font-weight: bold; }
 
-        /* የታይመር እና የገንዘብ ቁልፎች አቀማመጥ (ጎን ለጎን) */
-        .timer-section { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 15px; }
-        .side-btn { flex: 1; padding: 15px 5px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; color: white; font-size: 0.8rem; height: 60px; transition: 0.3s; }
-        .dep-btn { background: var(--green); box-shadow: 0 4px 0 #27ae60; }
-        .with-btn { background: var(--orange); box-shadow: 0 4px 0 #d35400; }
-        .side-btn:active { transform: translateY(3px); box-shadow: none; }
+        .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
+        .btn-side { flex: 1; padding: 12px 5px; border-radius: 10px; border: none; font-weight: bold; color: white; font-size: 0.75rem; cursor: pointer; height: 55px; box-shadow: 0 4px 0 rgba(0,0,0,0.3); }
+        .dep-btn { background: var(--green); }
+        .with-btn { background: var(--orange); }
+        .btn-side:active { transform: translateY(2px); box-shadow: none; }
         
-        #timer { font-size: 3.5rem; font-weight: 900; color: white; min-width: 80px; text-align: center; line-height: 1; }
+        #timer { font-size: 3.5rem; font-weight: 900; color: white; min-width: 85px; text-align: center; }
 
-        /* የካርቴላዎች መቆጣጠሪያ */
-        .grid-header { text-align: center; color: var(--gold); margin-bottom: 8px; font-size: 0.9rem; font-weight: bold; }
-        .grid-container { 
-            display: grid; 
-            grid-template-columns: repeat(5, 1fr); 
-            gap: 6px; 
-            max-height: 320px; 
-            overflow-y: auto; 
-            background: rgba(255,255,255,0.05); 
-            padding: 10px; 
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        /* የካርቴላ ቁጥሮች ዲዛይን */
-        .card-num { 
-            background: #334155; 
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px; 
-            font-weight: bold; 
-            cursor: pointer;
-            border: 2px solid transparent;
-            font-size: 1.1rem;
-            transition: 0.2s;
-        }
-        .card-num.selected { border-color: var(--gold); background: var(--gold); color: #000; transform: scale(0.95); }
+        .grid-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 380px; overflow-y: auto; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
+        .card-num { background: #334155; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .card-num.selected { background: var(--gold); color: #000; }
         .card-num.bought { opacity: 0.2; pointer-events: none; background: #000; text-decoration: line-through; }
 
-        /* የግዢ ቁልፍ */
-        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 15px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 15px; box-shadow: 0 5px 0 #c49b09; color: black; }
-        .buy-btn:active { transform: translateY(3px); box-shadow: none; }
-        .buy-btn:disabled { background: #475569; box-shadow: none; color: #94a3b8; cursor: not-allowed; }
-
-        /* Scrollbar ዲዛይን */
-        .grid-container::-webkit-scrollbar { width: 5px; }
-        .grid-container::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 10px; }
+        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 15px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 15px; color: black; box-shadow: 0 5px 0 #c49b09; }
+        .buy-btn:disabled { background: #475569; box-shadow: none; color: #94a3b8; }
     </style>
 </head>
 <body>
+
+    <div id="reg-screen">
+        <h1 style="color:var(--gold); font-size: 2.5rem; margin-bottom: 20px;">BESH BINGO</h1>
+        <input type="tel" id="phone-input" class="reg-input" placeholder="ስልክ ቁጥር ያስገቡ (09...)" maxlength="10">
+        <button class="buy-btn" onclick="registerUser()" style="width:80%">ይግቡ / ENTER</button>
+    </div>
 
     <div class="stats-bar">
         <div>WALLET <span id="balance">0</span></div>
@@ -70,102 +45,108 @@
         <div>PLAYERS <span id="p-count">0</span></div>
     </div>
 
-    <div class="timer-section">
-        <button class="side-btn dep-btn" onclick="tg.showAlert('ገንዘብ ለማስገባት በቦቱ ላይ /deposit ይበሉ')">DEPOSIT<br>ማስገቢያ</button>
+    <div class="action-row">
+        <button class="btn-side dep-btn" onclick="handleDeposit()">DEPOSIT<br>ማስገቢያ</button>
         <div id="timer">30</div>
-        <button class="side-btn with-btn" onclick="tg.showAlert('ገንዘብ ለማውጣት በቦቱ ላይ /withdraw ይበሉ')">WITHDRAW<br>ማውጫ</button>
+        <button class="btn-side with-btn" onclick="handleWithdraw()">WITHDRAW<br>ማውጫ</button>
     </div>
 
     <div id="lobby-ui">
-        <div class="grid-header">ካርቴላ ይምረጡ (ከ2 በላይ አይፈቀድም)</div>
-        
         <div class="grid-container" id="card-picker"></div>
-        
         <button id="buy-btn" class="buy-btn" onclick="buyTicket()" disabled>ካርቴላ ግዛ (10 ብር)</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // ገጹን ሙሉ እንዲሆን ማድረግ
-
-        let phone = "0945880474"; // ይህ በዳታቤዝ ውስጥ ያለ ተጫዋች ስልክ መሆን አለበት
+        let userPhone = localStorage.getItem('bingo_phone');
         let selectedNum = null;
-        let myTicketsCount = 0;
 
-        // 1-500 ቁጥሮችን መፍጠር
+        if(userPhone) document.getElementById('reg-screen').style.display = 'none';
+
+        function registerUser() {
+            const val = document.getElementById('phone-input').value;
+            if(val.length >= 10) {
+                userPhone = val;
+                localStorage.setItem('bingo_phone', val);
+                document.getElementById('reg-screen').style.display = 'none';
+                update();
+            }
+        }
+
         const picker = document.getElementById('card-picker');
         for(let i=1; i<=500; i++) {
             const div = document.createElement('div');
-            div.className = 'card-num';
-            div.id = `card-${i}`;
-            div.innerText = i;
+            div.className = 'card-num'; div.id = `card-${i}`; div.innerText = i;
             div.onclick = () => selectCard(i);
             picker.appendChild(div);
         }
 
         function selectCard(n) {
-            // የ2 ካርቴላ ገደብ ቼክ ማድረግ
-            if(myTicketsCount >= 2) {
-                tg.showPopup({ title: 'ገደብ ላይ ደርሰዋል', message: 'በአንድ ዙር ከ2 ካርቴላ በላይ መግዛት አይቻልም!', buttons: [{type: 'ok'}] });
-                return;
-            }
             if(selectedNum) document.getElementById(`card-${selectedNum}`).classList.remove('selected');
             selectedNum = n;
             document.getElementById(`card-${n}`).classList.add('selected');
             document.getElementById('buy-btn').disabled = false;
         }
 
-        function update() {
-            fetch('/get_status').then(r=>r.json()).then(d=>{
-                // ታይመሩ በየ 30 ሰከንዱ ራሱን እንዲደግም ከታች ባለው ቀመር ይቆጣጠራል
-                document.getElementById('timer').innerText = d.timer;
-                document.getElementById('prize').innerText = Math.floor(d.win_prize);
-                document.getElementById('p-count').innerText = d.player_count;
-                
-                // የተገዙ ቁጥሮችን ማደብዘዝ (ለሁሉም ተጫዋች ይታያል)
-                if(d.bought_numbers) {
-                    d.bought_numbers.forEach(n => {
-                        const el = document.getElementById(`card-${n}`);
-                        if(el) el.classList.add('bought');
-                    });
-                }
-            }).catch(e => console.log("Status error"));
-
-            // የተጫዋች Wallet እና የገዛው ብዛት ማግኘት
-            fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance;
-                myTicketsCount = d.tickets ? d.tickets.length : 0;
-                
-                // 2 ካርቴላ ገዝቶ ከሆነ የግዢ ቁልፉን መዝጋት
-                if(myTicketsCount >= 2) {
-                    document.getElementById('buy-btn').disabled = true;
-                    document.getElementById('buy-btn').innerText = "ገደብ ተሞልቷል (2/2)";
-                }
-            }).catch(e => console.log("User data error"));
-        }
-
-        function buyTicket() {
-            if(!selectedNum) return;
-            
-            fetch('/join_game', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone: phone, ticket_num: selectedNum})
-            }).then(r=>r.json()).then(d=> {
-                if(d.success) {
-                    tg.showAlert("ካርቴላ ቁጥር " + selectedNum + " ተገዝቷል!");
-                    selectedNum = null;
-                    document.getElementById('buy-btn').disabled = true;
-                    update();
-                } else {
-                    tg.showAlert(d.msg);
+        function handleDeposit() {
+            tg.showConfirm("ገንዘብ ለማስገባት ለAdmin ማሳወቂያ መላክ ይፈልጋሉ?", (ok) => {
+                if(ok) {
+                    fetch('/request_deposit', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({phone: userPhone})
+                    }).then(r => r.json()).then(d => tg.showAlert(d.msg));
                 }
             });
         }
 
-        // በየ 1 ሰከንዱ ዳታውን ማደስ
-        setInterval(update, 1000);
-        update(); // ገጹ ሲከፈት ወዲያው እንዲጀምር
+        function handleWithdraw() {
+            let amount = prompt("ማውጣት የሚፈልጉትን መጠን ያስገቡ (ብር):");
+            if(amount && !isNaN(amount) && amount >= 10) {
+                fetch('/request_withdraw', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({phone: userPhone, amount: amount})
+                }).then(r => r.json()).then(d => tg.showAlert(d.msg));
+            } else {
+                tg.showAlert("እባክዎ ትክክለኛ መጠን ያስገቡ (ቢያንስ 10 ብር)");
+            }
+        }
+
+        function update() {
+            if(!userPhone) return;
+            fetch('/get_status').then(r=>r.json()).then(d=>{
+                document.getElementById('timer').innerText = d.timer;
+                document.getElementById('prize').innerText = Math.floor(d.win_prize);
+                document.getElementById('p-count').innerText = d.player_count;
+                d.bought_numbers.forEach(n => {
+                    const el = document.getElementById(`card-${n}`);
+                    if(el) el.classList.add('bought');
+                });
+            });
+            fetch('/user_data/'+userPhone).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance;
+                if(d.ticket_count >= 2) {
+                    document.getElementById('buy-btn').disabled = true;
+                    document.getElementById('buy-btn').innerText = "ገደብ ተሞልቷል (2/2)";
+                }
+            });
+        }
+
+        function buyTicket() {
+            fetch('/join_game', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({phone: userPhone, ticket_num: selectedNum})
+            }).then(r=>r.json()).then(d=> {
+                if(d.success) {
+                    tg.showAlert("ካርቴላ ተገዝቷል!");
+                    selectedNum = null;
+                    update();
+                } else tg.showAlert(d.msg);
+            });
+        }
+
+        setInterval(update, 2000);
     </script>
 </body>
 </html>
