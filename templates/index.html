@@ -8,9 +8,20 @@
         :root { --gold: #f1c40f; --bg: #0f172a; --red: #e74c3c; --blue: #1e293b; }
         body { background: var(--bg); color: white; font-family: sans-serif; padding: 10px; margin: 0; }
         
-        /* Registration Screen */
-        #reg-screen { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-        .reg-input { width: 80%; padding: 15px; border-radius: 10px; border: 2px solid var(--gold); background: var(--blue); color: white; font-size: 1.2rem; margin-bottom: 15px; }
+        /* Registration Screen - ይሄ ክፍል ቁልፉ እንዲሰራ ወሳኝ ነው */
+        #reg-screen { 
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: var(--bg); 
+            z-index: 9999; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            text-align: center; 
+        }
+        .reg-input { width: 80%; padding: 15px; border-radius: 10px; border: 2px solid var(--gold); background: var(--blue); color: white; font-size: 1.2rem; margin-bottom: 15px; outline: none; }
 
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; background: var(--blue); padding: 10px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.7rem; }
         .stats-bar span { display: block; font-size: 1rem; color: var(--gold); font-weight: bold; }
@@ -23,7 +34,6 @@
         .t-num.selected { background: var(--gold); color: black; }
         .t-num.bought { background: #000; color: #444; text-decoration: line-through; pointer-events: none; }
 
-        /* Game Board Header */
         .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; text-align: center; font-weight: 900; font-size: 1.8rem; color: var(--gold); margin-bottom: 10px; }
         #active-num { width: 90px; height: 90px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 10px auto; font-size: 2.5rem; font-weight: bold; background: var(--blue); color: var(--gold); box-shadow: 0 0 15px var(--gold); }
 
@@ -32,15 +42,17 @@
         .cell { background: white; height: 40px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; cursor: pointer; }
         .cell.marked { background: var(--red) !important; color: white; }
         
-        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 10px; font-weight: bold; font-size: 1.1rem; }
+        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 10px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
+        .buy-btn:disabled { background: #555; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div id="reg-screen">
-        <h1 style="color:var(--gold)">BESH BINGO</h1>
-        <p>ለመጀመር ስልክ ቁጥርዎን ያስገቡ</p>
-        <input type="tel" id="phone-input" class="reg-input" placeholder="09xxxxxxxx">
+        <h1 style="color:var(--gold); font-size: 2.5rem; margin-bottom: 20px;">BESH BINGO</h1>
+        <p style="margin-bottom: 15px;">ለመጀመር ስልክ ቁጥርዎን ያስገቡ</p>
+        <input type="tel" id="phone-input" class="reg-input" placeholder="09xxxxxxxx" maxlength="10">
         <button class="buy-btn" onclick="register()" style="width:80%">ግባ / Register</button>
+        <p style="font-size: 0.8rem; margin-top: 20px; color: #888;">@dicebetbetbot</p>
     </div>
 
     <div class="stats-bar">
@@ -65,17 +77,24 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        let phone = localStorage.getItem('bingo_phone');
+        // phone ቫሪያብልን ግሎባል አደረግነው
+        window.userPhone = localStorage.getItem('bingo_phone');
         let selectedNum = null, myMarked = new Set([0]);
 
-        if(phone) document.getElementById('reg-screen').style.display = 'none';
+        // ስልኩ ካለ መመዝገቢያውን ደብቅ
+        if(window.userPhone) {
+            document.getElementById('reg-screen').style.display = 'none';
+        }
 
         function register() {
             const val = document.getElementById('phone-input').value;
             if(val.length >= 10) {
-                phone = val;
+                window.userPhone = val;
                 localStorage.setItem('bingo_phone', val);
                 document.getElementById('reg-screen').style.display = 'none';
+                update(); // ወዲያው ዳታ እንዲያመጣ
+            } else {
+                alert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ!");
             }
         }
 
@@ -89,7 +108,8 @@
         }
 
         function update() {
-            if(!phone) return;
+            if(!window.userPhone) return;
+            
             fetch('/get_status').then(r=>r.json()).then(d=>{
                 document.getElementById('timer').innerText = d.timer;
                 document.getElementById('prize').innerText = d.win_prize;
@@ -99,34 +119,49 @@
                     document.getElementById('lobby').style.display='block';
                     document.getElementById('game').style.display='none';
                     if(d.sub_status === "closed") document.getElementById('status-text').innerText = "ጨዋታው ሊጀምር ነው...";
-                    d.bought_numbers.forEach(n => {
-                        let el = document.getElementById(`tn-${n}`);
-                        if(el) el.classList.add('bought');
-                    });
+                    
+                    if(d.bought_numbers) {
+                        d.bought_numbers.forEach(n => {
+                            let el = document.getElementById(`tn-${n}`);
+                            if(el) el.classList.add('bought');
+                        });
+                    }
                 } else {
                     document.getElementById('lobby').style.display='none';
                     document.getElementById('game').style.display='block';
-                    if(d.drawn_numbers.length > 0) document.getElementById('active-num').innerText = d.drawn_numbers[d.drawn_numbers.length-1];
+                    if(d.drawn_numbers && d.drawn_numbers.length > 0) {
+                        document.getElementById('active-num').innerText = d.drawn_numbers[d.drawn_numbers.length-1];
+                    }
                 }
             });
 
-            fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
+            fetch('/user_data/'+window.userPhone).then(r=>r.json()).then(d=>{
                 document.getElementById('balance').innerText = d.balance;
                 let h = '';
-                d.tickets.forEach(t => {
-                    h += `<div class="bingo-card"><div class="card-grid">`;
-                    t.forEach(row => row.forEach(n => {
-                        h += `<div class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
-                    }));
-                    h += `</div></div>`;
-                });
+                if(d.tickets) {
+                    d.tickets.forEach(t => {
+                        h += `<div class="bingo-card"><div class="card-grid">`;
+                        t.forEach(row => row.forEach(n => {
+                            h += `<div class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
+                        }));
+                        h += `</div></div>`;
+                    });
+                }
                 document.getElementById('my-cards').innerHTML = h;
             });
         }
 
         function buyTicket() {
-            fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num: selectedNum})})
-            .then(r=>r.json()).then(d=> { if(d.success) tg.showAlert("ተገዝቷል!"); else alert(d.msg); });
+            if(!window.userPhone || !selectedNum) return;
+            fetch('/join_game', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone: window.userPhone, ticket_num: selectedNum})
+            })
+            .then(r=>r.json()).then(d=> { 
+                if(d.success) tg.showAlert("ተገዝቷል!"); 
+                else alert(d.msg); 
+            });
         }
 
         function mark(n) {
@@ -135,7 +170,7 @@
             document.getElementById('win-btn').style.display = myMarked.size >= 5 ? 'block' : 'none';
         }
 
-        setInterval(update, 1000);
+        setInterval(update, 2000); // ሰርቨር እንዳይጨናነቅ ወደ 2 ሰከንድ አድርገነዋል
     </script>
 </body>
 </html>
