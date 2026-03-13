@@ -43,9 +43,15 @@ def generate_fixed_tickets():
 TICKET_POOL = generate_fixed_tickets()
 
 game_state = {
-    "status": "lobby", "sub_status": "open", "start_countdown": None,
-    "drawn_numbers": [], "players": {}, "pot": 0, "winner": None,
-    "available_numbers": list(range(1, 76)), "last_draw_time": 0
+    "status": "lobby", 
+    "sub_status": "open", 
+    "start_countdown": None,
+    "drawn_numbers": [], 
+    "players": {}, 
+    "pot": 0, 
+    "winner": None,
+    "available_numbers": list(range(1, 76)), 
+    "last_draw_time": 0
 }
 
 @dp.message(filters.Command("add"))
@@ -67,21 +73,19 @@ def get_status():
     p_count = len(game_state["players"])
     
     if game_state["status"] == "lobby":
-        if game_state["start_countdown"] is None: game_state["start_countdown"] = now
+        if game_state["start_countdown"] is None: 
+            game_state["start_countdown"] = now
+        
         elapsed = now - game_state["start_countdown"]
         
-        if elapsed < 30:
-            timer, sub = 30 - int(elapsed), "open"
-        elif elapsed < 35:
-            if p_count >= 2: timer, sub = 35 - int(elapsed), "closed"
-            else:
-                game_state["start_countdown"] = now
-                timer, sub = 30, "open"
-        else:
-            game_state.update({"status": "running", "last_draw_time": now})
-            random.shuffle(game_state["available_numbers"])
-            timer, sub = 0, "live"
-    else: timer, sub = 0, "live"
+        # ታይመሩ በየ 30 ሰከንዱ ራሱን እንዲደግም (Loop) ተደርጓል
+        timer = 30 - (int(elapsed) % 30)
+        sub = "open"
+        
+        # ተጫዋች ካለና ታይመሩ 0 ደርሶ ከሆነ ጨዋታውን ማስጀመር ትችላለህ
+        # ለአሁኑ ግን ታይመሩ ብቻ እንዲደጋገም ተደርጓል
+    else: 
+        timer, sub = 0, "live"
 
     if game_state["status"] == "running" and not game_state["winner"]:
         if now - game_state["last_draw_time"] >= 4 and game_state["available_numbers"]:
@@ -89,11 +93,20 @@ def get_status():
             game_state["drawn_numbers"].append(get_bingo_label(num))
             game_state["last_draw_time"] = now
 
+    # የተገዙ ቁጥሮችን ዝርዝር ማዘጋጀት (ለሁሉም እንዲታይ)
+    bought_nums = []
+    for p in game_state["players"].values():
+        bought_nums.extend(p.get("selected_nums", []))
+
     return jsonify({
-        "status": game_state["status"], "sub_status": sub, "timer": timer, 
-        "pot": game_state["pot"], "win_prize": game_state["pot"] * 0.8, 
-        "player_count": p_count, "drawn_numbers": game_state["drawn_numbers"],
-        "bought_numbers": [n for p in game_state["players"].values() for n in p["selected_nums"]]
+        "status": game_state["status"], 
+        "sub_status": sub, 
+        "timer": timer, 
+        "pot": game_state["pot"], 
+        "win_prize": game_state["pot"] * 0.8, 
+        "player_count": p_count, 
+        "drawn_numbers": game_state["drawn_numbers"],
+        "bought_numbers": bought_nums
     })
 
 @app.route('/join_game', methods=['POST'])
@@ -102,30 +115,54 @@ def join():
     p, t_num = str(data['phone']), str(data['ticket_num'])
     user = wallets.find_one({"phone": p})
     
-    if not user or user.get("balance", 0) < 10: return jsonify({"success": False, "msg": "በቂ ብር የሎትም!"})
+    if not user or user.get("balance", 0) < 10: 
+        return jsonify({"success": False, "msg": "በቂ ብር የሎትም!"})
     
-    player_data = game_state["players"].get(p, {"tickets": [], "selected_nums": []})
-    if len(player_data["tickets"]) >= 2: return jsonify({"success": False, "msg": "ከ2 በላይ አይፈቀድም!"})
+    # የተጫዋች ዳታ መኖሩን ማረጋገጥ
+    if p not in game_state["players"]:
+        game_state["players"][p] = {"tickets": [], "selected_nums": []}
+    
+    player_data = game_state["players"][p]
+    
+    # የአንድ ተጫዋች የ2 ካርቴላ ገደብ እዚህ ይከበራል
+    if len(player_data["selected_nums"]) >= 2: 
+        return jsonify({"success": False, "msg": "ከ2 በላይ ካርቴላ አይፈቀድም!"})
 
-    # 20% ኮሚሽን ለአድሚን (2 ብር)፣ 80% ለፖት (8 ብር)
+    # በካርቴላው ቁጥር ሌላ ሰው ቀድሞ ከገዛው መከልከል
+    all_bought = [n for pl in game_state["players"].values() for n in pl["selected_nums"]]
+    if t_num in all_bought:
+        return jsonify({"success": False, "msg": "ይህ ካርቴላ ተይዟል!"})
+
+    # ክፍያ (10 ብር)
     wallets.update_one({"phone": p}, {"$inc": {"balance": -10}})
     wallets.update_one({"phone": "ADMIN"}, {"$inc": {"balance": 2}}, upsert=True)
     
     player_data["tickets"].append(TICKET_POOL[t_num])
     player_data["selected_nums"].append(t_num)
-    game_state["players"][p] = player_data
-    game_state["pot"] += 10 # ጠቅላላ ፖት (UI ላይ 80% ተሰልቶ ይታያል)
+    game_state["pot"] += 10 
+    
     return jsonify({"success": True})
 
 @app.route('/user_data/<phone>')
 def user_data(phone):
     user = wallets.find_one({"phone": phone})
-    return jsonify({"balance": user.get("balance", 0) if user else 0, "tickets": game_state["players"][phone]["tickets"] if phone in game_state["players"] else []})
+    # ተጫዋቹ የገዛቸው ካርቴላዎች ብዛት
+    t_count = 0
+    if phone in game_state["players"]:
+        t_count = len(game_state["players"][phone]["selected_nums"])
+        
+    return jsonify({
+        "balance": user.get("balance", 0) if user else 0, 
+        "tickets": game_state["players"][phone]["tickets"] if phone in game_state["players"] else [],
+        "ticket_count": t_count
+    })
 
 def run_flask(): app.run(host='0.0.0.0', port=10000)
+
 async def main():
     Thread(target=run_flask).start()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
-if __name__ == '__main__': asyncio.run(main())
+if __name__ == '__main__': 
+    asyncio.run(main())
