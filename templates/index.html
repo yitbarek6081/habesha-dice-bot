@@ -9,35 +9,37 @@
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 10px; overflow-x: hidden; }
         
-        #reg-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-        .reg-input { width: 80%; padding: 15px; border-radius: 12px; border: 2px solid var(--gold); background: var(--blue); color: white; font-size: 1.2rem; margin-bottom: 20px; outline: none; text-align: center; }
+        #reg-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .reg-input { width: 80%; padding: 15px; border-radius: 12px; border: 2px solid var(--gold); background: var(--blue); color: white; text-align: center; margin-bottom: 20px; }
 
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--blue); padding: 12px; border-radius: 12px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.8rem; }
         .stats-bar span { display: block; font-size: 1.1rem; color: var(--gold); font-weight: bold; }
 
         .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
-        .btn-side { flex: 1; padding: 12px 5px; border-radius: 10px; border: none; font-weight: bold; color: white; font-size: 0.75rem; cursor: pointer; height: 55px; box-shadow: 0 4px 0 rgba(0,0,0,0.3); }
+        .btn-side { flex: 1; padding: 10px; border-radius: 10px; border: none; font-weight: bold; color: white; cursor: pointer; height: 55px; }
         .dep-btn { background: var(--green); }
         .with-btn { background: var(--orange); }
-        .btn-side:active { transform: translateY(2px); box-shadow: none; }
         
-        #timer { font-size: 3.5rem; font-weight: 900; color: white; min-width: 85px; text-align: center; }
+        #timer { font-size: 3rem; font-weight: 900; min-width: 80px; text-align: center; }
 
-        .grid-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 380px; overflow-y: auto; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
-        .card-num { background: #334155; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .card-num.selected { background: var(--gold); color: #000; }
-        .card-num.bought { opacity: 0.2; pointer-events: none; background: #000; text-decoration: line-through; }
+        /* Bingo Card Styling */
+        .bingo-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; background: #334155; padding: 8px; border-radius: 8px; margin-top: 10px; }
+        .cell { background: white; color: black; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 5px; font-size: 1.1rem; cursor: pointer; }
+        .cell.selected { background: var(--gold); color: black; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .cell.free { background: #e74c3c; color: white; font-size: 0.7rem; }
 
-        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 15px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 15px; color: black; box-shadow: 0 5px 0 #c49b09; }
-        .buy-btn:disabled { background: #475569; box-shadow: none; color: #94a3b8; }
+        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 15px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 15px; color: black; }
+        .buy-btn:disabled { background: #475569; color: #94a3b8; }
+        
+        #ball-box { font-size: 4rem; font-weight: 900; color: var(--gold); text-align: center; margin: 20px 0; border: 4px solid var(--gold); border-radius: 50%; width: 120px; height: 120px; line-height: 120px; margin-left: auto; margin-right: auto; background: var(--blue); }
     </style>
 </head>
 <body>
 
     <div id="reg-screen">
-        <h1 style="color:var(--gold); font-size: 2.5rem; margin-bottom: 20px;">BESH BINGO</h1>
-        <input type="tel" id="phone-input" class="reg-input" placeholder="ስልክ ቁጥር ያስገቡ (09...)" maxlength="10">
-        <button id="enter-btn" class="buy-btn" onclick="registerUser()" style="width:80%">ይግቡ / ENTER</button>
+        <h1 style="color:var(--gold);">BESH BINGO</h1>
+        <input type="tel" id="phone-input" class="reg-input" placeholder="09..." maxlength="10">
+        <button class="buy-btn" onclick="registerUser()" style="width:80%">ENTER</button>
     </div>
 
     <div class="stats-bar">
@@ -53,115 +55,90 @@
     </div>
 
     <div id="lobby-ui">
-        <div class="grid-container" id="card-picker"></div>
-        <button id="buy-btn" class="buy-btn" onclick="buyTicket()" disabled>ካርቴላ ግዛ (10 ብር)</button>
+        <p style="text-align: center; color: var(--gold);">ቢያንስ 2 ተጫዋች ሲገባ ጨዋታው ይጀምራል።</p>
+        <div id="ticket-info" style="text-align: center; margin-bottom: 10px;">የተገዛ ካርቴላ፡ <span id="my-tickets">0</span>/2</div>
+        <button id="buy-btn" class="buy-btn" onclick="buyTicket()">ካርቴላ ግዛ (10 ብር)</button>
+    </div>
+
+    <div id="game-ui" style="display: none;">
+        <div id="ball-box">--</div>
+        <div class="bingo-grid" id="bingo-card-display"></div>
+        <button id="bingo-claim-btn" class="buy-btn" style="background: #e74c3c; color: white;" onclick="claimBingo()">BINGO!</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // ሚኒ አፑን ሙሉ ስክሪን ያደርገዋል
-
+        tg.expand();
         let userPhone = localStorage.getItem('bingo_phone');
-        let selectedNum = null;
+        let currentStatus = "lobby";
 
-        // መጀመሪያ ስልኩ ካለ ሬጅስተር ገጹን ደብቅ
-        if(userPhone) {
-            document.getElementById('reg-screen').style.display = 'none';
-        }
-
-        // --- ማሻሻያ፡ ፈንክሽኖችን ቅደም ተከተል ማስተካከል ---
-
-        function update() {
-            if(!userPhone) return;
-            fetch('/get_status').then(r=>r.json()).then(d=>{
-                document.getElementById('timer').innerText = d.timer;
-                document.getElementById('prize').innerText = Math.floor(d.win_prize);
-                document.getElementById('p-count').innerText = d.player_count;
-                if(d.bought_numbers) {
-                    d.bought_numbers.forEach(n => {
-                        const el = document.getElementById(`card-${n}`);
-                        if(el) el.classList.add('bought');
-                    });
-                }
-            }).catch(e => console.log("Status error"));
-
-            fetch('/user_data/'+userPhone).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance;
-                if(d.ticket_count >= 2) {
-                    document.getElementById('buy-btn').disabled = true;
-                    document.getElementById('buy-btn').innerText = "ገደብ ተሞልቷል (2/2)";
-                }
-            }).catch(e => console.log("User error"));
-        }
+        if(userPhone) document.getElementById('reg-screen').style.display = 'none';
 
         function registerUser() {
-            const val = document.getElementById('phone-input').value.trim();
+            const val = document.getElementById('phone-input').value;
             if(val.length >= 10) {
                 userPhone = val;
                 localStorage.setItem('bingo_phone', val);
                 document.getElementById('reg-screen').style.display = 'none';
-                update(); // ስልኩ ከተቀበለ በኋላ ዳታውን ያድሳል
-            } else {
-                tg.showAlert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ!");
             }
         }
 
-        const picker = document.getElementById('card-picker');
-        for(let i=1; i<=500; i++) {
-            const div = document.createElement('div');
-            div.className = 'card-num'; div.id = `card-${i}`; div.innerText = i;
-            div.onclick = () => selectCard(i);
-            picker.appendChild(div);
-        }
-
-        function selectCard(n) {
-            if(selectedNum) document.getElementById(`card-${selectedNum}`).classList.remove('selected');
-            selectedNum = n;
-            document.getElementById(`card-${n}`).classList.add('selected');
-            document.getElementById('buy-btn').disabled = false;
-        }
-
         function handleDeposit() {
-            tg.showConfirm("ገንዘብ ለማስገባት ለAdmin ማሳወቂያ መላክ ይፈልጋሉ?", (ok) => {
-                if(ok) {
-                    fetch('/request_deposit', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({phone: userPhone})
-                    }).then(r => r.json()).then(d => tg.showAlert(d.msg));
+            tg.showConfirm("ለAdmin የክፍያ SMS መላክ ይፈልጋሉ?", (ok) => { if(ok) tg.sendData("deposit"); });
+        }
+
+        function handleWithdraw() {
+            let amt = prompt("የሚወጣ መጠን:");
+            if(amt >= 10) fetch('/withdraw', {method:'POST', body: JSON.stringify({phone: userPhone, amount: amt}), headers:{'Content-Type':'application/json'}});
+        }
+
+        function buyTicket() {
+            fetch('/buy_ticket', {method:'POST', body: JSON.stringify({phone: userPhone}), headers:{'Content-Type':'application/json'}})
+            .then(r => r.json()).then(d => { if(!d.success) tg.showAlert(d.msg); });
+        }
+
+        function update() {
+            if(!userPhone) return;
+            fetch('/get_status?phone=' + userPhone).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance;
+                document.getElementById('prize').innerText = Math.floor(d.pot * 0.8);
+                document.getElementById('p-count').innerText = d.player_count;
+                document.getElementById('timer').innerText = d.timer;
+                document.getElementById('my-tickets').innerText = d.my_ticket_count;
+
+                if(d.status === "playing") {
+                    document.getElementById('lobby-ui').style.display = 'none';
+                    document.getElementById('game-ui').style.display = 'block';
+                    document.getElementById('ball-box').innerText = d.current_ball || "--";
+                    if(document.getElementById('bingo-card-display').innerHTML === "") {
+                        renderCard(d.card);
+                    }
+                } else {
+                    document.getElementById('lobby-ui').style.display = 'block';
+                    document.getElementById('game-ui').style.display = 'none';
+                    document.getElementById('bingo-card-display').innerHTML = "";
                 }
             });
         }
 
-        function handleWithdraw() {
-            let amount = prompt("ማውጣት የሚፈልጉትን መጠን ያስገቡ (ብር):");
-            if(amount && !isNaN(amount) && amount >= 10) {
-                fetch('/request_withdraw', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({phone: userPhone, amount: amount})
-                }).then(r => r.json()).then(d => tg.showAlert(d.msg));
-            } else {
-                tg.showAlert("እባክዎ ትክክለኛ መጠን ያስገቡ (ቢያንስ 10 ብር)");
-            }
-        }
-
-        function buyTicket() {
-            if(!selectedNum) return;
-            fetch('/join_game', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({phone: userPhone, ticket_num: selectedNum})
-            }).then(r=>r.json()).then(d=> {
-                if(d.success) {
-                    tg.showAlert("ካርቴላ ተገዝቷል!");
-                    selectedNum = null;
-                    update();
-                } else tg.showAlert(d.msg);
+        function renderCard(cardData) {
+            const container = document.getElementById('bingo-card-display');
+            container.innerHTML = "";
+            cardData.forEach((num, i) => {
+                const div = document.createElement('div');
+                div.className = (i === 12) ? "cell free" : "cell";
+                div.innerText = (i === 12) ? "FREE" : num;
+                if(i === 12) div.classList.add('selected');
+                div.onclick = () => div.classList.toggle('selected');
+                container.appendChild(div);
             });
         }
 
-        // ሬጅስተር ከሆነ ዳታውን ማደስ ይጀምራል
-        if(userPhone) update();
+        function claimBingo() {
+            fetch('/claim_bingo', {method:'POST', body: JSON.stringify({phone: userPhone}), headers:{'Content-Type':'application/json'}})
+            .then(r=>r.json()).then(d=> tg.showAlert(d.msg));
+        }
+
         setInterval(update, 2000);
     </script>
 </body>
