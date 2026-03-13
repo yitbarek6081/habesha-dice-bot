@@ -1,97 +1,117 @@
-import os, asyncio, random, time
-from threading import Thread
+import os, time, random, asyncio
 from flask import Flask, render_template, jsonify, request
-from aiogram import Bot, Dispatcher, types, filters
+from threading import Thread
 from pymongo import MongoClient
 
-# --- CONFIG ---
-TOKEN = os.getenv("BOT_TOKEN")
-MONGO_URL = os.getenv("MONGO_URL")
-ADMIN_ID = 7956330391 
-
 app = Flask(__name__)
-client = MongoClient(MONGO_URL)
-db = client['tombola_game']
+client = MongoClient(os.getenv("MONGO_URL"))
+db = client['bingo_db']
 wallets = db['wallets']
 
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
-
+# የጨዋታ ሁኔታ
 game_state = {
-    "status": "lobby", "start_countdown": None,
-    "players": {}, "pot": 0
+    "status": "lobby",
+    "timer": 30,
+    "pot": 0,
+    "players": {}, # {phone: {"card": [], "tickets": 0}}
+    "current_ball": "--",
+    "drawn_balls": [],
+    "admin_id": "7956330391"
 }
 
-# --- FLASK ROUTES ---
-@app.route('/')
-def index(): return render_template('index.html')
+def generate_bingo_card():
+    card = []
+    ranges = [(1,15), (16,30), (31,45), (46,60), (61,75)]
+    for r in ranges:
+        col = random.sample(range(r[0], r[1]+1), 5)
+        card.append(col)
+    # ማትሪክሱን ወደ ዝርዝር መቀየር (Transpose)
+    flat_card = []
+    for row in range(5):
+        for col in range(5):
+            flat_card.append(card[col][row])
+    flat_card[12] = 0 # FREE Space
+    return flat_card
 
 @app.route('/get_status')
 def get_status():
-    now = time.time()
-    if game_state["start_countdown"] is None: game_state["start_countdown"] = now
-    timer = 30 - (int(now - game_state["start_countdown"]) % 30)
-    bought_nums = [n for p in game_state["players"].values() for n in p.get("selected_nums", [])]
+    phone = request.args.get('phone')
+    user = wallets.find_one({"phone": phone})
+    my_data = game_state["players"].get(phone, {"tickets": 0, "card": []})
+    
     return jsonify({
-        "timer": timer, "pot": game_state["pot"], 
-        "win_prize": game_state["pot"] * 0.8, 
-        "player_count": len(game_state["players"]), 
-        "bought_numbers": bought_nums
+        "status": game_state["status"],
+        "timer": game_state["timer"],
+        "pot": game_state["pot"],
+        "player_count": len(game_state["players"]),
+        "current_ball": game_state["current_ball"],
+        "balance": user['balance'] if user else 0,
+        "my_ticket_count": my_data['tickets'],
+        "card": my_data['card']
     })
 
-@app.route('/request_deposit', methods=['POST'])
-def request_deposit():
+@app.route('/buy_ticket', methods=['POST'])
+def buy_ticket():
     phone = request.json.get('phone')
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(bot.send_message(ADMIN_ID, f"💰 የገንዘብ ማስገቢያ ጥያቄ!\nስልክ: {phone}\nእባክዎ ደረሰኝ ይጠይቁ።"))
-    return jsonify({"msg": "ጥያቄው ለአድሚን ተልኳል!"})
-
-@app.route('/request_withdraw', methods=['POST'])
-def request_withdraw():
-    data = request.json
-    p, amt = data.get('phone'), data.get('amount')
-    user = wallets.find_one({"phone": p})
-    if user and user.get("balance", 0) >= int(amt):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(bot.send_message(ADMIN_ID, f"🔔 የገንዘብ ማውጫ ጥያቄ!\nስልክ: {p}\nመጠን: {amt} ብር"))
-        return jsonify({"msg": "ጥያቄው ተልኳል! አድሚን ሲያጸድቀው ይላክለታል።"})
-    return jsonify({"msg": "በቂ ቀሪ ሂሳብ የሎትም!"})
-
-@app.route('/join_game', methods=['POST'])
-def join():
-    data = request.json
-    p, t_num = str(data['phone']), str(data['ticket_num'])
-    user = wallets.find_one({"phone": p})
-    if not user or user.get("balance", 0) < 10: return jsonify({"success": False, "msg": "በቂ ብር የሎትም!"})
-    if p not in game_state["players"]: game_state["players"][p] = {"selected_nums": []}
-    if len(game_state["players"][p]["selected_nums"]) >= 2: return jsonify({"success": False, "msg": "ገደብ አልፏል!"})
+    user = wallets.find_one({"phone": phone})
     
-    wallets.update_one({"phone": p}, {"$inc": {"balance": -10}})
-    game_state["players"][p]["selected_nums"].append(t_num)
+    if not user or user.get('balance', 0) < 10:
+        return jsonify({"success": False, "msg": "በቂ ቀሪ ሂሳብ የሎትም!"})
+    
+    p_data = game_state["players"].get(phone, {"tickets": 0, "card": []})
+    if p_data['tickets'] >= 2:
+        return jsonify({"success": False, "msg": "ከ 2 ካርቴላ በላይ አይፈቀድም!"})
+    
+    wallets.update_one({"phone": phone}, {"$inc": {"balance": -10}})
     game_state["pot"] += 10
+    
+    if phone not in game_state["players"]:
+        game_state["players"][phone] = {"tickets": 1, "card": generate_bingo_card()}
+    else:
+        game_state["players"][phone]["tickets"] += 1
+        
     return jsonify({"success": True})
 
-@app.route('/user_data/<phone>')
-def user_data(phone):
-    user = wallets.find_one({"phone": phone})
-    t_count = len(game_state["players"][phone]["selected_nums"]) if phone in game_state["players"] else 0
-    return jsonify({"balance": user.get("balance", 0) if user else 0, "ticket_count": t_count})
+@app.route('/claim_bingo', methods=['POST'])
+def claim_bingo():
+    phone = request.json.get('phone')
+    if game_state["status"] != "playing":
+        return jsonify({"success": False, "msg": "ጨዋታው አልተጀመረም!"})
+    
+    # ክፍያ ማከፋፈል (80/20)
+    win_amt = game_state["pot"] * 0.8
+    admin_amt = game_state["pot"] * 0.2
+    
+    wallets.update_one({"phone": phone}, {"$inc": {"balance": win_amt}})
+    wallets.update_one({"phone": "ADMIN"}, {"$inc": {"balance": admin_amt}}, upsert=True)
+    
+    game_state["status"] = "lobby" # ጨዋታውን መመለስ
+    game_state["pot"] = 0
+    game_state["players"] = {}
+    
+    return jsonify({"success": True, "msg": f"ቢንጎ! {win_amt} ብር ወጥቶልዎታል።"})
 
-@dp.message(filters.Command("add"))
-async def add_balance(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
-    try:
-        _, ph, am = message.text.split()
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": int(am)}}, upsert=True)
-        await message.answer(f"✅ {am} ብር ለ {ph} ተጨምሯል!")
-    except: await message.answer("/add 09... 100")
+def game_logic():
+    balls = [f"{'BING O'[i//15]}{i+1}" for i in range(75)]
+    while True:
+        # Lobby Phase
+        game_state["status"] = "lobby"
+        for i in range(30, 0, -1):
+            game_state["timer"] = i
+            time.sleep(1)
+        
+        # Start Game if players > 1
+        if len(game_state["players"]) >= 2:
+            game_state["status"] = "playing"
+            current_balls = balls.copy()
+            random.shuffle(current_balls)
+            
+            while game_state["status"] == "playing" and current_balls:
+                game_state["current_ball"] = current_balls.pop(0)
+                time.sleep(4) # በየ 4 ሰከንዱ ኳስ ማውጣት
+        else:
+            time.sleep(2)
 
-def run_flask(): app.run(host='0.0.0.0', port=10000)
-
-async def main():
-    Thread(target=run_flask).start()
-    await dp.start_polling(bot)
-
-if __name__ == '__main__': asyncio.run(main())
+if __name__ == '__main__':
+    Thread(target=game_logic).start()
+    app.run(host='0.0.0.0', port=10000)
