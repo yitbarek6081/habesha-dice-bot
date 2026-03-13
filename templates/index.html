@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 10px; overflow-x: hidden; }
@@ -36,7 +37,7 @@
     <div id="reg-screen">
         <h1 style="color:var(--gold); font-size: 2.5rem; margin-bottom: 20px;">BESH BINGO</h1>
         <input type="tel" id="phone-input" class="reg-input" placeholder="ስልክ ቁጥር ያስገቡ (09...)" maxlength="10">
-        <button class="buy-btn" onclick="registerUser()" style="width:80%">ይግቡ / ENTER</button>
+        <button id="enter-btn" class="buy-btn" onclick="registerUser()" style="width:80%">ይግቡ / ENTER</button>
     </div>
 
     <div class="stats-bar">
@@ -58,18 +59,50 @@
 
     <script>
         const tg = window.Telegram.WebApp;
+        tg.expand(); // ሚኒ አፑን ሙሉ ስክሪን ያደርገዋል
+
         let userPhone = localStorage.getItem('bingo_phone');
         let selectedNum = null;
 
-        if(userPhone) document.getElementById('reg-screen').style.display = 'none';
+        // መጀመሪያ ስልኩ ካለ ሬጅስተር ገጹን ደብቅ
+        if(userPhone) {
+            document.getElementById('reg-screen').style.display = 'none';
+        }
+
+        // --- ማሻሻያ፡ ፈንክሽኖችን ቅደም ተከተል ማስተካከል ---
+
+        function update() {
+            if(!userPhone) return;
+            fetch('/get_status').then(r=>r.json()).then(d=>{
+                document.getElementById('timer').innerText = d.timer;
+                document.getElementById('prize').innerText = Math.floor(d.win_prize);
+                document.getElementById('p-count').innerText = d.player_count;
+                if(d.bought_numbers) {
+                    d.bought_numbers.forEach(n => {
+                        const el = document.getElementById(`card-${n}`);
+                        if(el) el.classList.add('bought');
+                    });
+                }
+            }).catch(e => console.log("Status error"));
+
+            fetch('/user_data/'+userPhone).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance;
+                if(d.ticket_count >= 2) {
+                    document.getElementById('buy-btn').disabled = true;
+                    document.getElementById('buy-btn').innerText = "ገደብ ተሞልቷል (2/2)";
+                }
+            }).catch(e => console.log("User error"));
+        }
 
         function registerUser() {
-            const val = document.getElementById('phone-input').value;
+            const val = document.getElementById('phone-input').value.trim();
             if(val.length >= 10) {
                 userPhone = val;
                 localStorage.setItem('bingo_phone', val);
                 document.getElementById('reg-screen').style.display = 'none';
-                update();
+                update(); // ስልኩ ከተቀበለ በኋላ ዳታውን ያድሳል
+            } else {
+                tg.showAlert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ!");
             }
         }
 
@@ -113,27 +146,8 @@
             }
         }
 
-        function update() {
-            if(!userPhone) return;
-            fetch('/get_status').then(r=>r.json()).then(d=>{
-                document.getElementById('timer').innerText = d.timer;
-                document.getElementById('prize').innerText = Math.floor(d.win_prize);
-                document.getElementById('p-count').innerText = d.player_count;
-                d.bought_numbers.forEach(n => {
-                    const el = document.getElementById(`card-${n}`);
-                    if(el) el.classList.add('bought');
-                });
-            });
-            fetch('/user_data/'+userPhone).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance;
-                if(d.ticket_count >= 2) {
-                    document.getElementById('buy-btn').disabled = true;
-                    document.getElementById('buy-btn').innerText = "ገደብ ተሞልቷል (2/2)";
-                }
-            });
-        }
-
         function buyTicket() {
+            if(!selectedNum) return;
             fetch('/join_game', {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({phone: userPhone, ticket_num: selectedNum})
@@ -146,6 +160,8 @@
             });
         }
 
+        // ሬጅስተር ከሆነ ዳታውን ማደስ ይጀምራል
+        if(userPhone) update();
         setInterval(update, 2000);
     </script>
 </body>
