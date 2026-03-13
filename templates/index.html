@@ -5,55 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO</title>
     <style>
-        :root { --gold: #f1c40f; --bg: #0f172a; --red: #e74c3c; --blue: #1e293b; }
-        body { background: var(--bg); color: white; font-family: sans-serif; padding: 10px; margin: 0; }
+        :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --green: #2ecc71; --orange: #e67e22; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 10px; overflow-x: hidden; }
         
-        /* Registration Screen - ይሄ ክፍል ቁልፉ እንዲሰራ ወሳኝ ነው */
-        #reg-screen { 
-            position: fixed; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            background: var(--bg); 
-            z-index: 9999; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            text-align: center; 
+        /* የላይኛው የWallet እና የሽልማት መረጃ */
+        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--blue); padding: 12px; border-radius: 12px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; }
+        .stats-bar span { display: block; font-size: 1.1rem; color: var(--gold); font-weight: bold; }
+
+        /* የታይመር እና የገንዘብ ቁልፎች አቀማመጥ (ጎን ለጎን) */
+        .timer-section { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 15px; }
+        .side-btn { flex: 1; padding: 15px 5px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; color: white; font-size: 0.8rem; height: 60px; transition: 0.3s; }
+        .dep-btn { background: var(--green); box-shadow: 0 4px 0 #27ae60; }
+        .with-btn { background: var(--orange); box-shadow: 0 4px 0 #d35400; }
+        .side-btn:active { transform: translateY(3px); box-shadow: none; }
+        
+        #timer { font-size: 3.5rem; font-weight: 900; color: white; min-width: 80px; text-align: center; line-height: 1; }
+
+        /* የካርቴላዎች መቆጣጠሪያ */
+        .grid-header { text-align: center; color: var(--gold); margin-bottom: 8px; font-size: 0.9rem; font-weight: bold; }
+        .grid-container { 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 6px; 
+            max-height: 320px; 
+            overflow-y: auto; 
+            background: rgba(255,255,255,0.05); 
+            padding: 10px; 
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        .reg-input { width: 80%; padding: 15px; border-radius: 10px; border: 2px solid var(--gold); background: var(--blue); color: white; font-size: 1.2rem; margin-bottom: 15px; outline: none; }
-
-        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; background: var(--blue); padding: 10px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.7rem; }
-        .stats-bar span { display: block; font-size: 1rem; color: var(--gold); font-weight: bold; }
-
-        .welcome-msg { color: var(--gold); text-align: center; font-weight: bold; margin: 10px 0; }
-        #timer { text-align:center; font-size:4rem; font-weight:900; margin: 10px 0; }
-
-        .grid-store { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; max-height: 200px; overflow-y: auto; }
-        .t-num { background: #334155; padding: 12px 0; border-radius: 5px; cursor: pointer; text-align: center; font-weight: bold; }
-        .t-num.selected { background: var(--gold); color: black; }
-        .t-num.bought { background: #000; color: #444; text-decoration: line-through; pointer-events: none; }
-
-        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; text-align: center; font-weight: 900; font-size: 1.8rem; color: var(--gold); margin-bottom: 10px; }
-        #active-num { width: 90px; height: 90px; border: 5px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 10px auto; font-size: 2.5rem; font-weight: bold; background: var(--blue); color: var(--gold); box-shadow: 0 0 15px var(--gold); }
-
-        .bingo-card { background: #E0E5B6; padding: 5px; border-radius: 5px; margin-top: 10px; }
-        .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #333; }
-        .cell { background: white; height: 40px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; cursor: pointer; }
-        .cell.marked { background: var(--red) !important; color: white; }
         
-        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 10px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
-        .buy-btn:disabled { background: #555; cursor: not-allowed; }
+        /* የካርቴላ ቁጥሮች ዲዛይን */
+        .card-num { 
+            background: #334155; 
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer;
+            border: 2px solid transparent;
+            font-size: 1.1rem;
+            transition: 0.2s;
+        }
+        .card-num.selected { border-color: var(--gold); background: var(--gold); color: #000; transform: scale(0.95); }
+        .card-num.bought { opacity: 0.2; pointer-events: none; background: #000; text-decoration: line-through; }
+
+        /* የግዢ ቁልፍ */
+        .buy-btn { width: 100%; padding: 18px; background: var(--gold); border: none; border-radius: 15px; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 15px; box-shadow: 0 5px 0 #c49b09; color: black; }
+        .buy-btn:active { transform: translateY(3px); box-shadow: none; }
+        .buy-btn:disabled { background: #475569; box-shadow: none; color: #94a3b8; cursor: not-allowed; }
+
+        /* Scrollbar ዲዛይን */
+        .grid-container::-webkit-scrollbar { width: 5px; }
+        .grid-container::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 10px; }
     </style>
 </head>
 <body>
-    <div id="reg-screen">
-        <h1 style="color:var(--gold); font-size: 2.5rem; margin-bottom: 20px;">BESH BINGO</h1>
-        <p style="margin-bottom: 15px;">ለመጀመር ስልክ ቁጥርዎን ያስገቡ</p>
-        <input type="tel" id="phone-input" class="reg-input" placeholder="09xxxxxxxx" maxlength="10">
-        <button class="buy-btn" onclick="register()" style="width:80%">ግባ / Register</button>
-        <p style="font-size: 0.8rem; margin-top: 20px; color: #888;">@dicebetbetbot</p>
-    </div>
 
     <div class="stats-bar">
         <div>WALLET <span id="balance">0</span></div>
@@ -61,116 +70,102 @@
         <div>PLAYERS <span id="p-count">0</span></div>
     </div>
 
-    <div id="lobby">
-        <div id="status-text" class="welcome-msg">ካርቴላ ይምረጡ</div>
+    <div class="timer-section">
+        <button class="side-btn dep-btn" onclick="tg.showAlert('ገንዘብ ለማስገባት በቦቱ ላይ /deposit ይበሉ')">DEPOSIT<br>ማስገቢያ</button>
         <div id="timer">30</div>
-        <div class="grid-store" id="picker"></div>
-        <button id="buy-btn" class="buy-btn" onclick="buyTicket()" disabled style="margin-top:10px;">ካርቴላ ግዛ (10 ብር)</button>
+        <button class="side-btn with-btn" onclick="tg.showAlert('ገንዘብ ለማውጣት በቦቱ ላይ /withdraw ይበሉ')">WITHDRAW<br>ማውጫ</button>
     </div>
 
-    <div id="game" style="display:none;">
-        <div id="active-num">?</div>
-        <div class="bingo-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
-        <div id="my-cards"></div>
-        <button id="win-btn" onclick="claimWin()" style="display:none; width:100%; padding:15px; background:var(--gold); color:black; font-weight:bold; margin-top:10px; border-radius:10px;">🎊 BINGO! 🎊</button>
+    <div id="lobby-ui">
+        <div class="grid-header">ካርቴላ ይምረጡ (ከ2 በላይ አይፈቀድም)</div>
+        
+        <div class="grid-container" id="card-picker"></div>
+        
+        <button id="buy-btn" class="buy-btn" onclick="buyTicket()" disabled>ካርቴላ ግዛ (10 ብር)</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        // phone ቫሪያብልን ግሎባል አደረግነው
-        window.userPhone = localStorage.getItem('bingo_phone');
-        let selectedNum = null, myMarked = new Set([0]);
+        tg.expand(); // ገጹን ሙሉ እንዲሆን ማድረግ
 
-        // ስልኩ ካለ መመዝገቢያውን ደብቅ
-        if(window.userPhone) {
-            document.getElementById('reg-screen').style.display = 'none';
+        let phone = "0945880474"; // ይህ በዳታቤዝ ውስጥ ያለ ተጫዋች ስልክ መሆን አለበት
+        let selectedNum = null;
+        let myTicketsCount = 0;
+
+        // 1-500 ቁጥሮችን መፍጠር
+        const picker = document.getElementById('card-picker');
+        for(let i=1; i<=500; i++) {
+            const div = document.createElement('div');
+            div.className = 'card-num';
+            div.id = `card-${i}`;
+            div.innerText = i;
+            div.onclick = () => selectCard(i);
+            picker.appendChild(div);
         }
 
-        function register() {
-            const val = document.getElementById('phone-input').value;
-            if(val.length >= 10) {
-                window.userPhone = val;
-                localStorage.setItem('bingo_phone', val);
-                document.getElementById('reg-screen').style.display = 'none';
-                update(); // ወዲያው ዳታ እንዲያመጣ
-            } else {
-                alert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ!");
+        function selectCard(n) {
+            // የ2 ካርቴላ ገደብ ቼክ ማድረግ
+            if(myTicketsCount >= 2) {
+                tg.showPopup({ title: 'ገደብ ላይ ደርሰዋል', message: 'በአንድ ዙር ከ2 ካርቴላ በላይ መግዛት አይቻልም!', buttons: [{type: 'ok'}] });
+                return;
             }
-        }
-
-        const picker = document.getElementById('picker');
-        for(let i=1; i<=500; i++) picker.innerHTML += `<div class="t-num" id="tn-${i}" onclick="selectNum(${i})">${i}</div>`;
-
-        function selectNum(n) {
-            if(selectedNum) document.getElementById(`tn-${selectedNum}`).classList.remove('selected');
-            selectedNum = n; document.getElementById(`tn-${n}`).classList.add('selected');
+            if(selectedNum) document.getElementById(`card-${selectedNum}`).classList.remove('selected');
+            selectedNum = n;
+            document.getElementById(`card-${n}`).classList.add('selected');
             document.getElementById('buy-btn').disabled = false;
         }
 
         function update() {
-            if(!window.userPhone) return;
-            
             fetch('/get_status').then(r=>r.json()).then(d=>{
+                // ታይመሩ በየ 30 ሰከንዱ ራሱን እንዲደግም ከታች ባለው ቀመር ይቆጣጠራል
                 document.getElementById('timer').innerText = d.timer;
-                document.getElementById('prize').innerText = d.win_prize;
+                document.getElementById('prize').innerText = Math.floor(d.win_prize);
                 document.getElementById('p-count').innerText = d.player_count;
-
-                if(d.status === "lobby") {
-                    document.getElementById('lobby').style.display='block';
-                    document.getElementById('game').style.display='none';
-                    if(d.sub_status === "closed") document.getElementById('status-text').innerText = "ጨዋታው ሊጀምር ነው...";
-                    
-                    if(d.bought_numbers) {
-                        d.bought_numbers.forEach(n => {
-                            let el = document.getElementById(`tn-${n}`);
-                            if(el) el.classList.add('bought');
-                        });
-                    }
-                } else {
-                    document.getElementById('lobby').style.display='none';
-                    document.getElementById('game').style.display='block';
-                    if(d.drawn_numbers && d.drawn_numbers.length > 0) {
-                        document.getElementById('active-num').innerText = d.drawn_numbers[d.drawn_numbers.length-1];
-                    }
-                }
-            });
-
-            fetch('/user_data/'+window.userPhone).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance;
-                let h = '';
-                if(d.tickets) {
-                    d.tickets.forEach(t => {
-                        h += `<div class="bingo-card"><div class="card-grid">`;
-                        t.forEach(row => row.forEach(n => {
-                            h += `<div class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
-                        }));
-                        h += `</div></div>`;
+                
+                // የተገዙ ቁጥሮችን ማደብዘዝ (ለሁሉም ተጫዋች ይታያል)
+                if(d.bought_numbers) {
+                    d.bought_numbers.forEach(n => {
+                        const el = document.getElementById(`card-${n}`);
+                        if(el) el.classList.add('bought');
                     });
                 }
-                document.getElementById('my-cards').innerHTML = h;
-            });
+            }).catch(e => console.log("Status error"));
+
+            // የተጫዋች Wallet እና የገዛው ብዛት ማግኘት
+            fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance;
+                myTicketsCount = d.tickets ? d.tickets.length : 0;
+                
+                // 2 ካርቴላ ገዝቶ ከሆነ የግዢ ቁልፉን መዝጋት
+                if(myTicketsCount >= 2) {
+                    document.getElementById('buy-btn').disabled = true;
+                    document.getElementById('buy-btn').innerText = "ገደብ ተሞልቷል (2/2)";
+                }
+            }).catch(e => console.log("User data error"));
         }
 
         function buyTicket() {
-            if(!window.userPhone || !selectedNum) return;
+            if(!selectedNum) return;
+            
             fetch('/join_game', {
                 method:'POST', 
                 headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone: window.userPhone, ticket_num: selectedNum})
-            })
-            .then(r=>r.json()).then(d=> { 
-                if(d.success) tg.showAlert("ተገዝቷል!"); 
-                else alert(d.msg); 
+                body:JSON.stringify({phone: phone, ticket_num: selectedNum})
+            }).then(r=>r.json()).then(d=> {
+                if(d.success) {
+                    tg.showAlert("ካርቴላ ቁጥር " + selectedNum + " ተገዝቷል!");
+                    selectedNum = null;
+                    document.getElementById('buy-btn').disabled = true;
+                    update();
+                } else {
+                    tg.showAlert(d.msg);
+                }
             });
         }
 
-        function mark(n) {
-            if(n===0) return;
-            if(myMarked.has(n)) myMarked.delete(n); else myMarked.add(n);
-            document.getElementById('win-btn').style.display = myMarked.size >= 5 ? 'block' : 'none';
-        }
-
-        setInterval(update, 2000); // ሰርቨር እንዳይጨናነቅ ወደ 2 ሰከንድ አድርገነዋል
+        // በየ 1 ሰከንዱ ዳታውን ማደስ
+        setInterval(update, 1000);
+        update(); // ገጹ ሲከፈት ወዲያው እንዲጀምር
     </script>
 </body>
 </html>
