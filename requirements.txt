@@ -1,6 +1,5 @@
-flask
+Flask
 flask-cors
-aiogram
 pymongo
-dnspython
+requests
 gunicorn
