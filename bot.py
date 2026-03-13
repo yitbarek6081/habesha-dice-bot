@@ -4,40 +4,40 @@ from threading import Thread
 from pymongo import MongoClient
 from flask_cors import CORS
 
-# የ templates ፎልደርን በትክክል እንዲያገኝ መጥቀስ
+# Flask አፕሊኬሽን ከ CORS ጋር
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# MongoDB Connection
+# MongoDB ግንኙነት (ከ Environment Variable)
 MONGO_URL = os.getenv("MONGO_URL")
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# የጨዋታ ሁኔታ
+# የጨዋታው ሁኔታ (Game State)
 game_state = {
     "status": "lobby",
     "timer": 30,
     "pot": 0,
-    "players": {}, # {phone: {"card": [], "tickets": 0}}
+    "players": {},
     "current_ball": "--",
-    "admin_id": "7956330391"
+    "drawn_balls": []
 }
 
 def generate_bingo_card():
+    """በ B-I-N-G-O ህግ 5x5 ካርቴላ ያመነጫል"""
     card = []
     ranges = [(1,15), (16,30), (31,45), (46,60), (61,75)]
     for r in ranges:
         col = random.sample(range(r[0], r[1]+1), 5)
         card.append(col)
+    
     flat_card = []
     for row in range(5):
         for col in range(5):
             flat_card.append(card[col][row])
-    flat_card[12] = 0 # FREE Space
+    flat_card[12] = 0 # መካከለኛው FREE Space
     return flat_card
-
-# --- ROUTES ---
 
 @app.route('/')
 def index():
@@ -71,7 +71,7 @@ def buy_ticket():
     
     p_data = game_state["players"].get(phone, {"tickets": 0, "card": []})
     if p_data['tickets'] >= 2:
-        return jsonify({"success": False, "msg": "ከ 2 ካርቴላ በላይ አይፈቀድም!"})
+        return jsonify({"success": False, "msg": "በአንድ ዙር ከ 2 ካርቴላ በላይ አይፈቀድም!"})
     
     wallets.update_one({"phone": phone}, {"$inc": {"balance": -10}})
     game_state["pot"] += 10
@@ -85,12 +85,16 @@ def buy_ticket():
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
-    phone = request.json.get('phone')
-    if game_state["status"] != "playing":
-        return jsonify({"success": False, "msg": "ጨዋታው አልተጀመረም!"})
+    data = request.json
+    phone = data.get('phone')
     
-    win_amt = game_state["pot"] * 0.8
-    admin_amt = game_state["pot"] * 0.2
+    if game_state["status"] != "playing":
+        return jsonify({"success": False, "msg": "ጨዋታው ገና አልተጀመረም!"})
+    
+    # የገንዘብ ክፍያ (80% ለአሸናፊ፣ 20% ለአድሚን)
+    pot = game_state["pot"]
+    win_amt = pot * 0.8
+    admin_amt = pot * 0.2
     
     wallets.update_one({"phone": phone}, {"$inc": {"balance": win_amt}})
     wallets.update_one({"phone": "ADMIN"}, {"$inc": {"balance": admin_amt}}, upsert=True)
@@ -99,13 +103,14 @@ def claim_bingo():
     game_state["pot"] = 0
     game_state["players"] = {}
     
-    return jsonify({"success": True, "msg": f"ቢንጎ! {win_amt} ብር ገቢ ሆኗል።"})
+    return jsonify({"success": True, "msg": f"ቢንጎ! {int(win_amt)} ብር ገቢ ሆኖልዎታል።"})
 
 def game_logic():
+    """የታይመሩን እና የኳስ አወጣጡን ዑደት ይቆጣጠራል"""
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         game_state["status"] = "lobby"
-        for i in range(30, 0, -1):
+        for i in range(30, -1, -1):
             game_state["timer"] = i
             time.sleep(1)
         
@@ -121,9 +126,6 @@ def game_logic():
             time.sleep(2)
 
 if __name__ == '__main__':
-    t = Thread(target=game_logic)
-    t.daemon = True
-    t.start()
-    
+    Thread(target=game_logic, daemon=True).start()
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
