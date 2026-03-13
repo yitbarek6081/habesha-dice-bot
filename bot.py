@@ -1,131 +1,131 @@
-import os, time, random
+import os, time, random, requests
 from flask import Flask, render_template, jsonify, request
 from threading import Thread
 from pymongo import MongoClient
 from flask_cors import CORS
 
-# Flask አፕሊኬሽን ከ CORS ጋር
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# MongoDB ግንኙነት (ከ Environment Variable)
+# --- ADMIN CONFIG ---
+ADMIN_ID = "7956330391"
+ADMIN_PHONE = "0945880474"
+BOT_TOKEN = os.getenv("BOT_TOKEN") # Render environment variable ላይ ይግባ
+
+# --- MONGODB SETUP ---
 MONGO_URL = os.getenv("MONGO_URL")
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# የጨዋታው ሁኔታ (Game State)
 game_state = {
     "status": "lobby",
     "timer": 30,
     "pot": 0,
     "players": {},
     "current_ball": "--",
+    "winner": None,
     "drawn_balls": []
 }
 
+def send_telegram_msg(msg):
+    if BOT_TOKEN:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": ADMIN_ID, "text": msg})
+
 def generate_bingo_card():
-    """በ B-I-N-G-O ህግ 5x5 ካርቴላ ያመነጫል"""
     card = []
     ranges = [(1,15), (16,30), (31,45), (46,60), (61,75)]
     for r in ranges:
         col = random.sample(range(r[0], r[1]+1), 5)
         card.append(col)
-    
     flat_card = []
     for row in range(5):
         for col in range(5):
             flat_card.append(card[col][row])
-    flat_card[12] = 0 # መካከለኛው FREE Space
+    flat_card[12] = 0 # FREE Space
     return flat_card
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@app.route('/buy_ticket', methods=['POST'])
+def buy_ticket():
+    data = request.json
+    phone, count = data.get('phone'), int(data.get('count', 1))
+    if game_state["status"] != "lobby":
+        return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል! ቀጣይ ዙር ይጠብቁ።"})
+    
+    p_data = game_state["players"].get(phone, {"count": 0})
+    if p_data["count"] + count > 2:
+        return jsonify({"success": False, "msg": "ቢበዛ 2 ካርቴላ ብቻ ይፈቀዳል!"})
+
+    user = wallets.find_one({"phone": phone})
+    price = count * 10
+    if not user or user.get('balance', 0) < price:
+        return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
+
+    wallets.update_one({"phone": phone}, {"$inc": {"balance": -price}})
+    game_state["pot"] += price
+    new_cards = [generate_bingo_card() for _ in range(count)]
+    
+    if phone not in game_state["players"]:
+        game_state["players"][phone] = {"cards": new_cards, "count": count, "active": True}
+    else:
+        game_state["players"][phone]["count"] += count
+        game_state["players"][phone]["cards"].extend(new_cards)
+    return jsonify({"success": True})
+
+@app.route('/request_action', methods=['POST'])
+def request_action():
+    data = request.json
+    msg = f"🔔 አዲስ ጥያቄ!\nዓይነት: {data['type']}\nስልክ: {data['phone']}\nመረጃ: {data['info']}"
+    send_telegram_msg(msg)
+    return jsonify({"success": True, "msg": "ጥያቄው ለአድሚን ተልኳል!"})
+
+@app.route('/claim_bingo', methods=['POST'])
+def claim_bingo():
+    phone = request.json.get('phone')
+    if game_state["status"] != "playing": return jsonify({"success": False})
+    
+    win_amt = game_state["pot"] * 0.8
+    admin_amt = game_state["pot"] * 0.2
+    wallets.update_one({"phone": phone}, {"$inc": {"balance": win_amt}})
+    wallets.update_one({"phone": ADMIN_PHONE}, {"$inc": {"balance": admin_amt}}, upsert=True)
+    
+    game_state["winner"] = phone
+    game_state["status"] = "result"
+    send_telegram_msg(f"🏆 አሸናፊ: {phone}\nሽልማት: {win_amt} ETB\nአድሚን ኮሚሽን: {admin_amt} ETB")
+    return jsonify({"success": True})
+
 @app.route('/get_status')
 def get_status():
     phone = request.args.get('phone')
     user = wallets.find_one({"phone": phone})
-    my_data = game_state["players"].get(phone, {"tickets": 0, "card": []})
-    
-    return jsonify({
-        "status": game_state["status"],
-        "timer": game_state["timer"],
-        "pot": game_state["pot"],
-        "player_count": len(game_state["players"]),
-        "current_ball": game_state["current_ball"],
-        "balance": user['balance'] if user else 0,
-        "my_ticket_count": my_data['tickets'],
-        "card": my_data['card']
-    })
+    p_data = game_state["players"].get(phone, {"active": False, "cards": []})
+    return jsonify({**game_state, "balance": user['balance'] if user else 0, "cards": p_data["cards"], "is_player": p_data["active"]})
 
-@app.route('/buy_ticket', methods=['POST'])
-def buy_ticket():
-    data = request.json
-    phone = data.get('phone')
-    user = wallets.find_one({"phone": phone})
-    
-    if not user or user.get('balance', 0) < 10:
-        return jsonify({"success": False, "msg": "በቂ ቀሪ ሂሳብ የሎትም!"})
-    
-    p_data = game_state["players"].get(phone, {"tickets": 0, "card": []})
-    if p_data['tickets'] >= 2:
-        return jsonify({"success": False, "msg": "በአንድ ዙር ከ 2 ካርቴላ በላይ አይፈቀድም!"})
-    
-    wallets.update_one({"phone": phone}, {"$inc": {"balance": -10}})
-    game_state["pot"] += 10
-    
-    if phone not in game_state["players"]:
-        game_state["players"][phone] = {"tickets": 1, "card": generate_bingo_card()}
-    else:
-        game_state["players"][phone]["tickets"] += 1
-        
-    return jsonify({"success": True})
-
-@app.route('/claim_bingo', methods=['POST'])
-def claim_bingo():
-    data = request.json
-    phone = data.get('phone')
-    
-    if game_state["status"] != "playing":
-        return jsonify({"success": False, "msg": "ጨዋታው ገና አልተጀመረም!"})
-    
-    # የገንዘብ ክፍያ (80% ለአሸናፊ፣ 20% ለአድሚን)
-    pot = game_state["pot"]
-    win_amt = pot * 0.8
-    admin_amt = pot * 0.2
-    
-    wallets.update_one({"phone": phone}, {"$inc": {"balance": win_amt}})
-    wallets.update_one({"phone": "ADMIN"}, {"$inc": {"balance": admin_amt}}, upsert=True)
-    
-    game_state["status"] = "lobby"
-    game_state["pot"] = 0
-    game_state["players"] = {}
-    
-    return jsonify({"success": True, "msg": f"ቢንጎ! {int(win_amt)} ብር ገቢ ሆኖልዎታል።"})
-
-def game_logic():
-    """የታይመሩን እና የኳስ አወጣጡን ዑደት ይቆጣጠራል"""
+def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
-        game_state["status"] = "lobby"
+        game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "drawn_balls": []})
         for i in range(30, -1, -1):
             game_state["timer"] = i
             time.sleep(1)
         
         if len(game_state["players"]) >= 2:
             game_state["status"] = "playing"
-            current_balls = balls.copy()
-            random.shuffle(current_balls)
-            
-            while game_state["status"] == "playing" and current_balls:
-                game_state["current_ball"] = current_balls.pop(0)
-                time.sleep(4)
-        else:
-            time.sleep(2)
+            random.shuffle(balls)
+            for b in balls:
+                if game_state["status"] != "playing": break
+                game_state["current_ball"] = b
+                game_state["drawn_balls"].append(b)
+                time.sleep(5) # 5 ሰከንድ ኳስ
+            if game_state["status"] == "result": time.sleep(5)
+        else: time.sleep(2)
+
+Thread(target=game_loop, daemon=True).start()
 
 if __name__ == '__main__':
-    Thread(target=game_logic, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=10000)
