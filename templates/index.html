@@ -7,19 +7,13 @@
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --red: #e74c3c; }
         body { background: var(--bg); color: white; font-family: sans-serif; padding: 10px; margin: 0; }
-        
-        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; background: #1e293b; padding: 10px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; font-size: 0.7rem; }
-        .stats-bar span { display: block; font-size: 1rem; color: var(--gold); font-weight: bold; }
-
-        .welcome-msg { color: var(--gold); text-align: center; font-weight: bold; margin: 10px 0; animation: fade 1.5s infinite alternate; }
-        @keyframes fade { from { opacity: 0.4; } to { opacity: 1; } }
-
-        .ticket-store { background: #1e293b; padding: 10px; border-radius: 10px; }
-        .grid-store { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; max-height: 200px; overflow-y: auto; padding: 5px; }
-        .t-num { background: #334155; padding: 10px 0; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; background: #1e293b; padding: 10px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; text-align: center; }
+        .stats-bar span { display: block; font-size: 1.1rem; color: var(--gold); font-weight: bold; }
+        .welcome-msg { color: var(--gold); text-align: center; font-weight: bold; margin: 10px 0; }
+        .grid-store { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-height: 250px; overflow-y: auto; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; }
+        .t-num { background: #334155; padding: 12px 0; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; }
         .t-num.selected { background: var(--gold); color: black; }
         .t-num.bought { background: #000; color: #444; text-decoration: line-through; pointer-events: none; }
-
         .bingo-card { background: #E0E5B6; padding: 5px; border-radius: 5px; margin-top: 10px; }
         .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #333; }
         .cell { background: white; height: 35px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; cursor: pointer; }
@@ -35,11 +29,9 @@
 
     <div id="lobby">
         <div class="welcome-msg">✨ እንኳን ወደ በሽ ቢንጎ በሰላም መጣችሁ! ✨</div>
-        <div id="timer" style="text-align:center; font-size:3.5rem; font-weight:bold;">30</div>
-        <div class="ticket-store">
-            <div class="grid-store" id="picker"></div>
-        </div>
-        <button id="buy-btn" onclick="buyTicket()" disabled style="width:100%; padding:15px; margin-top:10px; background:var(--gold); border:none; border-radius:10px; font-weight:bold;">ካርቴላ ግዛ (10 ብር)</button>
+        <div id="timer" style="text-align:center; font-size:4rem; font-weight:bold; margin: 10px 0;">30</div>
+        <div class="grid-store" id="picker"></div>
+        <button id="buy-btn" onclick="buyTicket()" disabled style="width:100%; padding:15px; margin-top:15px; background:var(--gold); border:none; border-radius:10px; font-weight:bold; color:black;">ካርቴላ ምረጥ</button>
     </div>
 
     <div id="game" style="display:none;">
@@ -51,15 +43,16 @@
     <script>
         const tg = window.Telegram.WebApp;
         let phone = "0945880474", selectedNum = null, myMarked = new Set([0]);
+        let lastTickJSON = "";
 
-        // 500 ካርቴላ መፍጠሪያ
         const picker = document.getElementById('picker');
         for(let i=1; i<=500; i++) picker.innerHTML += `<div class="t-num" id="tn-${i}" onclick="selectNum(${i})">${i}</div>`;
 
         function selectNum(n) {
             if(selectedNum) document.getElementById(`tn-${selectedNum}`).classList.remove('selected');
-            selectedNum = n; document.getElementById(`tn-${n}`).classList.add('selected');
+            selectedNum = n; document.getElementById(`tn-${n}`).add('selected');
             document.getElementById('buy-btn').disabled = false;
+            document.getElementById('buy-btn').innerText = `ካርቴላ #${n} ግዛ`;
         }
 
         function update() {
@@ -67,11 +60,13 @@
                 document.getElementById('timer').innerText = d.timer;
                 document.getElementById('prize').innerText = d.win_prize;
                 document.getElementById('p-count').innerText = d.player_count;
-
                 if(d.status === "lobby") {
                     document.getElementById('lobby').style.display='block';
                     document.getElementById('game').style.display='none';
-                    d.bought_numbers.forEach(n => document.getElementById(`tn-${n}`).classList.add('bought'));
+                    d.bought_numbers.forEach(n => {
+                        let el = document.getElementById(`tn-${n}`);
+                        if(el) el.classList.add('bought');
+                    });
                 } else {
                     document.getElementById('lobby').style.display='none';
                     document.getElementById('game').style.display='block';
@@ -81,18 +76,22 @@
 
             fetch('/user_data/'+phone).then(r=>r.json()).then(d=>{
                 document.getElementById('balance').innerText = d.balance;
-                let h = '';
-                d.tickets.forEach(t => {
-                    h += `<div class="bingo-card"><div class="card-grid">`;
-                    t.forEach(row => row.forEach(n => {
-                        h += `<div id="c-${n}" class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
-                    }));
-                    h += `</div></div>`;
-                });
-                document.getElementById('my-cards').innerHTML = h;
+                let tStr = JSON.stringify(d.tickets);
+                if(lastTickJSON !== tStr) {
+                    lastTickJSON = tStr;
+                    let h = '';
+                    d.tickets.forEach(t => {
+                        h += `<div class="bingo-card"><div class="card-grid">`;
+                        t.forEach(row => row.forEach(n => {
+                            h += `<div id="c-${n}" class="cell ${n===0||myMarked.has(n)?'marked':''}" onclick="mark(${n})">${n===0?'FREE':n}</div>`;
+                        }));
+                        h += `</div></div>`;
+                    });
+                    document.getElementById('my-cards').innerHTML = h;
+                }
             });
         }
-
+        
         function buyTicket() {
             fetch('/join_game', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num: selectedNum})})
             .then(r=>r.json()).then(d=> { if(d.success) tg.showAlert("ተገዝቷል!"); else alert(d.msg); });
@@ -101,7 +100,7 @@
         function mark(n) {
             if(n===0) return;
             if(myMarked.has(n)) myMarked.delete(n); else myMarked.add(n);
-            document.getElementById('win-btn').style.display = myMarked.size >= 5 ? 'block' : 'none';
+            update(); // UI እንዲታደስ
         }
 
         setInterval(update, 1000);
