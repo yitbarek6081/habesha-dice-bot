@@ -8,8 +8,8 @@
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; }
         body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
-        .nav { display: flex; justify-content: space-around; background: var(--blue); padding: 15px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; }
-        .timer { font-size: 3rem; font-weight: 900; color: var(--gold); }
+        .nav { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border-radius: 10px; border: 1px solid var(--gold); margin-bottom: 10px; font-size: 0.9rem; }
+        .timer { font-size: 3rem; font-weight: 900; color: var(--gold); margin: 10px 0; }
         .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 15px; }
         .cell { background: white; color: black; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; font-size: 1rem; }
         .cell.selected { background: var(--gold); transform: scale(0.95); }
@@ -24,15 +24,14 @@
 <body>
     <div class="nav">
         <div>ሒሳብ: <br><span id="balance">0</span> ETB</div>
-        <div>ሽልማት (80%): <br><span id="prize">0</span> ETB</div>
+        <div>ሽልማት: <br><span id="prize">0</span> ETB</div>
     </div>
 
     <div id="lobby-ui">
         <div class="timer" id="timer">30</div>
-        <p>ካርቴላ ይግዙ (ቢበዛ 2)</p>
         <div style="display: flex; gap: 10px;">
-            <button class="btn buy-btn" onclick="buy(1)">1 ካርቴላ<br>10 ብር</button>
-            <button class="btn buy-btn" onclick="buy(2)">2 ካርቴላ<br>20 ብር</button>
+            <button class="btn buy-btn" onclick="buy(1)">1 ካርቴላ (10 ብር)</button>
+            <button class="btn buy-btn" onclick="buy(2)">2 ካርቴላ (20 ብር)</button>
         </div>
         <button class="btn action-btn" onclick="deposit()">ገንዘብ አስገባ (Telebirr)</button>
         <button class="btn" style="background:#e67e22;" onclick="withdraw()">ገንዘብ አውጣ</button>
@@ -40,7 +39,7 @@
 
     <div id="game-ui" style="display:none;">
         <div id="ball-display">--</div>
-        <p id="observer-msg" style="display:none; color:#94a3b8;">ታዛቢ ነዎት - የሚቀጥለውን ዙር ይጠብቁ</p>
+        <p id="observer-msg" style="display:none; color:#94a3b8;">የሚቀጥለውን ዙር ይጠብቁ...</p>
         <div id="card-area"></div>
         <button id="bingo-btn" class="btn" style="background:var(--red); color:white; display:none;" onclick="claim()">BINGO! 🎰</button>
     </div>
@@ -52,22 +51,17 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ:");
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር:");
         localStorage.setItem('phone', phone);
 
         function deposit() {
-            const info = prompt("የቴሌብር ትራንዛክሽን ID ወይም የSMS ኮፒ እዚህ ይለጥፉ:");
-            if(info) sendAction('DEPOSIT', info);
+            const info = prompt("የቴሌብር ትራንዛክሽን ID ወይም የSMS መረጃ እዚህ ይለጥፉ:");
+            if(info) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, type:'DEPOSIT', info})}).then(r=>r.json()).then(d=>tg.showAlert(d.msg));
         }
 
         function withdraw() {
             const amt = prompt("ማውጣት የሚፈልጉትን መጠን ያስገቡ:");
-            if(amt) sendAction('WITHDRAW', amt + " ETB");
-        }
-
-        function sendAction(type, info) {
-            fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, type, info})})
-            .then(r=>r.json()).then(d=> tg.showAlert(d.msg));
+            if(amt) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, type:'WITHDRAW', info: amt + " ETB"})}).then(r=>r.json()).then(d=>tg.showAlert(d.msg));
         }
 
         function buy(count) {
@@ -88,9 +82,7 @@
                     if(d.is_player) {
                         document.getElementById('bingo-btn').style.display = 'block';
                         if(document.getElementById('card-area').innerHTML === "") d.cards.forEach(renderCard);
-                    } else {
-                        document.getElementById('observer-msg').style.display = 'block';
-                    }
+                    } else { document.getElementById('observer-msg').style.display = 'block'; }
                 } else if(d.status === "result") {
                     document.getElementById('game-ui').style.display = 'none';
                     document.getElementById('result-ui').style.display = 'flex';
@@ -100,13 +92,13 @@
                     document.getElementById('game-ui').style.display = 'none';
                     document.getElementById('result-ui').style.display = 'none';
                     document.getElementById('card-area').innerHTML = "";
+                    document.getElementById('observer-msg').style.display = 'none';
                 }
             });
         }
 
         function renderCard(card) {
-            const grid = document.createElement('div');
-            grid.className = 'grid';
+            const grid = document.createElement('div'); grid.className = 'grid';
             card.forEach((n, i) => {
                 const cell = document.createElement('div');
                 cell.className = (i === 12) ? "cell free" : "cell";
@@ -118,10 +110,8 @@
         }
 
         function claim() {
-            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone})})
-            .then(r=>r.json());
+            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone})});
         }
-
         setInterval(update, 2000);
     </script>
 </body>
