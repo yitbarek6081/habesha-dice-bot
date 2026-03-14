@@ -1,4 +1,5 @@
-flask
-aiogram
+Flask
+flask-cors
 pymongo
-dnspython
+requests
+gunicorn
