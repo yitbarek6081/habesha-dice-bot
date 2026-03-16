@@ -62,7 +62,24 @@
             let info = prompt("የቴሌብር ትራንዛክሽን ID ያስገቡ:");
             if(info) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, type:'DEPOSIT', info})});
         }
-
+function withdraw() {
+    let amount = prompt("ማውጣት የሚፈልጉትን መጠን ያስገቡ (ETB):");
+    let targetPhone = prompt("ብር የሚላክበትን የቴሌብር ስልክ ቁጥር ያስገቡ:");
+    
+    if(amount && targetPhone) {
+        fetch('/request_withdraw', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({
+                phone: phone, // የተጫዋቹ ስልክ
+                amount: amount, 
+                target_phone: targetPhone 
+            })
+        })
+        .then(r => r.json())
+        .then(d => alert(d.msg));
+    }
+}
         function buy(n) {
             fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})})
             .then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
