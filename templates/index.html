@@ -62,24 +62,43 @@
             let info = prompt("የቴሌብር ትራንዛክሽን ID ያስገቡ:");
             if(info) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, type:'DEPOSIT', info})});
         }
-function withdraw() {
-    let amount = prompt("ማውጣት የሚፈልጉትን መጠን ያስገቡ (ETB):");
-    let targetPhone = prompt("ብር የሚላክበትን የቴሌብር ስልክ ቁጥር ያስገቡ:");
+<button class="bingo-btn" style="background:#e67e22" onclick="openWithdraw()">ገንዘብ አውጣ</button>
+
+<div id="withdraw-modal" class="overlay" style="display:none;">
+    <div style="background:var(--blue); padding:20px; border-radius:15px; width:80%; border:2px solid var(--gold);">
+        <h3>ገንዘብ ማውጫ</h3>
+        <p style="font-size:0.8rem; color:#94a3b8;">ማውጣት የሚፈልጉትን መጠን እና የቴሌብር ስልክ ቁጥር ያስገቡ።</p>
+        <input type="number" id="wit-amount" placeholder="መጠን (ETB)" style="width:90%; padding:10px; margin-bottom:10px; border-radius:5px;">
+        <input type="text" id="wit-phone" placeholder="የቴሌብር ስልክ ቁጥር" style="width:90%; padding:10px; margin-bottom:15px; border-radius:5px;">
+        <div style="display:flex; gap:10px;">
+            <button onclick="closeWithdraw()" style="flex:1; padding:10px; background:var(--red); color:white; border:none; border-radius:5px;">ሰርዝ</button>
+            <button onclick="submitWithdraw()" style="flex:1; padding:10px; background:#e67e22; color:white; border:none; border-radius:5px;">ጥያቄ ላክ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openWithdraw() { document.getElementById('withdraw-modal').style.display = 'flex'; }
+function closeWithdraw() { document.getElementById('withdraw-modal').style.display = 'none'; }
+
+function submitWithdraw() {
+    const amt = document.getElementById('wit-amount').value;
+    const targetPhone = document.getElementById('wit-phone').value;
     
-    if(amount && targetPhone) {
-        fetch('/request_withdraw', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({
-                phone: phone, // የተጫዋቹ ስልክ
-                amount: amount, 
-                target_phone: targetPhone 
-            })
-        })
-        .then(r => r.json())
-        .then(d => alert(d.msg));
-    }
+    if(!amt || !targetPhone) return alert("እባክዎ ሁሉንም መረጃ ይሙሉ!");
+
+    fetch('/request_withdraw', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ phone: phone, amount: amt, target_phone: targetPhone })
+    })
+    .then(r => r.json())
+    .then(d => {
+        alert(d.msg);
+        closeWithdraw();
+    });
 }
+
         function buy(n) {
             fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})})
             .then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
