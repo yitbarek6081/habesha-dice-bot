@@ -9,28 +9,20 @@
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
         .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 10px; font-size: 0.8rem; }
-        
-        /* Buttons Styling */
-        .btn-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .action-btn { padding: 12px; border: 2px solid var(--gold); border-radius: 8px; font-weight: bold; color: white; cursor: pointer; font-size: 0.9rem; }
-        .dep-btn { background: var(--green); }
-        .wit-btn { background: var(--orange); }
-        
         .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 250px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; }
         .t-box { background: white; color: black; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 3px; }
         .t-box.sold { background: #475569; color: #94a3b8; }
         .t-box.mine { background: var(--gold); }
-        
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .action-btn { padding: 12px; border-radius: 8px; border: 2px solid var(--gold); color: white; font-weight: bold; }
         .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
         .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 5px; }
         .ball-dot { font-size: 0.6rem; background: #1e293b; padding: 3px; border-radius: 2px; }
         .ball-dot.active { background: var(--gold); color: black; }
-        
         .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 3px; margin-bottom: 10px; }
         .cell { background: white; color: black; height: 35px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
         .cell.selected { background: var(--gold); }
         .cell.free { background: var(--red); color: white; font-size: 0.5rem; }
-        
         .bingo-btn { width: 100%; padding: 15px; background: var(--red); color: white; font-size: 1.5rem; font-weight: bold; border: 3px solid var(--gold); border-radius: 12px; margin-top: 10px; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
     </style>
@@ -45,12 +37,10 @@
     <div id="lobby-ui">
         <h2 id="status-msg" style="color:var(--gold)">ካርቴላ ይምረጡ</h2>
         <div style="font-size: 2.5rem; font-weight: 900;" id="timer">30</div>
-        
         <div class="grid-500" id="ticket-area"></div>
-        
-        <div class="btn-container">
-            <button class="action-btn dep-btn" onclick="deposit()">ገንዘብ አስገባ</button>
-            <button class="action-btn wit-btn" onclick="withdraw()">ገንዘብ አውጣ</button>
+        <div class="btn-row">
+            <button class="action-btn" style="background:var(--green)" onclick="deposit()">ገንዘብ አስገባ</button>
+            <button class="action-btn" style="background:var(--orange)" onclick="withdraw()">ገንዘብ አውጣ</button>
         </div>
     </div>
 
@@ -69,39 +59,21 @@
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
         let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር:");
         localStorage.setItem('phone', phone);
 
-        // ገንዘብ ማስገቢያ
         function deposit() {
-            let amount = prompt("የሚያስገቡትን መጠን ይጻፉ (ETB):");
-            let info = prompt("የቴሌብር ትራንዛክሽን ID ያስገቡ:");
-            if(amount && info) {
-                fetch('/request_deposit', {
-                    method:'POST', 
-                    headers:{'Content-Type':'application/json'}, 
-                    body: JSON.stringify({phone, amount, transaction_id: info})
-                }).then(r => r.json()).then(d => alert(d.msg));
-            }
+            let amt = prompt("መጠን (ETB):"), id = prompt("Transaction ID:");
+            if(amt && id) fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:id})}).then(r=>r.json()).then(d=>alert(d.msg));
         }
 
-        // ገንዘብ ማውጫ
         function withdraw() {
-            let amount = prompt("ማውጣት የሚፈልጉትን መጠን ይጻፉ (ETB):");
-            let targetPhone = prompt("ብር የሚላክበትን የቴሌብር ስልክ ቁጥር ያስገቡ:");
-            if(amount && targetPhone) {
-                fetch('/request_withdraw', {
-                    method:'POST', 
-                    headers:{'Content-Type':'application/json'}, 
-                    body: JSON.stringify({phone, amount, target_phone: targetPhone})
-                }).then(r => r.json()).then(d => alert(d.msg));
-            }
+            let amt = prompt("መጠን (ETB):"), target = prompt("የቴሌብር ስልክ:");
+            if(amt && target) fetch('/request_withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, target_phone:target})}).then(r=>r.json()).then(d=>alert(d.msg));
         }
 
         function buy(n) {
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})})
-            .then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
+            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})}).then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
         }
 
         function update() {
@@ -125,29 +97,21 @@
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display = 'flex';
                     document.getElementById('winner-name').innerText = "አሸናፊ: " + d.winner;
-                } else {
-                    location.reload();
                 }
             });
         }
 
         function renderTickets(sold) {
             const area = document.getElementById('ticket-area');
-            if(area.children.length > 0) {
+            if(area.children.length === 0) {
                 for(let i=1; i<=500; i++) {
-                    let box = area.children[i-1];
-                    if(sold[i]) {
-                        box.className = sold[i] === phone ? 't-box mine' : 't-box sold';
-                        box.onclick = null;
-                    }
+                    let div = document.createElement('div'); div.className = 't-box'; div.innerText = i;
+                    div.onclick = () => buy(i); area.appendChild(div);
                 }
-                return;
             }
             for(let i=1; i<=500; i++) {
-                let div = document.createElement('div');
-                div.className = 't-box'; div.innerText = i;
-                if(!sold[i]) div.onclick = () => buy(i);
-                area.appendChild(div);
+                let box = area.children[i-1];
+                if(sold[i]) { box.className = sold[i] === phone ? 't-box mine' : 't-box sold'; box.onclick = null; }
             }
         }
 
@@ -159,5 +123,23 @@
                     board.appendChild(d);
                 }
             }
-            drawn.forEach(b => {
-                let el = document.getElementById('b-'+
+            drawn.forEach(b => { let el = document.getElementById('b-'+b.substring(1)); if(el) el.classList.add('active'); });
+        }
+
+        function renderCard(card) {
+            const grid = document.createElement('div'); grid.className = 'bingo-card';
+            card.forEach((n, i) => {
+                const cell = document.createElement('div');
+                cell.className = (i === 12) ? "cell free" : "cell";
+                cell.innerText = (i === 12) ? "FREE" : n;
+                cell.onclick = () => cell.classList.toggle('selected');
+                grid.appendChild(cell);
+            });
+            document.getElementById('card-area').appendChild(grid);
+        }
+
+        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone})}); }
+        setInterval(update, 2000);
+    </script>
+</body>
+</html>
