@@ -6,21 +6,31 @@
     <title>BESH BINGO</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; }
+        :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
         .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 10px; font-size: 0.8rem; }
+        
+        /* Buttons Styling */
+        .btn-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .action-btn { padding: 12px; border: 2px solid var(--gold); border-radius: 8px; font-weight: bold; color: white; cursor: pointer; font-size: 0.9rem; }
+        .dep-btn { background: var(--green); }
+        .wit-btn { background: var(--orange); }
+        
         .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 250px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; }
         .t-box { background: white; color: black; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 3px; }
         .t-box.sold { background: #475569; color: #94a3b8; }
         .t-box.mine { background: var(--gold); }
+        
         .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
         .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 5px; }
         .ball-dot { font-size: 0.6rem; background: #1e293b; padding: 3px; border-radius: 2px; }
         .ball-dot.active { background: var(--gold); color: black; }
+        
         .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 3px; margin-bottom: 10px; }
         .cell { background: white; color: black; height: 35px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
         .cell.selected { background: var(--gold); }
         .cell.free { background: var(--red); color: white; font-size: 0.5rem; }
+        
         .bingo-btn { width: 100%; padding: 15px; background: var(--red); color: white; font-size: 1.5rem; font-weight: bold; border: 3px solid var(--gold); border-radius: 12px; margin-top: 10px; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
     </style>
@@ -35,8 +45,13 @@
     <div id="lobby-ui">
         <h2 id="status-msg" style="color:var(--gold)">ካርቴላ ይምረጡ</h2>
         <div style="font-size: 2.5rem; font-weight: 900;" id="timer">30</div>
+        
         <div class="grid-500" id="ticket-area"></div>
-        <button class="bingo-btn" style="background:#2ecc71" onclick="deposit()">ገንዘብ አስገባ</button>
+        
+        <div class="btn-container">
+            <button class="action-btn dep-btn" onclick="deposit()">ገንዘብ አስገባ</button>
+            <button class="action-btn wit-btn" onclick="withdraw()">ገንዘብ አውጣ</button>
+        </div>
     </div>
 
     <div id="game-ui" style="display:none;">
@@ -58,46 +73,31 @@
         let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር:");
         localStorage.setItem('phone', phone);
 
+        // ገንዘብ ማስገቢያ
         function deposit() {
+            let amount = prompt("የሚያስገቡትን መጠን ይጻፉ (ETB):");
             let info = prompt("የቴሌብር ትራንዛክሽን ID ያስገቡ:");
-            if(info) fetch('/request_action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, type:'DEPOSIT', info})});
+            if(amount && info) {
+                fetch('/request_deposit', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body: JSON.stringify({phone, amount, transaction_id: info})
+                }).then(r => r.json()).then(d => alert(d.msg));
+            }
         }
-<button class="bingo-btn" style="background:#e67e22" onclick="openWithdraw()">ገንዘብ አውጣ</button>
 
-<div id="withdraw-modal" class="overlay" style="display:none;">
-    <div style="background:var(--blue); padding:20px; border-radius:15px; width:80%; border:2px solid var(--gold);">
-        <h3>ገንዘብ ማውጫ</h3>
-        <p style="font-size:0.8rem; color:#94a3b8;">ማውጣት የሚፈልጉትን መጠን እና የቴሌብር ስልክ ቁጥር ያስገቡ።</p>
-        <input type="number" id="wit-amount" placeholder="መጠን (ETB)" style="width:90%; padding:10px; margin-bottom:10px; border-radius:5px;">
-        <input type="text" id="wit-phone" placeholder="የቴሌብር ስልክ ቁጥር" style="width:90%; padding:10px; margin-bottom:15px; border-radius:5px;">
-        <div style="display:flex; gap:10px;">
-            <button onclick="closeWithdraw()" style="flex:1; padding:10px; background:var(--red); color:white; border:none; border-radius:5px;">ሰርዝ</button>
-            <button onclick="submitWithdraw()" style="flex:1; padding:10px; background:#e67e22; color:white; border:none; border-radius:5px;">ጥያቄ ላክ</button>
-        </div>
-    </div>
-</div>
-
-<script>
-function openWithdraw() { document.getElementById('withdraw-modal').style.display = 'flex'; }
-function closeWithdraw() { document.getElementById('withdraw-modal').style.display = 'none'; }
-
-function submitWithdraw() {
-    const amt = document.getElementById('wit-amount').value;
-    const targetPhone = document.getElementById('wit-phone').value;
-    
-    if(!amt || !targetPhone) return alert("እባክዎ ሁሉንም መረጃ ይሙሉ!");
-
-    fetch('/request_withdraw', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ phone: phone, amount: amt, target_phone: targetPhone })
-    })
-    .then(r => r.json())
-    .then(d => {
-        alert(d.msg);
-        closeWithdraw();
-    });
-}
+        // ገንዘብ ማውጫ
+        function withdraw() {
+            let amount = prompt("ማውጣት የሚፈልጉትን መጠን ይጻፉ (ETB):");
+            let targetPhone = prompt("ብር የሚላክበትን የቴሌብር ስልክ ቁጥር ያስገቡ:");
+            if(amount && targetPhone) {
+                fetch('/request_withdraw', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body: JSON.stringify({phone, amount, target_phone: targetPhone})
+                }).then(r => r.json()).then(d => alert(d.msg));
+            }
+        }
 
         function buy(n) {
             fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})})
@@ -160,26 +160,4 @@ function submitWithdraw() {
                 }
             }
             drawn.forEach(b => {
-                let el = document.getElementById('b-'+b.substring(1));
-                if(el) el.classList.add('active');
-            });
-        }
-
-        function renderCard(card) {
-            const container = document.getElementById('card-area');
-            const grid = document.createElement('div'); grid.className = 'bingo-card';
-            card.forEach((n, i) => {
-                const cell = document.createElement('div');
-                cell.className = (i === 12) ? "cell free" : "cell";
-                cell.innerText = (i === 12) ? "FREE" : n;
-                cell.onclick = () => cell.classList.toggle('selected');
-                grid.appendChild(cell);
-            });
-            container.appendChild(grid);
-        }
-
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone})}); }
-        setInterval(update, 2000);
-    </script>
-</body>
-</html>
+                let el = document.getElementById('b-'+
