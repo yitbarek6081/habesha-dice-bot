@@ -147,3 +147,4 @@ def claim_bingo():
     admin_amt = game_state["pot"] * 0.2
     wallets.update_one({"phone": phone}, {"$inc": {"balance": win_amt}})
     wallets.update_one({"phone": ADMIN_PHONE},
+                      )
