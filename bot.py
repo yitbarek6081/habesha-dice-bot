@@ -6,12 +6,12 @@ from flask_cors import CORS
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# --- CONFIG (እነዚህን በRender Environment Variables ውስጥ ይሙሉት) ---
+# --- CONFIG ---
 ADMIN_ID = "7956330391" # ያንተ ቴሌግራም ID
 ADMIN_PHONE = "0945880474" # ኮሚሽን የሚገባበት ስልክ
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
-MY_RENDER_URL = "https://habesha-dice-bot.onrender.com" # ያንተ የሬንደር ሊንክ
+MY_RENDER_URL = "https://habesha-dice-bot.onrender.com"
 
 # MongoDB Connection
 client = MongoClient(MONGO_URL)
@@ -31,7 +31,7 @@ game_state = {
 }
 
 def send_telegram_msg(msg):
-    """መልዕክቱን በ HTML Format ለባለቤቱ ይልካል (ለቀላል ኮፒ)"""
+    """መልዕክቱን በ HTML Format ለባለቤቱ ይልካል"""
     if BOT_TOKEN:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {
@@ -94,7 +94,6 @@ def webhook():
 def request_deposit():
     data = request.json
     p, amt, tid = data.get('phone'), data.get('amount'), data.get('transaction_id')
-    # <code> ማድረጉ ቴሌግራም ላይ ሲነኩት ኮፒ እንዲሆን ያደርገዋል
     msg = (f"🔔 <b>የተቀማጭ ጥያቄ!</b>\n\n"
            f"👤 ስልክ: {p}\n"
            f"💰 መጠን: {amt} ETB\n"
@@ -127,17 +126,35 @@ def get_status():
     if not user and phone:
         wallets.insert_one({"phone": phone, "balance": 0})
         user = {"balance": 0}
+    
     p_data = game_state["players"].get(phone, {"active": False, "cards": []})
-    return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"], "is_player": p_data["active"]})
+    
+    return jsonify({
+        **game_state, 
+        "balance": user['balance'] if user else 0, 
+        "my_cards": p_data["cards"], 
+        "is_player": p_data["active"]
+    })
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
     data = request.json
     phone, t_num = data.get('phone'), str(data.get('ticket_num'))
-    if game_state["status"] != "lobby": return jsonify({"success":False, "msg":"ሽያጭ ተዘግቷል!"})
-    if t_num in game_state["sold_tickets"]: return jsonify({"success":False, "msg":"ተይዟል!"})
+    
+    if game_state["status"] != "lobby": 
+        return jsonify({"success":False, "msg":"ሽያጭ ተዘግቷል!"})
+    
+    if t_num in game_state["sold_tickets"]: 
+        return jsonify({"success":False, "msg":"ይህ ካርቴላ ተይዟል!"})
+
+    # ማሻሻያ 1: የአንድ ሰው የካርቴላ ብዛት ከ 2 እንዳይበልጥ መገደብ
+    player_info = game_state["players"].get(phone, {"cards": []})
+    if len(player_info["cards"]) >= 2:
+        return jsonify({"success":False, "msg":"ከ 2 ካርቴላ በላይ መግዛት አይቻልም!"})
+
     user = wallets.find_one({"phone": phone})
-    if not user or user.get('balance', 0) < 10: return jsonify({"success":False, "msg":"በቂ ሂሳብ የሎትም!"})
+    if not user or user.get('balance', 0) < 10: 
+        return jsonify({"success":False, "msg":"በቂ ሂሳብ የሎትም!"})
     
     wallets.update_one({"phone": phone}, {"$inc": {"balance": -10}})
     game_state["sold_tickets"][t_num] = phone
@@ -148,14 +165,18 @@ def buy_ticket():
         game_state["players"][phone] = {"cards": [card], "active": True}
     else:
         game_state["players"][phone]["cards"].append(card)
+    
     return jsonify({"success": True})
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     phone = request.json.get('phone')
-    if game_state["status"] != "playing": return jsonify({"success": False, "msg": "ጌሙ አልተጀመረም!"})
+    if game_state["status"] != "playing": 
+        return jsonify({"success": False, "msg": "ጌሙ አልተጀመረም!"})
+    
     player_data = game_state["players"].get(phone)
-    if not player_data: return jsonify({"success": False})
+    if not player_data: 
+        return jsonify({"success": False})
 
     drawn_numbers = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
     drawn_numbers.add(0)
@@ -179,17 +200,15 @@ def claim_bingo():
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ገና ነዎት!"})
 
-# --- GAME LOOP (AUTO-RESET TIMER ONLY) ---
 def game_loop():
+    # ማሻሻያ 2: B I N G O ፊደላትን ከቁጥሮች ጋር ማጣመር
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     
     while True:
-        # 1. Start 30s Countdown
         for i in range(30, -1, -1):
             game_state["timer"] = i
             time.sleep(1)
         
-        # 2. Check player count after 30s
         if len(game_state["players"]) >= 2:
             game_state["status"] = "playing"
             shuffled = balls.copy()
@@ -198,9 +217,9 @@ def game_loop():
                 if game_state["status"] != "playing": break
                 game_state["current_ball"] = b
                 game_state["drawn_balls"].append(b)
-                time.sleep(5) # ኳስ የሚወጣበት ፍጥነት
+                time.sleep(5)
             
-            time.sleep(10) # ውጤት ለማሳየት
+            time.sleep(10)
 
             # Reset State after game ends
             game_state.update({
@@ -208,12 +227,10 @@ def game_loop():
                 "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
             })
         else:
-            # በቂ ሰው ከሌለ ተጫዋቾችን ሳይሰርዝ ሰዓቱን ብቻ 30 ያደርገዋል
             game_state["timer"] = 30
             continue
 
 def keep_alive():
-    """Render እንዳይተኛ በየ 10 ደቂቃው ራሱን ይጠራል"""
     while True:
         try: 
             requests.get(MY_RENDER_URL)
@@ -221,11 +238,9 @@ def keep_alive():
             pass
         time.sleep(600)
 
-# Threads
 threading.Thread(target=game_loop, daemon=True).start()
 threading.Thread(target=keep_alive, daemon=True).start()
 
 if __name__ == '__main__':
-    # Render የሚሰጠውን Port ይጠቀማል
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
