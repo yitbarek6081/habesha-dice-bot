@@ -13,6 +13,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URL = os.getenv("MONGO_URL")
 MY_RENDER_URL = "https://habesha-dice-bot.onrender.com" # ያንተ የሬንደር ሊንክ
 
+# MongoDB Connection
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
@@ -30,9 +31,18 @@ game_state = {
 }
 
 def send_telegram_msg(msg):
+    """መልዕክቱን በ HTML Format ለባለቤቱ ይልካል (ለቀላል ኮፒ)"""
     if BOT_TOKEN:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": ADMIN_ID, "text": msg})
+        payload = {
+            "chat_id": ADMIN_ID, 
+            "text": msg, 
+            "parse_mode": "HTML"
+        }
+        try:
+            requests.post(url, json=payload)
+        except Exception as e:
+            print(f"Telegram Error: {e}")
 
 def generate_bingo_card():
     card = []
@@ -48,7 +58,8 @@ def generate_bingo_card():
     return flat_card
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 
 # --- WEBHOOK & ADMIN COMMANDS ---
 @app.route('/webhook', methods=['POST'])
@@ -64,18 +75,18 @@ def webhook():
                     parts = msg_text.split()
                     p, a = parts[1], float(parts[2])
                     wallets.update_one({"phone": p}, {"$inc": {"balance": a}}, upsert=True)
-                    send_telegram_msg(f"✅ ተሳክቷል! ለ {p} {a} ETB ተጨምሯል።")
+                    send_telegram_msg(f"✅ ተሳክቷል! ለ {p} <b>{a} ETB</b> ተጨምሯል።")
                 except:
-                    send_telegram_msg("⚠️ ስህተት! እባክህ በዚህ መልኩ ጻፍ: /add 09******** 50")
+                    send_telegram_msg("⚠️ ስህተት! እባክህ በዚህ መልኩ ጻፍ: <code>/add 09******** 50</code>")
             
             elif msg_text.startswith("/minus"):
                 try:
                     parts = msg_text.split()
                     p, a = parts[1], float(parts[2])
                     wallets.update_one({"phone": p}, {"$inc": {"balance": -a}})
-                    send_telegram_msg(f"✅ ተሳክቷል! ከ {p} {a} ETB ተቀንሷል።")
+                    send_telegram_msg(f"✅ ተሳክቷል! ከ {p} <b>{a} ETB</b> ተቀንሷል።")
                 except:
-                    send_telegram_msg("⚠️ ስህተት! እባክህ በዚህ መልኩ ጻፍ: /minus 09******** 50")
+                    send_telegram_msg("⚠️ ስህተት! እባክህ በዚህ መልኩ ጻፍ: <code>/minus 09******** 50</code>")
     return "ok", 200
 
 # --- WALLET REQUESTS ---
@@ -83,9 +94,14 @@ def webhook():
 def request_deposit():
     data = request.json
     p, amt, tid = data.get('phone'), data.get('amount'), data.get('transaction_id')
-    msg = f"🔔 የተቀማጭ ጥያቄ!\n👤 ስልክ: {p}\n💰 መጠን: {amt} ETB\n🧾 ID: {tid}\n\nለማጽደቅ፡\n `/add {p} {amt}`"
+    # <code> ማድረጉ ቴሌግራም ላይ ሲነኩት ኮፒ እንዲሆን ያደርገዋል
+    msg = (f"🔔 <b>የተቀማጭ ጥያቄ!</b>\n\n"
+           f"👤 ስልክ: {p}\n"
+           f"💰 መጠን: {amt} ETB\n"
+           f"🧾 ID: {tid}\n\n"
+           f"ለማጽደቅ ተጫነው:\n<code>/add {p} {amt}</code>")
     send_telegram_msg(msg)
-    return jsonify({"success": True, "msg": "ጥያቄው ተልኳል!"})
+    return jsonify({"success": True, "msg": "ጥያቄው ተልኳል! አስተዳዳሪው ሲያጸድቅልዎ ይገባል።"})
 
 @app.route('/request_withdraw', methods=['POST'])
 def request_withdraw():
@@ -94,7 +110,12 @@ def request_withdraw():
     user = wallets.find_one({"phone": p})
     if not user or user.get('balance', 0) < amt:
         return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
-    msg = f"📤 የገንዘብ ማውጫ ጥያቄ!\n👤 ተጫዋች: {p}\n💰 መጠን: {amt} ETB\n📱 መላኪያ ስልክ: {target}\n\nከዋሌቱ ለመቀነስ፡\n `/minus {p} {amt}`"
+    
+    msg = (f"📤 <b>የገንዘብ ማውጫ ጥያቄ!</b>\n\n"
+           f"👤 ተጫዋች: {p}\n"
+           f"💰 መጠን: {amt} ETB\n"
+           f"📱 መላኪያ ስልክ: {target}\n\n"
+           f"ከዋሌቱ ለመቀነስ ተጫነው:\n<code>/minus {p} {amt}</code>")
     send_telegram_msg(msg)
     return jsonify({"success": True, "msg": "ጥያቄው ተልኳል።"})
 
@@ -154,20 +175,14 @@ def claim_bingo():
         wallets.update_one({"phone": ADMIN_PHONE}, {"$inc": {"balance": admin_amt}}, upsert=True)
         game_state["winner"] = phone
         game_state["status"] = "result"
-        send_telegram_msg(f"🏆 ቢንጎ! አሸናፊ: {phone}, ሽልማት: {win_amt} ETB")
+        send_telegram_msg(f"🏆 <b>ቢንጎ!</b>\nአሸናፊ: {phone}\nሽልማት: <b>{win_amt} ETB</b>")
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ገና ነዎት!"})
 
-# --- UPDATED GAME LOOP (AUTO-RESET TIMER ONLY) ---
+# --- GAME LOOP (AUTO-RESET TIMER ONLY) ---
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     
-    # Init state once
-    game_state.update({
-        "status": "lobby", "winner": None, "pot": 0, "players": {},
-        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--"
-    })
-
     while True:
         # 1. Start 30s Countdown
         for i in range(30, -1, -1):
@@ -183,28 +198,34 @@ def game_loop():
                 if game_state["status"] != "playing": break
                 game_state["current_ball"] = b
                 game_state["drawn_balls"].append(b)
-                time.sleep(5)
+                time.sleep(5) # ኳስ የሚወጣበት ፍጥነት
             
-            time.sleep(10) # Wait to show result
+            time.sleep(10) # ውጤት ለማሳየት
 
-            # ONLY RESET HERE (After game ends)
+            # Reset State after game ends
             game_state.update({
                 "status": "lobby", "winner": None, "pot": 0, "players": {},
                 "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
             })
         else:
-            # DO NOT RESET players/tickets. Just restart the timer.
+            # በቂ ሰው ከሌለ ተጫዋቾችን ሳይሰርዝ ሰዓቱን ብቻ 30 ያደርገዋል
             game_state["timer"] = 30
             continue
 
 def keep_alive():
+    """Render እንዳይተኛ በየ 10 ደቂቃው ራሱን ይጠራል"""
     while True:
-        try: requests.get(MY_RENDER_URL)
-        except: pass
+        try: 
+            requests.get(MY_RENDER_URL)
+        except: 
+            pass
         time.sleep(600)
 
+# Threads
 threading.Thread(target=game_loop, daemon=True).start()
 threading.Thread(target=keep_alive, daemon=True).start()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    # Render የሚሰጠውን Port ይጠቀማል
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
