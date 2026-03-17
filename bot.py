@@ -25,7 +25,8 @@ game_state = {
     "sold_tickets": {}, 
     "current_ball": "--",
     "drawn_balls": [],
-    "winner": None
+    "winner": None,
+    "welcome_msg": "እንኳን ወደ BESH BINGO በሰላም መጡ!" # አዲስ የተጨመረ መልዕክት
 }
 
 def send_telegram_msg(msg):
@@ -138,7 +139,8 @@ def claim_bingo():
     player_data = game_state["players"].get(phone)
     if not player_data: return jsonify({"success": False})
 
-    drawn_numbers = {int(b[1:]) for b in game_state["drawn_balls"]}
+    # ኳሶቹን ከነፊደላቸው (B10) ወደ ቁጥር (10) መቀየር ቼክ ለማድረግ
+    drawn_numbers = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
     drawn_numbers.add(0) # FREE Space
 
     def is_winner(card):
@@ -147,7 +149,7 @@ def claim_bingo():
             if all(card[i+j] in drawn_numbers for j in range(5)): return True
         # Columns
         for i in range(5): 
-            if all(card[i+j*5] in drawn_numbers for j in range(5)): return True
+            if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
         # Diagonals
         if all(card[i*6] in drawn_numbers for i in range(5)) or all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
         return False
@@ -165,6 +167,7 @@ def claim_bingo():
 
 # --- BACKGROUND THREADS ---
 def game_loop():
+    # ኳሶችን በፊደል ማመንጨት (B1-B15, I16-I30, N31-N45, G46-G60, O61-O75)
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         game_state.update({"status":"lobby","winner":None,"pot":0,"players":{},"sold_tickets":{},"drawn_balls":[]})
