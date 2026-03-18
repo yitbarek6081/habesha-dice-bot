@@ -150,6 +150,7 @@ def game_loop():
                 game_state["drawn_balls"].append(b)
                 time.sleep(4)
             time.sleep(8)
+            # ሁሉንም ዳታ ለቀጣይ ዙር ማጽዳት
             game_state.update({"status":"lobby", "winner":None, "pot":0, "players":{}, "sold_tickets":{}, "drawn_balls":[], "current_ball":"--", "timer":30})
         else: game_state["timer"] = 30
 
