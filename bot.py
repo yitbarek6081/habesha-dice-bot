@@ -37,28 +37,42 @@ def send_telegram_msg(msg):
 # --- TELEGRAM BOT POLLING ---
 def bot_polling():
     last_update_id = 0
+    print("🤖 ቦቱ ትዕዛዝ ለመቀበል ዝግጁ ነው...")
     while True:
         try:
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
-            res = requests.get(url, timeout=35).json()
+            # timeout ጨምረናል ፍጥነት እንዲኖረው
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=20"
+            res = requests.get(url, timeout=25).json()
+            
             if res.get("result"):
                 for update in res["result"]:
                     last_update_id = update["update_id"]
                     if "message" in update and "text" in update["message"]:
                         msg = update["message"]["text"].strip()
-                        sid = str(update["message"]["from"]["id"])
-                        if sid == ADMIN_ID:
+                        sender_id = str(update["message"]["from"]["id"])
+                        
+                        # ለአስተዳዳሪው ብቻ ምላሽ እንዲሰጥ
+                        if sender_id == ADMIN_ID:
                             parts = msg.split()
                             if len(parts) == 3:
-                                cmd, ph, amt = parts[0], parts[1], float(parts[2])
+                                cmd, p_phone, amt = parts[0], parts[1], float(parts[2])
+                                
                                 if cmd == "/add":
-                                    wallets.update_one({"phone": ph}, {"$inc": {"balance": amt}}, upsert=True)
-                                    send_telegram_msg(f"✅ ተሳክቷል! ለ {ph} {amt} ETB ተጨምሯል።")
+                                    wallets.update_one({"phone": p_phone}, {"$inc": {"balance": amt}}, upsert=True)
+                                    send_telegram_msg(f"✅ <b>ተሳክቷል!</b>\nለ {p_phone} <b>{amt} ETB</b> ተጨምሯል።")
+                                    print(f"Added {amt} to {p_phone}")
+                                    
                                 elif cmd == "/minus":
-                                    wallets.update_one({"phone": ph}, {"$inc": {"balance": -amt}}, upsert=True)
-                                    send_telegram_msg(f"⚠️ ተቀንሷል! ከ {ph} {amt} ETB ተቀንሷል።")
+                                    wallets.update_one({"phone": p_phone}, {"$inc": {"balance": -amt}}, upsert=True)
+                                    send_telegram_msg(f"⚠️ <b>ተቀንሷል!</b>\nከ {p_phone} <b>{amt} ETB</b> ተቀንሷል።")
+                            else:
+                                # ትዕዛዙ ስህተት ከሆነ እንዲያርም ይነግረዋል
+                                if msg.startswith("/"):
+                                    send_telegram_msg("❌ <b>ስህተት!</b>\nትክክለኛው አጻጻፍ:\n<code>/add 0912345678 50</code>")
             time.sleep(1)
-        except: time.sleep(5)
+        except Exception as e:
+            print(f"Bot Error: {e}")
+            time.sleep(5)
 
 # --- GAME ROUTES ---
 @app.route('/')
