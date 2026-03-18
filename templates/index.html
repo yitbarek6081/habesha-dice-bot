@@ -6,28 +6,28 @@
     <title>BESH BINGO</title>
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; --green: #2ecc71; --orange: #e67e22; }
-        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
-        .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 15px; font-size: 0.8rem; }
-        
-        .grid-500 { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; max-height: 400px; overflow-y: auto; background: #000; padding: 12px; border-radius: 8px; border: 1px solid #334155; }
-        .t-box { background: white; color: black; font-size: 1rem; padding: 12px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 10px; overflow-x: hidden; }
+        .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 10px; font-size: 0.8rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 220px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; border: 1px solid #334155; }
+        .t-box { background: white; color: black; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 3px; cursor: pointer; transition: 0.2s; }
         .t-box.sold { background: #475569; color: #94a3b8; cursor: not-allowed; }
-        .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
-        
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-
-        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0; }
-        .action-btn { padding: 15px; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; }
-        
-        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--blue); color: var(--gold); font-weight: 900; font-size: 1.5rem; padding: 10px 0; border-radius: 8px 8px 0 0; }
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; background: #cbd5e1; padding: 5px; border-radius: 0 0 8px 8px; margin-bottom: 20px; }
-        .cell { background: white; color: black; height: 60px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.4rem; border-radius: 4px; }
-        .cell.selected { background: var(--gold); border: 3px solid #b45309; }
-        .cell.free { background: var(--red); color: white; font-size: 0.8rem; }
-        
-        .bingo-btn { width: 100%; padding: 25px; background: var(--red); color: white; font-size: 2rem; font-weight: 900; border: 5px solid var(--gold); border-radius: 15px; cursor: pointer; }
+        .t-box.mine { background: var(--gold); border: 2px solid white; box-shadow: 0 0 5px var(--gold); }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .action-btn { padding: 12px; border-radius: 8px; border: 2px solid var(--gold); color: white; font-weight: bold; cursor: pointer; font-size: 0.9rem; transition: transform 0.1s; }
+        .action-btn:active { transform: scale(0.95); }
+        .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
+        .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; border-radius: 5px; }
+        .ball-dot { font-size: 0.7rem; background: #1e293b; padding: 4px; border-radius: 2px; color: #64748b; border: 1px solid #334155; }
+        .ball-dot.active { background: var(--gold); color: black; font-weight: bold; transform: scale(1.1); box-shadow: 0 0 8px var(--gold); }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .cell { background: white; color: black; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; border-radius: 3px; cursor: pointer; }
+        .cell.selected { background: var(--gold); border: 2px solid #b45309; color: black; }
+        .cell.free { background: var(--red); color: white; font-size: 0.6rem; }
+        .bingo-btn { width: 100%; padding: 20px; background: var(--red); color: white; font-size: 1.8rem; font-weight: 900; border: 4px solid var(--gold); border-radius: 15px; margin-top: 10px; cursor: pointer; box-shadow: 0 6px 0 #991b1b; }
+        .bingo-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #991b1b; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        #ball-circle { width: 100px; height: 100px; background: radial-gradient(circle at 30% 30%, #fff, var(--gold)); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 900; margin: 20px auto; border: 5px solid #fff; }
+        #ball-circle { width: 85px; height: 85px; background: radial-gradient(circle at 30% 30%, #ffffff, var(--gold)); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; margin: 10px auto; border: 4px solid white; box-shadow: 0 0 25px var(--gold); animation: bounce 0.5s infinite alternate; }
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-5px); } }
     </style>
 </head>
 <body>
@@ -38,8 +38,8 @@
     </div>
 
     <div id="lobby-ui">
-        <h1 style="color:var(--green); margin: 5px 0;">ካርቴላ ይምረጡ</h1>
-        <div style="font-size: 3.5rem; font-weight: 900;" id="timer">30</div>
+        <h2 id="status-msg" style="color:var(--gold); margin: 5px 0; text-shadow: 1px 1px 2px black;">ካርቴላ ይምረጡ</h2>
+        <div style="font-size: 3.5rem; font-weight: 900; text-shadow: 0 0 15px var(--gold); color: white;" id="timer">30</div>
         <div class="grid-500" id="ticket-area"></div>
         <div class="btn-row">
             <button class="action-btn" style="background:var(--green)" onclick="deposit()">ገንዘብ አስገባ</button>
@@ -49,46 +49,59 @@
 
     <div id="game-ui" style="display:none;">
         <div id="ball-circle">--</div>
-        <div id="card-area"></div>
-        <button class="bingo-btn" onclick="claim()">BINGO</button>
+        <div class="game-layout">
+            <div class="main-board" id="main-board"></div>
+            <div id="card-area"></div>
+        </div>
+        <button id="bingo-btn" class="bingo-btn" onclick="claim()">BINGO</button>
     </div>
 
     <div id="result-ui" class="overlay" style="display:none;">
-        <h1 style="color:var(--gold); font-size:4rem;">BINGO!</h1>
-        <div id="winner-name" style="font-size:2rem;"></div>
-        <p>ቀጣይ ዙር በቅርቡ ይጀምራል...</p>
+        <h1 style="color:var(--gold); font-size:4rem; margin:0; text-shadow: 0 0 20px var(--gold);">BINGO!</h1>
+        <p id="winner-name" style="font-size:1.8rem; margin: 20px 0; color: white;"></p>
+        <button class="action-btn" style="background:var(--blue); width:200px; font-size: 1.2rem;" onclick="location.reload()">ተመለስ</button>
     </div>
 
     <script>
-        let phone = localStorage.getItem('phone');
-        let username = localStorage.getItem('username');
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ (ለምሳሌ: 0912...):");
+        if(phone) localStorage.setItem('phone', phone); else location.reload();
 
-        if(!phone) {
-            phone = prompt("ስልክ ቁጥር:");
-            username = prompt("የተጫዋች ስም:");
-            if(phone && username) { localStorage.setItem('phone', phone); localStorage.setItem('username', username); }
-            else { location.reload(); }
+        // --- Deposit Function with Auto-Copy ---
+        async function deposit() {
+            const adminPhone = "0945880474"; // Your Admin Phone
+            try {
+                await navigator.clipboard.writeText(adminPhone);
+                alert("የአስተዳዳሪው ስልክ ቁጥር (" + adminPhone + ") ኮፒ ሆኗል!\n\nእባክዎ በቴሌብር ብር ከላኩ በኋላ የላኩበትን መጠን እና የትራንዛክሽን ቁጥር (Transaction ID) ያስገቡ።");
+            } catch (err) {
+                alert("ለማስገባት ወደዚህ ቁጥር ይላኩ: " + adminPhone);
+            }
+
+            let amt = prompt("የላኩት መጠን (ETB):");
+            let id = prompt("የትራንዛክሽን ቁጥር (Transaction ID):");
+            if(amt && id) {
+                fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:id})})
+                .then(r=>r.json()).then(d=>alert(d.msg));
+            }
         }
 
-        async function deposit() {
-            const admin = "0945880474";
-            await navigator.clipboard.writeText(admin);
-            alert("የአስተዳዳሪው ስልክ ቁጥር ("+admin+") ኮፒ ሆኗል!\n\nብር ከላኩ በኋላ መጠንና ID እዚህ ያስገቡ።");
-            let amt = prompt("መጠን:");
-            let tid = prompt("Transaction ID:");
-            if(amt && tid) fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})}).then(()=>alert("ጥያቄው ተልኳል!"));
+        // --- Withdraw Function with Auto-Copy ---
+        async function withdraw() {
+            try {
+                await navigator.clipboard.writeText(phone);
+                alert("የእርስዎ ስልክ ቁጥር (" + phone + ") ኮፒ ሆኗል! ገንዘብ የሚላክበት ስልክ ላይ Paste ማድረግ ይችላሉ።");
+            } catch (err) { }
+
+            let amt = prompt("የሚወጣው መጠን:");
+            let target = prompt("ገንዘቡ የሚላክበት የቴሌብር ስልክ:", phone);
+            if(amt && target) {
+                fetch('/request_withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, target_phone:target})})
+                .then(r=>r.json()).then(d=>alert(d.msg));
+            }
         }
 
         function buy(n) {
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})})
-            .then(r=>r.json()).then(d=>{ if(!d.success) alert(d.msg); });
-        }
-
-        function refund(n) {
-            if(confirm(n + " ቁጥርን መመለስ ይፈልጋሉ?")) {
-                fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})})
-                .then(r=>r.json()).then(d=>{ if(d.success) alert("ብሩ ተመላሽ ሆኗል!"); else alert(d.msg); });
-            }
+            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})})
+            .then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
         }
 
         function update() {
@@ -107,12 +120,11 @@
                     document.getElementById('lobby-ui').style.display = 'none';
                     document.getElementById('game-ui').style.display = 'block';
                     document.getElementById('ball-circle').innerText = d.current_ball;
-                    let area = document.getElementById('card-area');
-                    if(d.is_player && area.innerHTML === "") d.my_cards.forEach(renderCard);
+                    renderMainBoard(d.drawn_balls);
+                    if(d.is_player && document.getElementById('card-area').innerHTML === "") d.my_cards.forEach(renderCard);
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display = 'flex';
-                    document.getElementById('winner-name').innerText = d.winner;
-                    document.getElementById('card-area').innerHTML = "";
+                    document.getElementById('winner-name').innerText = "አሸናፊ: " + d.winner;
                 }
             });
         }
@@ -127,31 +139,42 @@
             }
             for(let i=1; i<=500; i++) {
                 let box = area.children[i-1];
-                if(sold[i]) {
-                    if(sold[i] === phone) { box.className = 't-box mine'; box.onclick = () => refund(i); }
-                    else { box.className = 't-box sold'; box.onclick = null; }
-                } else { box.className = 't-box'; box.onclick = () => buy(i); }
+                if(sold[i]) { box.className = sold[i] === phone ? 't-box mine' : 't-box sold'; box.onclick = null; }
+                else { box.className = 't-box'; box.onclick = () => buy(i); }
             }
         }
 
+        function renderMainBoard(drawn) {
+            const board = document.getElementById('main-board');
+            if(board.children.length === 0) {
+                for(let i=1; i<=75; i++) {
+                    let d = document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i;
+                    board.appendChild(d);
+                }
+            }
+            drawn.forEach(b => { 
+                let num = b.match(/\d+/);
+                if(num) {
+                    let el = document.getElementById('b-'+num[0]); 
+                    if(el) el.classList.add('active'); 
+                }
+            });
+        }
+
         function renderCard(card) {
-            const wrap = document.createElement('div');
-            const head = document.createElement('div'); head.className = 'bingo-header';
-            ['B','I','N','G','O'].forEach(l => { let d=document.createElement('div'); d.innerText=l; head.appendChild(d); });
             const grid = document.createElement('div'); grid.className = 'bingo-card';
             card.forEach((n, i) => {
-                let c = document.createElement('div');
-                c.className = (i === 12) ? "cell free" : "cell";
-                c.innerText = (i === 12) ? "FREE" : n;
-                c.onclick = () => c.classList.toggle('selected');
-                grid.appendChild(c);
+                const cell = document.createElement('div');
+                cell.className = (i === 12) ? "cell free" : "cell";
+                cell.innerText = (i === 12) ? "FREE" : n;
+                cell.onclick = () => cell.classList.toggle('selected');
+                grid.appendChild(cell);
             });
-            wrap.appendChild(head); wrap.appendChild(grid);
-            document.getElementById('card-area').appendChild(wrap);
+            document.getElementById('card-area').appendChild(grid);
         }
 
         function claim() {
-            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone})})
             .then(r=>r.json()).then(d=>{ if(!d.success) alert(d.msg); });
         }
         setInterval(update, 2000);
