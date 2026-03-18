@@ -76,27 +76,38 @@ def request_withdraw():
 def buy_ticket():
     if game_state["status"] != "lobby": 
         return jsonify({"success":False, "msg":"ጨዋታ ተጀምሯል! እባክዎን ቀጣዩን ዙር ይጠብቁ።"})
-    
     data = request.json
     phone, t_num, uname = data.get('phone'), str(data.get('ticket_num')), data.get('username', "ተጫዋች")
     if t_num in game_state["sold_tickets"]: return jsonify({"success":False, "msg":"ተይዟል!"})
-    
     p_info = game_state["players"].get(phone, {"cards": []})
     if len(p_info["cards"]) >= 2: return jsonify({"success":False, "msg":"ቢበዛ 2 ካርቴላ!"})
-    
     user = wallets.find_one({"phone": phone})
     if not user or user.get('balance', 0) < 10: return jsonify({"success":False, "msg":"በቂ ሂሳብ የሎትም!"})
-    
     wallets.update_one({"phone": phone}, {"$inc": {"balance": -10}})
     game_state["sold_tickets"][t_num] = phone
     game_state["pot"] += 10
     card = generate_bingo_card()
-    
-    if phone not in game_state["players"]:
-        game_state["players"][phone] = {"cards": [card], "active": True, "username": uname}
-    else:
-        game_state["players"][phone]["cards"].append(card)
+    if phone not in game_state["players"]: game_state["players"][phone] = {"cards": [card], "active": True, "username": uname}
+    else: game_state["players"][phone]["cards"].append(card)
     return jsonify({"success": True})
+
+@app.route('/cancel_ticket', methods=['POST'])
+def cancel_ticket():
+    if game_state["status"] != "lobby": 
+        return jsonify({"success":False, "msg":"ጨዋታው ሊጀመር ስለሆነ መሰረዝ አይቻልም!"})
+    data = request.json
+    phone, t_num = data.get('phone'), str(data.get('ticket_num'))
+    if game_state["sold_tickets"].get(t_num) == phone:
+        del game_state["sold_tickets"][t_num]
+        wallets.update_one({"phone": phone}, {"$inc": {"balance": 10}})
+        game_state["pot"] -= 10
+        if phone in game_state["players"]:
+            if len(game_state["players"][phone]["cards"]) > 0:
+                game_state["players"][phone]["cards"].pop()
+            if len(game_state["players"][phone]["cards"]) == 0:
+                del game_state["players"][phone]
+        return jsonify({"success": True})
+    return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
@@ -104,16 +115,13 @@ def claim_bingo():
     if game_state["status"] != "playing": return jsonify({"success": False, "msg": "ጌሙ አልተጀመረም!"})
     player_data = game_state["players"].get(phone)
     if not player_data: return jsonify({"success": False})
-    
     drawn_nums = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
     drawn_nums.add(0)
-    
     def check_win(card):
         wins = [range(0,5), range(5,10), range(10,15), range(15,20), range(20,25),
                 range(0,25,5), range(1,25,5), range(2,25,5), range(3,25,5), range(4,25,5),
                 [0,6,12,18,24], [4,8,12,16,20]]
         return any(all(card[idx] in drawn_nums for idx in w) for w in wins)
-
     if any(check_win(c) for c in player_data["cards"]):
         win_amt = game_state["pot"] * 0.8
         wallets.update_one({"phone": phone}, {"$inc": {"balance": win_amt}})
@@ -141,7 +149,7 @@ def game_loop():
                 game_state["current_ball"] = b
                 game_state["drawn_balls"].append(b)
                 time.sleep(4)
-            time.sleep(6)
+            time.sleep(8)
             game_state.update({"status":"lobby", "winner":None, "pot":0, "players":{}, "sold_tickets":{}, "drawn_balls":[], "current_ball":"--", "timer":30})
         else: game_state["timer"] = 30
 
