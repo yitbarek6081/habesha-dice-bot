@@ -6,27 +6,23 @@
     <title>BESH BINGO</title>
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; --green: #2ecc71; --orange: #e67e22; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; overflow-x: hidden; }
-        .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 10px; font-size: 0.8rem; }
-        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 220px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; border: 1px solid #334155; }
+        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
+        .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 10px; }
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 220px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; }
         .t-box { background: white; color: black; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 3px; cursor: pointer; }
-        .t-box.sold { background: #475569; color: #94a3b8; cursor: not-allowed; }
-        .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-        
+        .t-box.sold { background: #475569; color: #94a3b8; }
+        .t-box.mine { background: var(--gold); border: 2px solid white; }
         .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
-        .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; border-radius: 5px; }
-        .ball-dot { font-size: 0.7rem; background: #1e293b; padding: 4px; border-radius: 2px; color: #64748b; border: 1px solid #334155; }
-        .ball-dot.active { background: var(--gold); color: black; font-weight: bold; transform: scale(1.1); box-shadow: 0 0 8px var(--gold); }
-        
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; margin-bottom: 12px; border-radius: 8px; }
-        .cell { background: white; color: black; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; border-radius: 3px; cursor: pointer; }
-        .cell.selected { background: var(--gold); border: 2px solid #b45309; }
+        .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; }
+        .ball-dot { font-size: 0.7rem; background: #1e293b; padding: 4px; color: #64748b; border: 1px solid #334155; }
+        .ball-dot.active { background: var(--gold); color: black; font-weight: bold; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; margin-bottom: 12px; }
+        .cell { background: white; color: black; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 3px; }
+        .cell.selected { background: var(--gold); border: 1px solid #b45309; }
         .cell.free { background: var(--red); color: white; font-size: 0.6rem; }
-        
         .bingo-btn { width: 100%; padding: 15px; background: var(--red); color: white; font-size: 1.5rem; font-weight: 900; border: 3px solid var(--gold); border-radius: 12px; cursor: pointer; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        #ball-circle { width: 80px; height: 80px; background: radial-gradient(circle, #fff, var(--gold)); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; margin: 10px auto; border: 3px solid white; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        #ball-circle { width: 80px; height: 80px; background: radial-gradient(circle, #fff, var(--gold)); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; margin: 10px auto; }
     </style>
 </head>
 <body>
@@ -37,12 +33,11 @@
     </div>
 
     <div id="lobby-ui">
-        <h3 id="status-msg" style="color:var(--gold);">ካርቴላ ይምረጡ (ቢበዛ 2)</h3>
         <div style="font-size: 3rem; font-weight: 900;" id="timer">30</div>
         <div class="grid-500" id="ticket-area"></div>
         <div style="margin-top:15px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <button onclick="deposit()" style="padding:10px; background:var(--green); color:white; border:none; border-radius:5px;">ገንዘብ አስገባ</button>
-            <button onclick="withdraw()" style="padding:10px; background:var(--orange); color:white; border:none; border-radius:5px;">ገንዘብ አውጣ</button>
+            <button onclick="deposit()" style="padding:12px; background:var(--green); color:white; border:none; border-radius:8px; font-weight:bold;">ገንዘብ አስገባ</button>
+            <button onclick="withdraw()" style="padding:12px; background:var(--orange); color:white; border:none; border-radius:8px; font-weight:bold;">ገንዘብ አውጣ</button>
         </div>
     </div>
 
@@ -57,31 +52,37 @@
 
     <div id="result-ui" class="overlay" style="display:none;">
         <h1 style="color:var(--gold); font-size:3rem;">BINGO!</h1>
-        <div id="winner-info" style="font-size:1.5rem; text-align:center;"></div>
+        <div id="winner-info" style="font-size:1.8rem;"></div>
     </div>
 
     <script>
         let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ:");
-        let username = localStorage.getItem('username') || prompt("የተጫዋች ስም ያስገቡ:");
+        let username = localStorage.getItem('username') || prompt("ስም ያስገቡ:");
         if(phone && username) { localStorage.setItem('phone', phone); localStorage.setItem('username', username); }
 
-        // --- ማሻሻያ 1: ካርቴላ መመለስ (Refund) ---
+        async function deposit() {
+            const adminPhone = "0945880474";
+            try {
+                await navigator.clipboard.writeText(adminPhone);
+                alert("የአስተዳዳሪው ስልክ (" + adminPhone + ") ኮፒ ሆኗል! ብሩን ልከው ማስረጃውን ይሙሉ፡፡");
+            } catch (err) { alert("ወደዚህ ቁጥር ይላኩ: " + adminPhone); }
+
+            let amt = prompt("የላኩት መጠን:");
+            let tid = prompt("Transaction ID:");
+            if(amt && tid) {
+                fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
+            }
+        }
+
         function refund(n) {
             if(confirm(n + " ቁጥርን መመለስ ይፈልጋሉ?")) {
-                fetch('/cancel_ticket', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({phone, ticket_num: n})
-                }).then(r => r.json()).then(d => { if(d.success) alert("ተመልሷል!"); else alert(d.msg); });
+                fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})})
+                .then(r=>r.json()).then(d=>{ if(d.success) alert("ተመልሷል!"); else alert(d.msg); });
             }
         }
 
         function buy(n) {
-            fetch('/buy_specific_ticket', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({phone, ticket_num: n, username})
-            }).then(r => r.json()).then(d => { if(!d.success) alert(d.msg); });
+            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})});
         }
 
         function update() {
@@ -95,7 +96,6 @@
                     document.getElementById('lobby-ui').style.display = 'block';
                     document.getElementById('game-ui').style.display = 'none';
                     document.getElementById('result-ui').style.display = 'none';
-                    // --- ማሻሻያ 2: ቦርዱን ሪሴት ማድረግ ---
                     document.getElementById('main-board').innerHTML = ""; 
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
@@ -106,7 +106,6 @@
                     if(document.getElementById('card-area').innerHTML === "") d.my_cards.forEach(renderCard);
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display = 'flex';
-                    // --- ማሻሻያ 3: አሸናፊውን ማሳየት ---
                     document.getElementById('winner-info').innerHTML = `<b style='color:var(--green)'>${d.winner}</b> አሸንፏል!`;
                     document.getElementById('card-area').innerHTML = "";
                 }
@@ -158,7 +157,6 @@
         }
 
         function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}); }
-        function deposit() { let a = prompt("መጠን:"); let id = prompt("Transaction ID:"); fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:a, transaction_id:id})}); }
         function withdraw() { let a = prompt("መጠን:"); fetch('/request_withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:a, target_phone:phone})}); }
         
         setInterval(update, 2000);
