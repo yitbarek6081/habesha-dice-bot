@@ -15,14 +15,21 @@
         .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
         .action-btn { padding: 12px; border-radius: 8px; border: 2px solid var(--gold); color: white; font-weight: bold; cursor: pointer; font-size: 0.9rem; transition: transform 0.1s; }
         .action-btn:active { transform: scale(0.95); }
+        
+        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--blue); color: var(--gold); font-weight: 900; font-size: 1.2rem; padding: 5px 0; border: 1px solid #cbd5e1; border-bottom: none; border-radius: 8px 8px 0 0; }
+        
         .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
         .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; border-radius: 5px; }
         .ball-dot { font-size: 0.7rem; background: #1e293b; padding: 4px; border-radius: 2px; color: #64748b; border: 1px solid #334155; }
         .ball-dot.active { background: var(--gold); color: black; font-weight: bold; transform: scale(1.1); box-shadow: 0 0 8px var(--gold); }
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; margin-bottom: 12px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .cell { background: white; color: black; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; border-radius: 3px; cursor: pointer; }
         .cell.selected { background: var(--gold); border: 2px solid #b45309; color: black; }
         .cell.free { background: var(--red); color: white; font-size: 0.6rem; }
+        
+        .wait-msg { background: rgba(231, 76, 60, 0.2); border: 1px solid var(--red); color: white; padding: 20px; border-radius: 10px; margin-top: 20px; font-weight: bold; grid-column: span 2; }
+        
         .bingo-btn { width: 100%; padding: 20px; background: var(--red); color: white; font-size: 1.8rem; font-weight: 900; border: 4px solid var(--gold); border-radius: 15px; margin-top: 10px; cursor: pointer; box-shadow: 0 6px 0 #991b1b; }
         .bingo-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #991b1b; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
@@ -38,7 +45,7 @@
     </div>
 
     <div id="lobby-ui">
-        <h2 id="status-msg" style="color:var(--gold); margin: 5px 0; text-shadow: 1px 1px 2px black;">ካርቴላ ይምረጡ</h2>
+        <h2 id="status-msg" style="color:var(--gold); margin: 5px 0; text-shadow: 1px 1px 2px black;">ካርቴላ ይምረጡ (ቢበዛ 2)</h2>
         <div style="font-size: 3.5rem; font-weight: 900; text-shadow: 0 0 15px var(--gold); color: white;" id="timer">30</div>
         <div class="grid-500" id="ticket-area"></div>
         <div class="btn-row">
@@ -58,41 +65,40 @@
 
     <div id="result-ui" class="overlay" style="display:none;">
         <h1 style="color:var(--gold); font-size:4rem; margin:0; text-shadow: 0 0 20px var(--gold);">BINGO!</h1>
-        <p id="winner-name" style="font-size:1.8rem; margin: 20px 0; color: white;"></p>
-        <button class="action-btn" style="background:var(--blue); width:200px; font-size: 1.2rem;" onclick="location.reload()">ተመለስ</button>
+        <div id="winner-name" style="font-size:1.8rem; margin: 20px 0; color: white;"></div>
+        <p style="color: #94a3b8; font-size: 0.9rem;">ቀጣይ ዙር በቅርቡ ይጀምራል...</p>
     </div>
 
     <script>
-        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ (ለምሳሌ: 0912...):");
-        if(phone) localStorage.setItem('phone', phone); else location.reload();
+        // --- ምዝገባ ---
+        let phone = localStorage.getItem('phone');
+        let username = localStorage.getItem('username');
 
-        // --- Deposit Function with Auto-Copy ---
-        async function deposit() {
-            const adminPhone = "0945880474"; // Your Admin Phone
-            try {
-                await navigator.clipboard.writeText(adminPhone);
-                alert("የአስተዳዳሪው ስልክ ቁጥር (" + adminPhone + ") ኮፒ ሆኗል!\n\nእባክዎ በቴሌብር ብር ከላኩ በኋላ የላኩበትን መጠን እና የትራንዛክሽን ቁጥር (Transaction ID) ያስገቡ።");
-            } catch (err) {
-                alert("ለማስገባት ወደዚህ ቁጥር ይላኩ: " + adminPhone);
+        if(!phone || !username) {
+            phone = prompt("ለመመዝገብ የቴሌብር ስልክዎን ያስገቡ:");
+            username = prompt("ለማሳያነት የሚሆን የቴሌግራም ስምዎን (Username) ያስገቡ:");
+            if(phone && username) {
+                localStorage.setItem('phone', phone);
+                localStorage.setItem('username', username);
+            } else {
+                location.reload();
             }
+        }
 
+        async function deposit() {
+            const adminPhone = "0945880474";
+            try { await navigator.clipboard.writeText(adminPhone); alert("የአስተዳዳሪው ስልክ ቁጥር ኮፒ ሆኗል!"); } catch (err) { }
             let amt = prompt("የላኩት መጠን (ETB):");
-            let id = prompt("የትራንዛክሽን ቁጥር (Transaction ID):");
+            let id = prompt("Transaction ID:");
             if(amt && id) {
                 fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:id})})
                 .then(r=>r.json()).then(d=>alert(d.msg));
             }
         }
 
-        // --- Withdraw Function with Auto-Copy ---
         async function withdraw() {
-            try {
-                await navigator.clipboard.writeText(phone);
-                alert("የእርስዎ ስልክ ቁጥር (" + phone + ") ኮፒ ሆኗል! ገንዘብ የሚላክበት ስልክ ላይ Paste ማድረግ ይችላሉ።");
-            } catch (err) { }
-
             let amt = prompt("የሚወጣው መጠን:");
-            let target = prompt("ገንዘቡ የሚላክበት የቴሌብር ስልክ:", phone);
+            let target = prompt("የቴሌብር ስልክ:", phone);
             if(amt && target) {
                 fetch('/request_withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, target_phone:target})})
                 .then(r=>r.json()).then(d=>alert(d.msg));
@@ -100,8 +106,11 @@
         }
 
         function buy(n) {
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({phone, ticket_num: n})})
-            .then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
+            fetch('/buy_specific_ticket', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body: JSON.stringify({phone, ticket_num: n, username: username}) // Username ተጨምሯል
+            }).then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); });
         }
 
         function update() {
@@ -115,16 +124,33 @@
                     document.getElementById('lobby-ui').style.display = 'block';
                     document.getElementById('game-ui').style.display = 'none';
                     document.getElementById('result-ui').style.display = 'none';
+                    document.getElementById('card-area').innerHTML = ""; 
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display = 'none';
                     document.getElementById('game-ui').style.display = 'block';
                     document.getElementById('ball-circle').innerText = d.current_ball;
                     renderMainBoard(d.drawn_balls);
-                    if(d.is_player && document.getElementById('card-area').innerHTML === "") d.my_cards.forEach(renderCard);
+                    
+                    let cardArea = document.getElementById('card-area');
+                    if(d.is_player) {
+                        if(cardArea.innerHTML === "" || cardArea.querySelector('.wait-msg')) {
+                            cardArea.innerHTML = "";
+                            d.my_cards.forEach(renderCard);
+                        }
+                        document.getElementById('bingo-btn').style.display = 'block';
+                    } else {
+                        cardArea.innerHTML = "<div class='wait-msg'>⚠️ ጨዋታው ተጀምሯል! ይጠብቁ...</div>";
+                        document.getElementById('bingo-btn').style.display = 'none';
+                    }
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display = 'flex';
-                    document.getElementById('winner-name').innerText = "አሸናፊ: " + d.winner;
+                    // አሸናፊውን በስም ያሳያል
+                    document.getElementById('winner-name').innerHTML = `
+                        <div style="color:var(--gold); font-size:1.2rem;">እንኳን ደስ አለዎት!</div>
+                        <div style="font-size:2.5rem; font-weight:bold;">${d.winner}</div>
+                        <div style="color:var(--green); font-size:1.2rem;">አሸንፈዋል!</div>
+                    `;
                 }
             });
         }
@@ -162,6 +188,15 @@
         }
 
         function renderCard(card) {
+            const container = document.createElement('div');
+            container.style.marginBottom = "15px";
+            const header = document.createElement('div');
+            header.className = 'bingo-header';
+            ['B','I','N','G','O'].forEach(txt => {
+                let div = document.createElement('div'); div.innerText = txt;
+                header.appendChild(div);
+            });
+            container.appendChild(header);
             const grid = document.createElement('div'); grid.className = 'bingo-card';
             card.forEach((n, i) => {
                 const cell = document.createElement('div');
@@ -170,7 +205,8 @@
                 cell.onclick = () => cell.classList.toggle('selected');
                 grid.appendChild(cell);
             });
-            document.getElementById('card-area').appendChild(grid);
+            container.appendChild(grid);
+            document.getElementById('card-area').appendChild(container);
         }
 
         function claim() {
