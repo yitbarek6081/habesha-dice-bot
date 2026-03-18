@@ -87,8 +87,14 @@
 
         async function deposit() {
             const adminPhone = "0945880474";
-            try { await navigator.clipboard.writeText(adminPhone); alert("የአስተዳዳሪው ስልክ ተቀድቷል!"); } catch (err) { }
-            let amt = prompt("የላኩት መጠን:");
+            try { 
+                await navigator.clipboard.writeText(adminPhone); 
+                alert("የአስተዳዳሪው ስልክ ቁጥር (" + adminPhone + ") ኮፒ ሆኗል!\n\nቴሌብር ላይ ብር ከላኩ በኋላ የላኩትን መጠንና ID እዚህ ያስገቡ።"); 
+            } catch (err) { 
+                alert("ለማስገባት ወደዚህ ቁጥር ይላኩ: " + adminPhone);
+            }
+            
+            let amt = prompt("የላኩት መጠን (ETB):");
             let id = prompt("Transaction ID:");
             if(amt && id) {
                 fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:id})})
@@ -120,7 +126,7 @@
                     document.getElementById('lobby-ui').style.display = 'block';
                     document.getElementById('game-ui').style.display = 'none';
                     document.getElementById('result-ui').style.display = 'none';
-                    resetMainBoard(); // አዲስ ዙር ሲሆን ቦርዱን ያጸዳል
+                    resetMainBoard();
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display = 'none';
