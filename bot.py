@@ -34,36 +34,63 @@ def send_telegram_msg(msg):
         try: requests.post(url, json=payload)
         except: pass
 
-# --- TELEGRAM BOT POLLING ---
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = request.json
-    if "message" in update and "text" in update["message"]:
-        msg_text = update["message"]["text"]
-        sender_id = str(update["message"]["chat"]["id"])
+# --- 1. GAME LOGIC ---
+def game_loop():
+    balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
+    while True:
+        for i in range(30, -1, -1):
+            game_state["timer"] = i
+            time.sleep(1)
         
-        if sender_id == ADMIN_ID:
-            if msg_text.startswith("/add"):
-                try:
-                    parts = msg_text.split()
-                    p, a = parts[1], float(parts[2])
-                    wallets.update_one({"phone": p}, {"$inc": {"balance": a}}, upsert=True)
-                    send_telegram_msg(f"✅ ተሳክቷል! ለ {p} <b>{a} ETB</b> ተጨምሯል።")
-                except:
-                    send_telegram_msg("⚠️ ስህተት! እባክህ በዚህ መልኩ ጻፍ: <code>/add 09******** 50</code>")
-            
-            elif msg_text.startswith("/minus"):
-                try:
-                    parts = msg_text.split()
-                    p, a = parts[1], float(parts[2])
-                    wallets.update_one({"phone": p}, {"$inc": {"balance": -a}})
-                    send_telegram_msg(f"✅ ተሳክቷል! ከ {p} <b>{a} ETB</b> ተቀንሷል።")
-                except:
-                    send_telegram_msg("⚠️ ስህተት! እባክህ በዚህ መልኩ ጻፍ: <code>/minus 09******** 50</code>")
-    return "ok", 200
+        if len(game_state["players"]) >= 2:
+            game_state["status"] = "playing"
+            shuffled = balls.copy()
+            random.shuffle(shuffled)
+            for b in shuffled:
+                if game_state["status"] != "playing": break
+                game_state["current_ball"] = b
+                game_state["drawn_balls"].append(b)
+                time.sleep(4)
+            time.sleep(10)
+            game_state.update({"status":"lobby","winner":None,"pot":0,"players":{},"sold_tickets":{},"drawn_balls":[],"current_ball":"--"})
+        else:
+            game_state["timer"] = 30
 
+# --- 2. BOT POLLING LOGIC ---
+def bot_polling():
+    last_update_id = 0
+    print("🤖 ቦቱ ትዕዛዝ ለመቀበል ዝግጁ ነው...")
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
+            res = requests.get(url, timeout=35).json()
+            if res.get("result"):
+                for update in res["result"]:
+                    last_update_id = update["update_id"]
+                    if "message" in update and "text" in update["message"]:
+                        msg_text = update["message"]["text"].strip()
+                        sender_id = str(update["message"]["chat"]["id"])
+                        
+                        if sender_id == ADMIN_ID:
+                            if msg_text.startswith("/add"):
+                                parts = msg_text.split()
+                                if len(parts) == 3:
+                                    p, a = parts[1], float(parts[2])
+                                    wallets.update_one({"phone": p}, {"$inc": {"balance": a}}, upsert=True)
+                                    send_telegram_msg(f"✅ ተሳክቷል! ለ {p} <b>{a} ETB</b> ተጨምሯል!")
+                            
+                            elif msg_text.startswith("/minus"):
+                                parts = msg_text.split()
+                                if len(parts) == 3:
+                                    p, a = parts[1], float(parts[2])
+                                    wallets.update_one({"phone": p}, {"$inc": {"balance": -a}})
+                                    send_telegram_msg(f"✅ ተሳክቷል! ከ {p} <b>{a} ETB</b> ተቀንሷል!")
+            time.sleep(1)
+        except Exception as e:
+            print(f"Bot Error: {e}")
+            time.sleep(5)
 
-# --- GAME ROUTES ---
+# --- ROUTES ---
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -84,20 +111,16 @@ def buy_ticket():
     if len(p_info["cards"]) >= 2: return jsonify({"success":False, "msg":"ቢበዛ 2 ካርቴላ!"})
     user = wallets.find_one({"phone": ph})
     if not user or user.get('balance', 0) < 10: return jsonify({"success":False, "msg":"በቂ ሂሳብ የሎትም!"})
-    
     wallets.update_one({"phone": ph}, {"$inc": {"balance": -10}})
     game_state["sold_tickets"][t_num] = ph
     game_state["pot"] += 10
-    
-    # ካርቴላ ማመንጨት
     card = []
     for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
         card.append(random.sample(range(r[0], r[1]+1), 5))
     flat = []
     for r in range(5):
         for c in range(5): flat.append(card[c][r])
-    flat[12] = 0 # Free
-    
+    flat[12] = 0
     if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "active": True, "username": uname}
     else: game_state["players"][ph]["cards"].append(flat)
     return jsonify({"success": True})
@@ -151,36 +174,11 @@ def claim_bingo():
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ገና ነዎት!"})
 
-def game_loop():
-    balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
-    while True:
-        for i in range(30, -1, -1): game_state["timer"] = i; time.sleep(1)
-        if len(game_state["players"]) >= 2:
-            game_state["status"] = "playing"; shuffled = balls.copy(); random.shuffle(shuffled)
-            for b in shuffled:
-                if game_state["status"] != "playing": break
-                game_state["current_ball"] = b; game_state["drawn_balls"].append(b); time.sleep(4)
-            time.sleep(10)
-            game_state.update({"status":"lobby","winner":None,"pot":0,"players":{},"sold_tickets":{},"drawn_balls":[],"current_ball":"--"})
-        else: game_state["timer"] = 30
-threading.Thread(target=game_loop, daemon=True).start()
-threading.Thread(target=bot_polling, daemon=True).start()
-
-    # 1. መጀመሪያ ፈንክሽኑን መግለጽ (Define)
-def bot_polling():
-    last_update_id = 0
-    while True:
-        try:
-            # የቦቱ ኮድ እዚህ ይገባል...
-            print("ቦቱ እየሰራ ነው...")
-            time.sleep(10)
-        except Exception as e:
-            print(f"Error: {e}")
-            time.sleep(5)
-
-# 2. በመቀጠል ፈንክሽኑን በ Thread መጥራት
-# ይህ መስመር የግድ ከ "def bot_polling" በታች መሆን አለበት
-threading.Thread(target=bot_polling, daemon=True).start()
-
+# --- START THREADS AND APP ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    # Threadዎቹን ከመጥራታችን በፊት ፈንክሽኖቹ ከላይ መጻፋቸውን አረጋግጠናል
+    threading.Thread(target=game_loop, daemon=True).start()
+    threading.Thread(target=bot_polling, daemon=True).start()
+    
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
