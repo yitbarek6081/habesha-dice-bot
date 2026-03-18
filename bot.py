@@ -27,7 +27,7 @@ game_state = {
     "winner": None
 }
 
-# --- TELEGRAM BOT LOGIC ---
+# --- TELEGRAM BOT LOGIC (የአድሚን ትዕዛዝ መቀበያ) ---
 def send_telegram_msg(msg):
     if BOT_TOKEN:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -36,6 +36,7 @@ def send_telegram_msg(msg):
         except: pass
 
 def bot_polling():
+    """ይህ ክፍል አድሚኑ በቴሌግራም /add ሲል አንብቦ ዳታቤዙን ያድሳል"""
     last_update_id = 0
     while True:
         try:
@@ -47,6 +48,8 @@ def bot_polling():
                     if "message" in update and "text" in update["message"]:
                         msg = update["message"]["text"]
                         user_id = str(update["message"]["from"]["id"])
+                        
+                        # አድሚኑ ብቻ ነው ትዕዛዝ መስጠት የሚችለው
                         if user_id == ADMIN_ID:
                             parts = msg.split()
                             if len(parts) == 3:
@@ -80,11 +83,24 @@ def index(): return render_template('index.html')
 def get_status():
     phone = request.args.get('phone')
     user = wallets.find_one({"phone": phone})
-    if not user and phone:
-        wallets.insert_one({"phone": phone, "balance": 0})
-        user = {"balance": 0}
     p_data = game_state["players"].get(phone, {"active": False, "cards": []})
     return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"], "is_player": p_data["active"]})
+
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    data = request.json
+    p, amt, tid = data.get('phone'), data.get('amount'), data.get('transaction_id')
+    send_telegram_msg(f"💰 <b>የተቀማጭ ጥያቄ!</b>\n👤 ስልክ: {p}\n💵 መጠን: {amt} ETB\n🧾 ID: {tid}\n\nማጽደቂያ: <code>/add {p} {amt}</code>")
+    return jsonify({"success": True, "msg": "ጥያቄው ተልኳል!"})
+
+@app.route('/request_withdraw', methods=['POST'])
+def request_withdraw():
+    data = request.json
+    p, amt, target = data.get('phone'), float(data.get('amount')), data.get('target_phone')
+    user = wallets.find_one({"phone": p})
+    if not user or user.get('balance', 0) < amt: return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
+    send_telegram_msg(f"📤 <b>የገንዘብ ማውጫ ጥያቄ!</b>\n👤 ተጫዋች: {p}\n💰 መጠን: {amt} ETB\n📱 መላኪያ: {target}\n\nማጽደቂያ: <code>/minus {p} {amt}</code>")
+    return jsonify({"success": True, "msg": "ጥያቄው ተልኳል።"})
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
@@ -106,7 +122,7 @@ def buy_ticket():
 
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
-    if game_state["status"] != "lobby": return jsonify({"success":False})
+    if game_state["status"] != "lobby": return jsonify({"success":False, "msg":"መሰረዝ አይቻልም!"})
     data = request.json
     phone, t_num = data.get('phone'), str(data.get('ticket_num'))
     if game_state["sold_tickets"].get(t_num) == phone:
@@ -118,22 +134,6 @@ def cancel_ticket():
             if not game_state["players"][phone]["cards"]: del game_state["players"][phone]
         return jsonify({"success": True})
     return jsonify({"success": False})
-
-@app.route('/request_deposit', methods=['POST'])
-def request_deposit():
-    data = request.json
-    p, amt, tid = data.get('phone'), data.get('amount'), data.get('transaction_id')
-    send_telegram_msg(f"💰 <b>የተቀማጭ ጥያቄ!</b>\n👤 ስልክ: {p}\n💵 መጠን: {amt} ETB\n🧾 ID: {tid}\n\nማጽደቂያ: <code>/add {p} {amt}</code>")
-    return jsonify({"success": True})
-
-@app.route('/request_withdraw', methods=['POST'])
-def request_withdraw():
-    data = request.json
-    p, amt, target = data.get('phone'), float(data.get('amount')), data.get('target_phone')
-    user = wallets.find_one({"phone": p})
-    if not user or user.get('balance', 0) < amt: return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
-    send_telegram_msg(f"📤 <b>የገንዘብ ማውጫ ጥያቄ!</b>\n👤 ተጫዋች: {p}\n💰 መጠን: {amt} ETB\n📱 መላኪያ: {target}\n\nማጽደቂያ: <code>/minus {p} {amt}</code>")
-    return jsonify({"success": True})
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
@@ -177,6 +177,7 @@ def game_loop():
             game_state.update({"status":"lobby", "winner":None, "pot":0, "players":{}, "sold_tickets":{}, "drawn_balls":[], "current_ball":"--", "timer":30})
         else: game_state["timer"] = 30
 
+# Threads
 threading.Thread(target=game_loop, daemon=True).start()
 threading.Thread(target=bot_polling, daemon=True).start()
 
