@@ -7,7 +7,7 @@ app = Flask(__name__, template_folder='templates')
 CORS(app)
 
 # --- CONFIG ---
-ADMIN_ID = "7956330391" 
+ADMIN_ID = "7956330391"  # ያንተ የቴሌግራም መለያ ቁጥር
 ADMIN_PHONE = "0945880474" 
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
@@ -27,8 +27,9 @@ game_state = {
     "winner": None
 }
 
-# --- TELEGRAM BOT LOGIC (የአድሚን ትዕዛዝ መቀበያ) ---
+# --- TELEGRAM BOT LOGIC ---
 def send_telegram_msg(msg):
+    """መልዕክት ወደ አንተ ለመላክ"""
     if BOT_TOKEN:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {"chat_id": ADMIN_ID, "text": msg, "parse_mode": "HTML"}
@@ -36,8 +37,9 @@ def send_telegram_msg(msg):
         except: pass
 
 def bot_polling():
-    """ይህ ክፍል አድሚኑ በቴሌግራም /add ሲል አንብቦ ዳታቤዙን ያድሳል"""
+    """አንተ የምትልከውን ትዕዛዝ አንብቦ ብር የሚጨምርበት ክፍል"""
     last_update_id = 0
+    print("🤖 ቦቱ ትዕዛዝ ለመቀበል ዝግጁ ነው...")
     while True:
         try:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
@@ -46,10 +48,10 @@ def bot_polling():
                 for update in res["result"]:
                     last_update_id = update["update_id"]
                     if "message" in update and "text" in update["message"]:
-                        msg = update["message"]["text"]
+                        msg = update["message"]["text"].strip()
                         user_id = str(update["message"]["from"]["id"])
                         
-                        # አድሚኑ ብቻ ነው ትዕዛዝ መስጠት የሚችለው
+                        # አንተ (ADMIN) መሆንህን ያረጋግጣል
                         if user_id == ADMIN_ID:
                             parts = msg.split()
                             if len(parts) == 3:
@@ -61,7 +63,9 @@ def bot_polling():
                                     wallets.update_one({"phone": phone}, {"$inc": {"balance": -amt}}, upsert=True)
                                     send_telegram_msg(f"⚠️ ከ {phone} {amt} ብር ተቀንሷል!")
             time.sleep(1)
-        except: time.sleep(5)
+        except Exception as e:
+            print(f"Bot Error: {e}")
+            time.sleep(5)
 
 # --- BINGO ENGINE ---
 def generate_bingo_card():
@@ -91,7 +95,7 @@ def request_deposit():
     data = request.json
     p, amt, tid = data.get('phone'), data.get('amount'), data.get('transaction_id')
     send_telegram_msg(f"💰 <b>የተቀማጭ ጥያቄ!</b>\n👤 ስልክ: {p}\n💵 መጠን: {amt} ETB\n🧾 ID: {tid}\n\nማጽደቂያ: <code>/add {p} {amt}</code>")
-    return jsonify({"success": True, "msg": "ጥያቄው ተልኳል!"})
+    return jsonify({"success": True})
 
 @app.route('/request_withdraw', methods=['POST'])
 def request_withdraw():
@@ -100,7 +104,7 @@ def request_withdraw():
     user = wallets.find_one({"phone": p})
     if not user or user.get('balance', 0) < amt: return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
     send_telegram_msg(f"📤 <b>የገንዘብ ማውጫ ጥያቄ!</b>\n👤 ተጫዋች: {p}\n💰 መጠን: {amt} ETB\n📱 መላኪያ: {target}\n\nማጽደቂያ: <code>/minus {p} {amt}</code>")
-    return jsonify({"success": True, "msg": "ጥያቄው ተልኳል።"})
+    return jsonify({"success": True})
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
@@ -122,7 +126,7 @@ def buy_ticket():
 
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
-    if game_state["status"] != "lobby": return jsonify({"success":False, "msg":"መሰረዝ አይቻልም!"})
+    if game_state["status"] != "lobby": return jsonify({"success":False})
     data = request.json
     phone, t_num = data.get('phone'), str(data.get('ticket_num'))
     if game_state["sold_tickets"].get(t_num) == phone:
@@ -138,7 +142,7 @@ def cancel_ticket():
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     phone = request.json.get('phone')
-    if game_state["status"] != "playing": return jsonify({"success": False, "msg": "ጌሙ አልተጀመረም!"})
+    if game_state["status"] != "playing": return jsonify({"success": False})
     player_data = game_state["players"].get(phone)
     if not player_data: return jsonify({"success": False})
     drawn_nums = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
@@ -162,9 +166,7 @@ def game_loop():
             game_state["timer"] = i
             time.sleep(1)
         if len(game_state["players"]) >= 2:
-            for m in ["3", "2", "1", "GO!"]:
-                game_state["timer"] = m
-                time.sleep(1)
+            for m in ["3", "2", "1", "GO!"]: game_state["timer"] = m; time.sleep(1)
             game_state["status"] = "playing"
             shuffled = balls.copy()
             random.shuffle(shuffled)
@@ -177,7 +179,7 @@ def game_loop():
             game_state.update({"status":"lobby", "winner":None, "pot":0, "players":{}, "sold_tickets":{}, "drawn_balls":[], "current_ball":"--", "timer":30})
         else: game_state["timer"] = 30
 
-# Threads
+# --- START THREADS ---
 threading.Thread(target=game_loop, daemon=True).start()
 threading.Thread(target=bot_polling, daemon=True).start()
 
