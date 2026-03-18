@@ -163,8 +163,23 @@ def game_loop():
             time.sleep(10)
             game_state.update({"status":"lobby","winner":None,"pot":0,"players":{},"sold_tickets":{},"drawn_balls":[],"current_ball":"--"})
         else: game_state["timer"] = 30
-
 threading.Thread(target=game_loop, daemon=True).start()
+threading.Thread(target=bot_polling, daemon=True).start()
+
+    # 1. መጀመሪያ ፈንክሽኑን መግለጽ (Define)
+def bot_polling():
+    last_update_id = 0
+    while True:
+        try:
+            # የቦቱ ኮድ እዚህ ይገባል...
+            print("ቦቱ እየሰራ ነው...")
+            time.sleep(10)
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(5)
+
+# 2. በመቀጠል ፈንክሽኑን በ Thread መጥራት
+# ይህ መስመር የግድ ከ "def bot_polling" በታች መሆን አለበት
 threading.Thread(target=bot_polling, daemon=True).start()
 
 if __name__ == '__main__':
