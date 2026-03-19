@@ -22,9 +22,9 @@ game_state = {
 }
 
 def is_winner(card, drawn_numbers):
-    for i in range(0, 25, 5):
+    for i in range(0, 25, 5): # Rows
         if all(card[i+j] in drawn_numbers for j in range(5)): return True
-    for i in range(5):
+    for i in range(5): # Columns
         if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
     if all(card[i*6] in drawn_numbers for i in range(5)): return True
     if all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
@@ -38,7 +38,6 @@ def game_loop():
                 if game_state["status"] != "lobby": break
                 game_state["timer"] = i
                 time.sleep(1)
-            
             if len(game_state["players"]) >= 2 and game_state["status"] == "lobby":
                 game_state["status"] = "playing"
                 shuffled = balls.copy()
@@ -51,6 +50,19 @@ def game_loop():
             else: game_state["timer"] = 30
         time.sleep(1)
 
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
+    d = request.json
+    ph, amt = d.get('phone'), float(d.get('amount'))
+    user = wallets.find_one({"phone": ph})
+    if user and user.get('balance', 0) >= amt:
+        wallets.update_one({"phone": ph}, {"$inc": {"balance": -amt}})
+        # ለባለቤቱ በቴሌግራም ይላካል
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"💸 Withdraw Request!\nPhone: {ph}\nAmount: {amt} ETB"})
+        return jsonify({"success": True})
+    return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
+
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     ph = request.json.get('phone')
@@ -58,19 +70,17 @@ def claim_bingo():
     p_data = game_state["players"].get(ph)
     drawn = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
     drawn.add(0)
-    
     if p_data and any(is_winner(c, drawn) for c in p_data["cards"]):
         win_amt = game_state["pot"] * 0.8
         wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
         wallets.update_one({"phone": ADMIN_PHONE}, {"$inc": {"balance": game_state["pot"]*0.2}}, upsert=True)
         game_state["winner"], game_state["status"] = p_data["username"], "result"
-        
         def reset():
             time.sleep(5)
             game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30})
         threading.Thread(target=reset).start()
         return jsonify({"success": True})
-    return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+    return jsonify({"success": False})
 
 @app.route('/')
 def index(): return render_template('index.html')
@@ -80,17 +90,15 @@ def get_status():
     phone = request.args.get('phone')
     user = wallets.find_one({"phone": phone})
     p_data = game_state["players"].get(phone, {"cards": []})
-    return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"], "active_players": len(game_state["players"])})
+    return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"]})
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
     data = request.json
     ph, t_num, uname = data.get('phone'), str(data.get('ticket_num')), data.get('username')
     if game_state["status"] != "lobby" or t_num in game_state["sold_tickets"]: return jsonify({"success":False})
-    p_info = game_state["players"].get(ph, {"cards": []})
-    if len(p_info["cards"]) >= 3: return jsonify({"success": False, "msg": "ቢበዛ 3 ካርቴላ!"})
     user = wallets.find_one({"phone": ph})
-    if not user or user.get('balance', 0) < 10: return jsonify({"success":False, "msg":"በቂ ሂሳብ የሎትም!"})
+    if not user or user.get('balance', 0) < 10: return jsonify({"success":False})
     wallets.update_one({"phone": ph}, {"$inc": {"balance": -10}})
     game_state["sold_tickets"][t_num] = ph
     game_state["pot"] += 10
@@ -101,20 +109,6 @@ def buy_ticket():
     if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "username": uname}
     else: game_state["players"][ph]["cards"].append(flat)
     return jsonify({"success": True})
-
-@app.route('/cancel_ticket', methods=['POST'])
-def cancel_ticket():
-    data = request.json
-    ph, t_num = data.get('phone'), str(data.get('ticket_num'))
-    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
-        del game_state["sold_tickets"][t_num]
-        game_state["pot"] -= 10
-        if ph in game_state["players"]:
-            if len(game_state["players"][ph]["cards"]) > 1: game_state["players"][ph]["cards"].pop()
-            else: del game_state["players"][ph]
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
-        return jsonify({"success": True})
-    return jsonify({"success": False})
 
 if __name__ == '__main__':
     threading.Thread(target=game_loop, daemon=True).start()
