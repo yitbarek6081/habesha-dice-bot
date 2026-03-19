@@ -1,167 +1,173 @@
-<!DOCTYPE html>
-<html lang="am">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BESH BINGO</title>
-    <style>
-        :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; --green: #2ecc71; --orange: #e67e22; }
-        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
-        .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 12px; margin-bottom: 10px; }
-        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 200px; overflow-y: auto; background: #000; padding: 8px; border-radius: 8px; }
-        .t-box { background: white; color: black; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
-        .t-box.mine { background: var(--gold); border: 2px solid white; }
-        .t-box.sold { background: #444; color: #888; }
+import os, time, random, requests, threading, re
+from flask import Flask, render_template, jsonify, request
+from pymongo import MongoClient
+from flask_cors import CORS
+
+app = Flask(__name__, template_folder='templates')
+CORS(app)
+
+# --- CONFIG (ከ Render Environment Variables የሚነበብ) ---
+ADMIN_ID = "7956330391" 
+ADMIN_PHONE = "0945880474" 
+BOT_TOKEN = os.getenv("BOT_TOKEN") 
+MONGO_URL = os.getenv("MONGO_URL")
+
+# ዳታቤዝ ግንኙነት
+try:
+    client = MongoClient(MONGO_URL)
+    db = client['bingo_db']
+    wallets = db['wallets']
+except Exception as e:
+    print(f"MongoDB Connection Error: {e}")
+
+# የጨዋታው ሁኔታ (Game State)
+game_state = {
+    "status": "lobby", 
+    "timer": 30,
+    "pot": 0,
+    "players": {},
+    "sold_tickets": {}, 
+    "current_ball": "--",
+    "drawn_balls": [],
+    "winner": None
+}
+
+def send_telegram_msg(msg):
+    if BOT_TOKEN:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": ADMIN_ID, "text": msg, "parse_mode": "HTML"}
+        try: requests.post(url, json=payload)
+        except: pass
+
+# --- WEBHOOK (ትዕዛዞችን መቀበያ) ---
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = request.json
+    if "message" in update and "text" in update["message"]:
+        msg = update["message"]["text"].strip()
+        sender_id = str(update["message"]["from"]["id"])
         
-        #card-area { display: flex; flex-direction: column; gap: 10px; }
-        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; color: white; border-radius: 8px 8px 0 0; font-size: 1.1rem; padding: 4px 0; }
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; border-radius: 0 0 8px 8px; }
-        .cell { background: white; color: black; height: 38px; display: flex; align-items: center; justify-content: center; font-weight: 900; border-radius: 3px; font-size: 1rem; }
-        .cell.selected { background: var(--gold); border: 2px solid #b45309; }
-        .cell.free { background: var(--red); color: white; font-size: 0.6rem; }
+        if sender_id == ADMIN_ID:
+            parts = msg.split()
+            if len(parts) == 3:
+                try:
+                    cmd = parts[0].lower()
+                    phone = parts[1]
+                    
+                    # '10ብር' ወይም '10.50etb' ቢባል ቁጥሩን ብቻ ነጥሎ ያወጣል
+                    amount_raw = re.sub(r'[^0-9.]', '', parts[2])
+                    if not amount_raw: raise ValueError("No number found")
+                    amount = float(amount_raw)
+                    
+                    if cmd == "/add":
+                        wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}}, upsert=True)
+                        send_telegram_msg(f"✅ ተሳክቷል! ለ {phone} <b>{amount} ETB</b> ተጨምሯል።")
+                    elif cmd == "/minus":
+                        wallets.update_one({"phone": phone}, {"$inc": {"balance": -amount}})
+                        send_telegram_msg(f"⚠️ ተቀንሷል! ከ {phone} <b>{amount} ETB</b> ተቀንሷል።")
+                except (ValueError, IndexError):
+                    send_telegram_msg("❌ <b>ስህተት!</b>\nእባክዎ በትክክል ይጻፉ።\nምሳሌ: <code>/add 0912345678 10</code>")
+    return "ok", 200
 
-        .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; border-radius: 8px; }
-        .ball-dot { font-size: 0.7rem; background: #1e293b; padding: 5px; color: #475569; border: 1px solid #334155; }
-        .ball-dot.active { background: var(--gold); color: black; font-weight: bold; }
+# --- BINGO GAME LOGIC ---
+def is_winner(card, drawn_numbers):
+    # Rows
+    for i in range(0, 25, 5):
+        if all(card[i+j] in drawn_numbers for j in range(5)): return True
+    # Columns
+    for i in range(5):
+        if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
+    # Diagonals
+    if all(card[i*6] in drawn_numbers for i in range(5)): return True
+    if all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
+    return False
+
+def game_loop():
+    balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
+    while True:
+        for i in range(30, -1, -1):
+            game_state["timer"] = i
+            time.sleep(1)
         
-        #ball-circle { width: 75px; height: 75px; background: radial-gradient(circle, #fff, var(--gold)); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 900; margin: 10px auto; border: 4px solid var(--blue); }
-        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; flex-direction:column; align-items:center; justify-content:center; }
-        .btn { padding: 12px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin: 5px; }
-    </style>
-</head>
-<body>
-    <div class="stats">
-        <div>ሂሳብ<br><span id="balance" style="color:var(--green);">0 ETB</span></div>
-        <div>ሽልማት<br><span id="prize" style="color:var(--gold);">0 ETB</span></div>
-    </div>
+        if len(game_state["players"]) >= 2:
+            game_state["status"] = "playing"
+            shuffled = balls.copy()
+            random.shuffle(shuffled)
+            for b in shuffled:
+                if game_state["status"] != "playing": break
+                game_state["current_ball"] = b
+                game_state["drawn_balls"].append(b)
+                time.sleep(5)
+            
+            time.sleep(5)
+            game_state.update({
+                "status": "lobby", "winner": None, "pot": 0, "players": {},
+                "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
+            })
+        else:
+            game_state["timer"] = 30
 
-    <div id="lobby-ui">
-        <div style="font-size: 3rem; font-weight: 900; color: var(--gold);" id="timer">30</div>
-        <div class="grid-500" id="ticket-area"></div>
-        <div style="margin-top:10px;">
-            <button class="btn" style="background:var(--green); color:white;" onclick="openM('dep-m')">ገንዘብ አስገባ</button>
-            <button class="btn" style="background:var(--orange); color:white;" onclick="openM('with-m')">ገንዘብ አውጣ</button>
-        </div>
-    </div>
+# --- API ROUTES ---
+@app.route('/')
+def index(): return render_template('index.html')
 
-    <div id="game-ui" style="display:none;">
-        <div id="ball-circle">--</div>
-        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 8px;">
-            <div class="main-board" id="main-board"></div>
-            <div id="card-area"></div>
-        </div>
-        <button onclick="claim()" style="width:100%; padding:15px; background:var(--red); color:white; font-size:1.5rem; font-weight:900; border-radius:12px; margin-top:10px; border:2px solid var(--gold);">BINGO</button>
-    </div>
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json
+    msg = (f"💰 <b>አዲስ ተቀማጭ!</b>\n👤 ስልክ: <code>{d['phone']}</code>\n"
+           f"💵 መጠን: <b>{d['amount']} ETB</b>\n🧾 ID: <code>{d['transaction_id']}</code>\n"
+           f"ለማጽደቅ ኮፒ ያድርጉ:\n<code>/add {d['phone']} {d['amount']}</code>")
+    send_telegram_msg(msg)
+    return jsonify({"success": True})
 
-    <div id="dep-m" class="modal">
-        <h3>ገንዘብ አስገባ</h3>
-        <p>ቁጥር: <b>0945880474</b></p>
-        <button class="btn" style="background:white;" onclick="copyN()">ቁጥሩን ኮፒ አድርግ</button>
-        <input type="number" id="da" placeholder="መጠን" style="padding:10px; margin:5px;">
-        <input type="text" id="di" placeholder="Transaction ID" style="padding:10px; margin:5px;">
-        <button class="btn" style="background:var(--green); color:white;" onclick="subD()">ላክ</button>
-        <button onclick="closeM('dep-m')" style="color:white; background:none; border:none;">ዝጋ</button>
-    </div>
+@app.route('/get_status')
+def get_status():
+    phone = request.args.get('phone')
+    user = wallets.find_one({"phone": phone})
+    p_data = game_state["players"].get(phone, {"active": False, "cards": []})
+    return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"], "is_player": p_data["active"]})
 
-    <div id="with-m" class="modal">
-        <h3>ገንዘብ አውጣ</h3>
-        <input type="number" id="wa" placeholder="መጠን" style="padding:10px;">
-        <button class="btn" style="background:var(--orange); color:white;" onclick="subW()">አውጣ</button>
-        <button onclick="closeM('with-m')" style="color:white; background:none; border:none;">ዝጋ</button>
-    </div>
+@app.route('/buy_specific_ticket', methods=['POST'])
+def buy_ticket():
+    data = request.json
+    ph, t_num, uname = data.get('phone'), str(data.get('ticket_num')), data.get('username')
+    if game_state["status"] != "lobby" or t_num in game_state["sold_tickets"]: return jsonify({"success":False})
+    user = wallets.find_one({"phone": ph})
+    if not user or user.get('balance', 0) < 10: return jsonify({"success":False})
+    
+    wallets.update_one({"phone": ph}, {"$inc": {"balance": -10}})
+    game_state["sold_tickets"][t_num] = ph
+    game_state["pot"] += 10
+    
+    # ካርቴላ ማዘጋጀት
+    card = []
+    for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
+        card.append(random.sample(range(r[0], r[1]+1), 5))
+    flat = [card[c][r] for r in range(5) for c in range(5)]
+    flat[12] = 0 # መሃል ላይ FREE
+    
+    if ph not in game_state["players"]: 
+        game_state["players"][ph] = {"cards": [flat], "active": True, "username": uname}
+    else: 
+        game_state["players"][ph]["cards"].append(flat)
+    return jsonify({"success": True})
 
-    <div id="result-ui" class="modal">
-        <h1 style="color:var(--gold); font-size:3.5rem;">BINGO!</h1>
-        <div id="winner-info" style="font-size:1.8rem; color:white;"></div>
-    </div>
+@app.route('/claim_bingo', methods=['POST'])
+def claim_bingo():
+    ph = request.json.get('phone')
+    if game_state["status"] != "playing": return jsonify({"success": False})
+    p_data = game_state["players"].get(ph)
+    drawn = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
+    drawn.add(0)
+    if p_data and any(is_winner(c, drawn) for c in p_data["cards"]):
+        win_amt = game_state["pot"] * 0.8
+        wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
+        wallets.update_one({"phone": ADMIN_PHONE}, {"$inc": {"balance": game_state["pot"]*0.2}}, upsert=True)
+        game_state["winner"] = p_data["username"]
+        game_state["status"] = "result"
+        return jsonify({"success": True})
+    return jsonify({"success": False})
 
-    <script>
-        let phone = localStorage.getItem('phone') || prompt("ስልክ:");
-        let username = localStorage.getItem('username') || prompt("ስም:");
-        localStorage.setItem('phone', phone); localStorage.setItem('username', username);
-
-        function openM(id) { document.getElementById(id).style.display='flex'; }
-        function closeM(id) { document.getElementById(id).style.display='none'; }
-        function copyN() { navigator.clipboard.writeText("0945880474"); alert("ኮፒ ተደርጓል!"); }
-
-        function subD() {
-            let amt = document.getElementById('da').value;
-            let tid = document.getElementById('di').value;
-            if(amt && tid) {
-                fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
-                alert("ጥያቄ ተልኳል!"); closeM('dep-m');
-            }
-        }
-
-        function subW() {
-            let amt = document.getElementById('wa').value;
-            if(amt > 0) {
-                fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt})})
-                .then(r=>r.json()).then(d=>{ alert(d.success?"ተልኳል!":d.msg); closeM('with-m'); });
-            }
-        }
-
-        function update() {
-            fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance.toFixed(2) + " ETB";
-                document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
-                document.getElementById('timer').innerText = d.timer;
-
-                if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display = 'block';
-                    document.getElementById('game-ui').style.display = 'none';
-                    document.getElementById('result-ui').style.display = 'none';
-                    document.getElementById('main-board').innerHTML = ""; 
-                    document.getElementById('card-area').innerHTML = "";
-                    renderTickets(d.sold_tickets);
-                } else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display = 'none';
-                    document.getElementById('game-ui').style.display = 'block';
-                    document.getElementById('ball-circle').innerText = d.current_ball;
-                    renderMainBoard(d.drawn_balls);
-                    if(document.getElementById('card-area').innerHTML === "") d.my_cards.forEach(renderCard);
-                } else if(d.status === "result") {
-                    document.getElementById('result-ui').style.display = 'flex';
-                    document.getElementById('winner-info').innerText = d.winner + " አሸንፏል!";
-                }
-            });
-        }
-
-        function renderTickets(sold) {
-            const area = document.getElementById('ticket-area');
-            if(area.children.length === 0) for(let i=1; i<=500; i++) { let div = document.createElement('div'); div.className='t-box'; div.innerText=i; area.appendChild(div); }
-            for(let i=1; i<=500; i++) {
-                let box = area.children[i-1];
-                if(sold[i]) {
-                    box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold';
-                    box.onclick = null;
-                } else { box.className = 't-box'; box.onclick = () => buy(i); }
-            }
-        }
-
-        function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}); }
-
-        function renderMainBoard(drawn) {
-            const board = document.getElementById('main-board');
-            if(board.children.length === 0) for(let i=1; i<=75; i++) { let d = document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i; board.appendChild(d); }
-            drawn.forEach(b => { let el = document.getElementById('b-'+b.substring(1)); if(el) el.classList.add('active'); });
-        }
-
-        function renderCard(card) {
-            const wrap = document.createElement('div');
-            wrap.innerHTML = `<div class="bingo-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
-            const grid = document.createElement('div'); grid.className = 'bingo-card';
-            card.forEach((n, i) => {
-                const cell = document.createElement('div'); cell.className = (i === 12) ? "cell free" : "cell";
-                cell.innerText = (i === 12) ? "FREE" : n;
-                cell.onclick = () => cell.classList.toggle('selected');
-                grid.appendChild(cell);
-            });
-            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
-        }
-
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}); }
-        setInterval(update, 2000);
-    </script>
-</body>
-</html>
+if __name__ == '__main__':
+    threading.Thread(target=game_loop, daemon=True).start()
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
