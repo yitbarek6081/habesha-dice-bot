@@ -41,7 +41,7 @@ def cancel_ticket():
             else: del game_state["players"][ph]
         wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
         return jsonify({"success": True})
-    return jsonify({"success": False})
+    return jsonify({"success": False, "msg": "የእርስዎ ቁጥር አይደለም!"})
 
 def is_winner(card, drawn_numbers):
     for i in range(0, 25, 5): # Rows
@@ -55,23 +55,23 @@ def is_winner(card, drawn_numbers):
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
-        for i in range(30, -1, -1):
-            if game_state["status"] != "lobby": break
-            game_state["timer"] = i
-            time.sleep(1)
-        
-        if len(game_state["players"]) >= 2 and game_state["status"] == "lobby":
-            game_state["status"] = "playing"
-            shuffled = balls.copy()
-            random.shuffle(shuffled)
-            for b in shuffled:
-                if game_state["status"] != "playing": break
-                game_state["current_ball"] = b
-                game_state["drawn_balls"].append(b)
-                time.sleep(5)
-        else:
-            time.sleep(1)
-            game_state["timer"] = 30
+        if game_state["status"] == "lobby":
+            for i in range(30, -1, -1):
+                if game_state["status"] != "lobby": break
+                game_state["timer"] = i
+                time.sleep(1)
+            
+            if len(game_state["players"]) >= 2 and game_state["status"] == "lobby":
+                game_state["status"] = "playing"
+                shuffled = balls.copy()
+                random.shuffle(shuffled)
+                for b in shuffled:
+                    if game_state["status"] != "playing": break
+                    game_state["current_ball"] = b
+                    game_state["drawn_balls"].append(b)
+                    time.sleep(5)
+            else: game_state["timer"] = 30
+        time.sleep(1)
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
@@ -88,11 +88,11 @@ def claim_bingo():
         
         game_state["winner"], game_state["status"] = p_data["username"], "result"
         
-        # Reset after 5 seconds showcase
-        def reset_game():
+        # Reset after 5 seconds
+        def delayed_reset():
             time.sleep(5)
             game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30})
-        threading.Thread(target=reset_game).start()
+        threading.Thread(target=delayed_reset).start()
         
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
@@ -104,7 +104,7 @@ def index(): return render_template('index.html')
 def get_status():
     phone = request.args.get('phone')
     user = wallets.find_one({"phone": phone})
-    p_data = game_state["players"].get(phone, {"active": False, "cards": []})
+    p_data = game_state["players"].get(phone, {"cards": []})
     return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"]})
 
 @app.route('/buy_specific_ticket', methods=['POST'])
@@ -126,6 +126,23 @@ def buy_ticket():
     if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "username": uname}
     else: game_state["players"][ph]["cards"].append(flat)
     return jsonify({"success": True})
+
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json
+    send_telegram_msg(f"💰 Deposit: {d['phone']} | {d['amount']} ETB\nID: {d['transaction_id']}")
+    return jsonify({"success": True})
+
+@app.route('/request_withdraw', methods=['POST'])
+def request_withdraw():
+    d = request.json
+    user = wallets.find_one({"phone": d['phone']})
+    amt = float(d['amount'])
+    if user and user.get('balance', 0) >= amt:
+        wallets.update_one({"phone": d['phone']}, {"$inc": {"balance": -amt}})
+        send_telegram_msg(f"💸 Withdraw Request: {d['phone']} | {amt} ETB")
+        return jsonify({"success": True})
+    return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
 
 if __name__ == '__main__':
     threading.Thread(target=game_loop, daemon=True).start()
