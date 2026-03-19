@@ -9,7 +9,7 @@ CORS(app)
 # --- CONFIG ---
 ADMIN_ID = "7956330391" 
 ADMIN_PHONE = "0945880474" 
-BOT_TOKEN = os.getenv("BOT_TOKEN") 
+BOT_TOKEN = "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc" # ያንተ ቦት ቶክን
 MONGO_URL = os.getenv("MONGO_URL")
 
 client = MongoClient(MONGO_URL)
@@ -28,21 +28,49 @@ game_state = {
 }
 
 def send_telegram_msg(msg):
-    if BOT_TOKEN:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": ADMIN_ID, "text": msg, "parse_mode": "HTML"}
-        try: requests.post(url, json=payload)
-        except: pass
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": ADMIN_ID, "text": msg, "parse_mode": "HTML"}
+    try: requests.post(url, json=payload)
+    except: pass
+
+# --- BOT POLLING LOGIC (አዲሱ ክፍል) ---
+def bot_polling():
+    """ቦቱ ከቴሌግራም ጋር በቀጥታ እንዲነጋገር የሚያደርግ"""
+    last_update_id = 0
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
+            response = requests.get(url, timeout=35).json()
+            
+            if response.get("result"):
+                for update in response["result"]:
+                    last_update_id = update["update_id"]
+                    if "message" in update and "text" in update["message"]:
+                        msg = update["message"]["text"].strip()
+                        sender_id = str(update["message"]["from"]["id"])
+                        
+                        # የአስተዳዳሪው ትዕዛዝ ከሆነ ብቻ
+                        if sender_id == ADMIN_ID:
+                            parts = msg.split()
+                            if len(parts) == 3:
+                                cmd, p, a = parts[0].lower(), parts[1], float(parts[2])
+                                if cmd == "/add":
+                                    wallets.update_one({"phone": p}, {"$inc": {"balance": a}}, upsert=True)
+                                    send_telegram_msg(f"✅ ለ {p} {a} ETB ተጨምሯል።")
+                                elif cmd == "/minus":
+                                    wallets.update_one({"phone": p}, {"$inc": {"balance": -a}})
+                                    send_telegram_msg(f"⚠️ ከ {p} {a} ETB ተቀንሷል።")
+            time.sleep(1)
+        except Exception as e:
+            print(f"Polling Error: {e}")
+            time.sleep(5)
 
 # --- GAME LOGIC ---
 def is_winner(card, drawn_numbers):
-    # Rows (አግድም)
     for i in range(0, 25, 5):
         if all(card[i+j] in drawn_numbers for j in range(5)): return True
-    # Columns (ቁልቁል)
     for i in range(5):
-        if all(card[i+j*5] in drawn_numbers for j in range(5)): return True
-    # Diagonals (X-ቅርጽ)
+        if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
     if all(card[i*6] in drawn_numbers for i in range(5)): return True
     if all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
     return False
@@ -62,9 +90,9 @@ def game_loop():
                 if game_state["status"] != "playing": break
                 game_state["current_ball"] = b
                 game_state["drawn_balls"].append(b)
-                time.sleep(5) # ኳሶች በየ 5 ሰከንዱ ይወጣሉ
+                time.sleep(5)
             
-            time.sleep(5) # አሸናፊው ለ 5 ሰከንድ ይታያል
+            time.sleep(5)
             game_state.update({
                 "status": "lobby", "winner": None, "pot": 0, "players": {},
                 "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
@@ -75,24 +103,6 @@ def game_loop():
 # --- ROUTES ---
 @app.route('/')
 def index(): return render_template('index.html')
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = request.json
-    if "message" in update and "text" in update["message"]:
-        msg = update["message"]["text"].strip()
-        sender_id = str(update["message"]["from"]["id"])
-        if sender_id == ADMIN_ID:
-            parts = msg.split()
-            if len(parts) == 3:
-                cmd, p, a = parts[0], parts[1], float(parts[2])
-                if cmd == "/add":
-                    wallets.update_one({"phone": p}, {"$inc": {"balance": a}}, upsert=True)
-                    send_telegram_msg(f"✅ ለ {p} {a} ETB ተጨምሯል።")
-                elif cmd == "/minus":
-                    wallets.update_one({"phone": p}, {"$inc": {"balance": -a}})
-                    send_telegram_msg(f"⚠️ ከ {p} {a} ETB ተቀንሷል።")
-    return "ok", 200
 
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
@@ -164,5 +174,9 @@ def claim_bingo():
     return jsonify({"success": False, "msg": "ገና ነዎት!"})
 
 if __name__ == '__main__':
+    # ጨዋታውን በሌላ ክር (Thread) መጀመር
     threading.Thread(target=game_loop, daemon=True).start()
+    # ቦቱን በሌላ ክር (Thread) መጀመር
+    threading.Thread(target=bot_polling, daemon=True).start()
+    
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
