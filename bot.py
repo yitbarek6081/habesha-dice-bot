@@ -22,9 +22,9 @@ game_state = {
 }
 
 def is_winner(card, drawn_numbers):
-    for i in range(0, 25, 5): # Rows
+    for i in range(0, 25, 5):
         if all(card[i+j] in drawn_numbers for j in range(5)): return True
-    for i in range(5): # Columns
+    for i in range(5):
         if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
     if all(card[i*6] in drawn_numbers for i in range(5)): return True
     if all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
@@ -57,9 +57,9 @@ def withdraw():
     user = wallets.find_one({"phone": ph})
     if user and user.get('balance', 0) >= amt:
         wallets.update_one({"phone": ph}, {"$inc": {"balance": -amt}})
-        # ለባለቤቱ በቴሌግራም ይላካል
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"💸 Withdraw Request!\nPhone: {ph}\nAmount: {amt} ETB"})
+        if BOT_TOKEN:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            requests.post(url, json={"chat_id": ADMIN_ID, "text": f"💸 Withdraw Request!\nPhone: {ph}\nAmount: {amt} ETB"})
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
 
@@ -99,15 +99,27 @@ def buy_ticket():
     if game_state["status"] != "lobby" or t_num in game_state["sold_tickets"]: return jsonify({"success":False})
     user = wallets.find_one({"phone": ph})
     if not user or user.get('balance', 0) < 10: return jsonify({"success":False})
+    
     wallets.update_one({"phone": ph}, {"$inc": {"balance": -10}})
     game_state["sold_tickets"][t_num] = ph
     game_state["pot"] += 10
+    
+    # Generate Card
     card = []
     for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
         card.append(random.sample(range(r[0], r[1]+1), 5))
     flat = [card[c][r] for r in range(5) for c in range(5)]; flat[12] = 0
+    
     if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "username": uname}
     else: game_state["players"][ph]["cards"].append(flat)
+    return jsonify({"success": True})
+
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json
+    if BOT_TOKEN:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"💰 Deposit: {d['phone']} | {d['amount']} ETB\nID: {d['transaction_id']}"})
     return jsonify({"success": True})
 
 if __name__ == '__main__':
