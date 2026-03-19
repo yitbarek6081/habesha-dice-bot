@@ -21,34 +21,12 @@ game_state = {
     "sold_tickets": {}, "current_ball": "--", "drawn_balls": [], "winner": None
 }
 
-def send_telegram_msg(msg):
-    if BOT_TOKEN:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": ADMIN_ID, "text": msg, "parse_mode": "HTML"}
-        try: requests.post(url, json=payload)
-        except: pass
-
-@app.route('/cancel_ticket', methods=['POST'])
-def cancel_ticket():
-    data = request.json
-    ph, t_num = data.get('phone'), str(data.get('ticket_num'))
-    if game_state["status"] != "lobby": return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
-    if game_state["sold_tickets"].get(t_num) == ph:
-        del game_state["sold_tickets"][t_num]
-        game_state["pot"] -= 10
-        if ph in game_state["players"]:
-            if len(game_state["players"][ph]["cards"]) > 1: game_state["players"][ph]["cards"].pop()
-            else: del game_state["players"][ph]
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
-        return jsonify({"success": True})
-    return jsonify({"success": False, "msg": "የእርስዎ ቁጥር አይደለም!"})
-
 def is_winner(card, drawn_numbers):
-    for i in range(0, 25, 5): # Rows
+    for i in range(0, 25, 5):
         if all(card[i+j] in drawn_numbers for j in range(5)): return True
-    for i in range(5): # Columns
+    for i in range(5):
         if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
-    if all(card[i*6] in drawn_numbers for i in range(5)): return True # Diagonals
+    if all(card[i*6] in drawn_numbers for i in range(5)): return True
     if all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
     return False
 
@@ -79,21 +57,18 @@ def claim_bingo():
     if game_state["status"] != "playing": return jsonify({"success": False})
     p_data = game_state["players"].get(ph)
     drawn = {int(b[1:]) for b in game_state["drawn_balls"] if len(b) > 1}
-    drawn.add(0) # FREE Space
+    drawn.add(0)
     
     if p_data and any(is_winner(c, drawn) for c in p_data["cards"]):
         win_amt = game_state["pot"] * 0.8
         wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
         wallets.update_one({"phone": ADMIN_PHONE}, {"$inc": {"balance": game_state["pot"]*0.2}}, upsert=True)
-        
         game_state["winner"], game_state["status"] = p_data["username"], "result"
         
-        # Reset after 5 seconds
-        def delayed_reset():
+        def reset():
             time.sleep(5)
             game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30})
-        threading.Thread(target=delayed_reset).start()
-        
+        threading.Thread(target=reset).start()
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
@@ -105,7 +80,7 @@ def get_status():
     phone = request.args.get('phone')
     user = wallets.find_one({"phone": phone})
     p_data = game_state["players"].get(phone, {"cards": []})
-    return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"]})
+    return jsonify({**game_state, "balance": user['balance'] if user else 0, "my_cards": p_data["cards"], "active_players": len(game_state["players"])})
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
@@ -127,22 +102,19 @@ def buy_ticket():
     else: game_state["players"][ph]["cards"].append(flat)
     return jsonify({"success": True})
 
-@app.route('/request_deposit', methods=['POST'])
-def request_deposit():
-    d = request.json
-    send_telegram_msg(f"💰 Deposit: {d['phone']} | {d['amount']} ETB\nID: {d['transaction_id']}")
-    return jsonify({"success": True})
-
-@app.route('/request_withdraw', methods=['POST'])
-def request_withdraw():
-    d = request.json
-    user = wallets.find_one({"phone": d['phone']})
-    amt = float(d['amount'])
-    if user and user.get('balance', 0) >= amt:
-        wallets.update_one({"phone": d['phone']}, {"$inc": {"balance": -amt}})
-        send_telegram_msg(f"💸 Withdraw Request: {d['phone']} | {amt} ETB")
+@app.route('/cancel_ticket', methods=['POST'])
+def cancel_ticket():
+    data = request.json
+    ph, t_num = data.get('phone'), str(data.get('ticket_num'))
+    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
+        del game_state["sold_tickets"][t_num]
+        game_state["pot"] -= 10
+        if ph in game_state["players"]:
+            if len(game_state["players"][ph]["cards"]) > 1: game_state["players"][ph]["cards"].pop()
+            else: del game_state["players"][ph]
+        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
         return jsonify({"success": True})
-    return jsonify({"success": False, "msg": "በቂ ሂሳብ የሎትም!"})
+    return jsonify({"success": False})
 
 if __name__ == '__main__':
     threading.Thread(target=game_loop, daemon=True).start()
