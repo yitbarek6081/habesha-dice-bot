@@ -83,7 +83,7 @@ def telegram_webhook():
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json
-    msg = f"💰 *Deposit Request*\n\n📞 Phone: `{d['phone']}`\n💵 Amt: `{d['amount']}` ETB\n🆔 ID: `{d['transaction_id']}`\n\nCopy & Send:\n`/add {d['phone']} {d['amount']}`"
+    msg = f"💰 *Deposit Request*\n\n📞 ስልክ: `{d['phone']}`\n💵 መጠን: `{d['amount']}` ETB\n🆔 ID: `{d['transaction_id']}`\n\nለመጨመር ይህንን ተጭነው ኮፒ ያድርጉ:\n`/add {d['phone']} {d['amount']}`"
     send_telegram(msg)
     return jsonify({"success": True})
 
@@ -111,7 +111,7 @@ def claim_bingo():
         win_amt = game_state["pot"] * 0.8
         wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
         game_state["winner"], game_state["status"] = p_data["username"], "result"
-        send_telegram(f"🏆 *Winner Found!*\n👤: {p_data['username']}\n💰 Prize: {win_amt} ETB")
+        send_telegram(f"🏆 *WINNER Found!*\n👤: {p_data['username']}\n💰 Prize: {win_amt} ETB")
         def reset():
             time.sleep(7); game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30})
         threading.Thread(target=reset).start()
