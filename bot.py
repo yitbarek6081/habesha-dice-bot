@@ -1,4 +1,4 @@
-import os, time, random, requests, threading
+import os, time, random, requests, threading, re
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
@@ -6,16 +6,21 @@ from flask_cors import CORS
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# --- CONFIG ---
+# --- CONFIG (ከ Render Environment Variables የሚነበብ) ---
 ADMIN_ID = "7956330391" 
 ADMIN_PHONE = "0945880474" 
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
 
-client = MongoClient(MONGO_URL)
-db = client['bingo_db']
-wallets = db['wallets']
+# ዳታቤዝ ግንኙነት
+try:
+    client = MongoClient(MONGO_URL)
+    db = client['bingo_db']
+    wallets = db['wallets']
+except Exception as e:
+    print(f"MongoDB Connection Error: {e}")
 
+# የጨዋታው ሁኔታ (Game State)
 game_state = {
     "status": "lobby", 
     "timer": 30,
@@ -34,7 +39,7 @@ def send_telegram_msg(msg):
         try: requests.post(url, json=payload)
         except: pass
 
-# --- WEBHOOK HANDLING ---
+# --- WEBHOOK (ትዕዛዞችን መቀበያ) ---
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = request.json
@@ -42,25 +47,37 @@ def webhook():
         msg = update["message"]["text"].strip()
         sender_id = str(update["message"]["from"]["id"])
         
-        # አስተዳዳሪው ብቻ /add ወይም /minus እንዲጠቀም
         if sender_id == ADMIN_ID:
             parts = msg.split()
             if len(parts) == 3:
-                cmd, p, a = parts[0].lower(), parts[1], float(parts[2])
-                if cmd == "/add":
-                    wallets.update_one({"phone": p}, {"$inc": {"balance": a}}, upsert=True)
-                    send_telegram_msg(f"✅ ተሳክቷል! ለ {p} {a} ETB ተጨምሯል።")
-                elif cmd == "/minus":
-                    wallets.update_one({"phone": p}, {"$inc": {"balance": -a}})
-                    send_telegram_msg(f"⚠️ ተቀንሷል! ከ {p} {a} ETB ተቀንሷል።")
+                try:
+                    cmd = parts[0].lower()
+                    phone = parts[1]
+                    
+                    # '10ብር' ወይም '10.50etb' ቢባል ቁጥሩን ብቻ ነጥሎ ያወጣል
+                    amount_raw = re.sub(r'[^0-9.]', '', parts[2])
+                    if not amount_raw: raise ValueError("No number found")
+                    amount = float(amount_raw)
+                    
+                    if cmd == "/add":
+                        wallets.update_one({"phone": phone}, {"$inc": {"balance": amount}}, upsert=True)
+                        send_telegram_msg(f"✅ ተሳክቷል! ለ {phone} <b>{amount} ETB</b> ተጨምሯል።")
+                    elif cmd == "/minus":
+                        wallets.update_one({"phone": phone}, {"$inc": {"balance": -amount}})
+                        send_telegram_msg(f"⚠️ ተቀንሷል! ከ {phone} <b>{amount} ETB</b> ተቀንሷል።")
+                except (ValueError, IndexError):
+                    send_telegram_msg("❌ <b>ስህተት!</b>\nእባክዎ በትክክል ይጻፉ።\nምሳሌ: <code>/add 0912345678 10</code>")
     return "ok", 200
 
-# --- GAME LOGIC ---
+# --- BINGO GAME LOGIC ---
 def is_winner(card, drawn_numbers):
+    # Rows
     for i in range(0, 25, 5):
         if all(card[i+j] in drawn_numbers for j in range(5)): return True
+    # Columns
     for i in range(5):
         if all(card[i+j*5] in drawn_numbers for i in range(5)): return True
+    # Diagonals
     if all(card[i*6] in drawn_numbers for i in range(5)): return True
     if all(card[(i+1)*4] in drawn_numbers for i in range(5)): return True
     return False
@@ -90,7 +107,7 @@ def game_loop():
         else:
             game_state["timer"] = 30
 
-# --- ROUTES ---
+# --- API ROUTES ---
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -99,23 +116,9 @@ def request_deposit():
     d = request.json
     msg = (f"💰 <b>አዲስ ተቀማጭ!</b>\n👤 ስልክ: <code>{d['phone']}</code>\n"
            f"💵 መጠን: <b>{d['amount']} ETB</b>\n🧾 ID: <code>{d['transaction_id']}</code>\n"
-           f"ለማጽደቅ ኮፒ ያድርጉ: <code>/add {d['phone']} {d['amount']}</code>")
+           f"ለማጽደቅ ኮፒ ያድርጉ:\n<code>/add {d['phone']} {d['amount']}</code>")
     send_telegram_msg(msg)
     return jsonify({"success": True})
-
-@app.route('/cancel_ticket', methods=['POST'])
-def cancel_ticket():
-    data = request.json
-    ph, t_num = data.get('phone'), str(data.get('ticket_num'))
-    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
-        del game_state["sold_tickets"][t_num]
-        game_state["pot"] -= 10
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
-        if ph in game_state["players"]:
-            game_state["players"][ph]["cards"].pop()
-            if not game_state["players"][ph]["cards"]: del game_state["players"][ph]
-        return jsonify({"success": True})
-    return jsonify({"success": False})
 
 @app.route('/get_status')
 def get_status():
@@ -135,13 +138,18 @@ def buy_ticket():
     wallets.update_one({"phone": ph}, {"$inc": {"balance": -10}})
     game_state["sold_tickets"][t_num] = ph
     game_state["pot"] += 10
+    
+    # ካርቴላ ማዘጋጀት
     card = []
     for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
         card.append(random.sample(range(r[0], r[1]+1), 5))
     flat = [card[c][r] for r in range(5) for c in range(5)]
-    flat[12] = 0
-    if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "active": True, "username": uname}
-    else: game_state["players"][ph]["cards"].append(flat)
+    flat[12] = 0 # መሃል ላይ FREE
+    
+    if ph not in game_state["players"]: 
+        game_state["players"][ph] = {"cards": [flat], "active": True, "username": uname}
+    else: 
+        game_state["players"][ph]["cards"].append(flat)
     return jsonify({"success": True})
 
 @app.route('/claim_bingo', methods=['POST'])
