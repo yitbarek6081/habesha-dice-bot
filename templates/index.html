@@ -7,33 +7,41 @@
     <style>
         :root { --gold: #f1c40f; --bg: #0f172a; --blue: #1e293b; --red: #e74c3c; --green: #2ecc71; --orange: #e67e22; }
         body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
+        .header-title { color: var(--gold); font-size: 2rem; font-weight: 900; text-shadow: 2px 2px #000; margin-bottom: 5px; }
         .stats { display: flex; justify-content: space-around; background: var(--blue); padding: 10px; border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 10px; }
-        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 220px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; }
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 200px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; }
         .t-box { background: white; color: black; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 3px; cursor: pointer; }
         .t-box.sold { background: #475569; color: #94a3b8; }
         .t-box.mine { background: var(--gold); border: 2px solid white; }
         .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 10px; }
-        .main-board { border: 1px solid var(--gold); height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; }
+        .main-board { border: 1px solid var(--gold); height: 380px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #020617; }
         .ball-dot { font-size: 0.7rem; background: #1e293b; padding: 4px; color: #64748b; border: 1px solid #334155; }
         .ball-dot.active { background: var(--gold); color: black; font-weight: bold; }
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; margin-bottom: 12px; }
-        .cell { background: white; color: black; height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 3px; }
-        .cell.selected { background: var(--gold); border: 1px solid #b45309; }
+        
+        /* BINGO Header for card */
+        .bingo-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; color: white; border-radius: 5px 5px 0 0; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #cbd5e1; padding: 4px; border-radius: 0 0 5px 5px; }
+        .cell { background: white; color: black; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 3px; }
+        .cell.selected { background: var(--gold); border: 2px solid #b45309; }
         .cell.free { background: var(--red); color: white; font-size: 0.6rem; }
-        .bingo-btn { width: 100%; padding: 15px; background: var(--red); color: white; font-size: 1.5rem; font-weight: 900; border: 3px solid var(--gold); border-radius: 12px; cursor: pointer; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        #ball-circle { width: 80px; height: 80px; background: radial-gradient(circle, #fff, var(--gold)); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; margin: 10px auto; }
+        
+        /* Rule 4: Size decrease by 15% when 3 cards exist */
+        .small-cards .cell { height: 34px; font-size: 0.8rem; }
+        .small-cards .bingo-header { font-size: 0.8rem; }
+
+        .bingo-btn { width: 100%; padding: 15px; background: var(--red); color: white; font-size: 1.5rem; font-weight: 900; border: 3px solid var(--gold); border-radius: 12px; margin-top: 10px; }
+        #ball-circle { width: 70px; height: 70px; background: radial-gradient(circle, #fff, var(--gold)); color: black; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 900; margin: 5px auto; }
     </style>
 </head>
 <body>
-    <div class="stats">
+    <div class="header-title">BESH BINGO</div> <div class="stats">
         <div>Wallet<br><span id="balance" style="color:var(--green);">0 ETB</span></div>
         <div>Players<br><span id="p-count">0</span></div>
         <div>Prize<br><span id="prize" style="color:var(--gold);">0 ETB</span></div>
     </div>
 
     <div id="lobby-ui">
-        <div style="font-size: 3rem; font-weight: 900;" id="timer">30</div>
+        <div style="font-size: 2.5rem; font-weight: 900; color: var(--gold);" id="timer">30</div>
         <div class="grid-500" id="ticket-area"></div>
         <div style="margin-top:15px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
             <button onclick="deposit()" style="padding:12px; background:var(--green); color:white; border:none; border-radius:8px; font-weight:bold;">ገንዘብ አስገባ</button>
@@ -50,40 +58,31 @@
         <button class="bingo-btn" onclick="claim()">BINGO</button>
     </div>
 
-    <div id="result-ui" class="overlay" style="display:none;">
+    <div id="result-ui" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; flex-direction:column; align-items:center; justify-content:center;">
         <h1 style="color:var(--gold); font-size:3rem;">BINGO!</h1>
-        <div id="winner-info" style="font-size:1.8rem;"></div>
+        <div id="winner-info" style="font-size:1.5rem; color:white;"></div>
+        <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:var(--green); color:white; border:none; border-radius:5px;">ቀጥል</button>
     </div>
 
     <script>
-        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ:");
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ያስገቡ:");
         let username = localStorage.getItem('username') || prompt("ስም ያስገቡ:");
-        if(phone && username) { localStorage.setItem('phone', phone); localStorage.setItem('username', username); }
+        if(phone) { localStorage.setItem('phone', phone); localStorage.setItem('username', username); }
 
-        async function deposit() {
-            const adminPhone = "0945880474";
-            try {
-                await navigator.clipboard.writeText(adminPhone);
-                alert("የአስተዳዳሪው ስልክ (" + adminPhone + ") ኮፒ ሆኗል! ብሩን ልከው ማስረጃውን ይሙሉ፡፡");
-            } catch (err) { alert("ወደዚህ ቁጥር ይላኩ: " + adminPhone); }
-
+        function deposit() {
+            alert("ወደ 0945880474 ብር ይላኩና Transaction ID ያስገቡ።");
             let amt = prompt("የላኩት መጠን:");
             let tid = prompt("Transaction ID:");
-            if(amt && tid) {
-                fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
-            }
+            if(amt && tid) fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
         }
 
-        function refund(n) {
-            if(confirm(n + " ቁጥርን መመለስ ይፈልጋሉ?")) {
-                fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})})
-                .then(r=>r.json()).then(d=>{ if(d.success) alert("ተመልሷል!"); else alert(d.msg); });
-            }
+        function withdraw() {
+            let a = prompt("የሚያወጡት መጠን:");
+            if(a) fetch('/request_withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:a})})
+                  .then(r=>r.json()).then(d=> alert(d.success ? "ጥያቄዎ ተልኳል!" : d.msg));
         }
 
-        function buy(n) {
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})});
-        }
+        function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(r=>r.json()).then(d=>{if(d.msg) alert(d.msg)}); }
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
@@ -96,69 +95,62 @@
                     document.getElementById('lobby-ui').style.display = 'block';
                     document.getElementById('game-ui').style.display = 'none';
                     document.getElementById('result-ui').style.display = 'none';
-                    document.getElementById('main-board').innerHTML = ""; 
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display = 'none';
                     document.getElementById('game-ui').style.display = 'block';
                     document.getElementById('ball-circle').innerText = d.current_ball;
                     renderMainBoard(d.drawn_balls);
-                    if(document.getElementById('card-area').innerHTML === "") d.my_cards.forEach(renderCard);
+                    if(document.getElementById('card-area').innerHTML === "") {
+                        // Rule 4: Apply 15% size decrease if 3 cards
+                        if(d.my_cards.length >= 3) document.getElementById('card-area').className = "small-cards";
+                        d.my_cards.forEach(renderCard);
+                    }
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display = 'flex';
-                    document.getElementById('winner-info').innerHTML = `<b style='color:var(--green)'>${d.winner}</b> አሸንፏል!`;
-                    document.getElementById('card-area').innerHTML = "";
+                    document.getElementById('winner-info').innerText = d.winner + " አሸንፏል!";
                 }
             });
         }
 
         function renderTickets(sold) {
             const area = document.getElementById('ticket-area');
-            if(area.children.length === 0) {
-                for(let i=1; i<=500; i++) {
-                    let div = document.createElement('div'); div.className = 't-box'; div.innerText = i;
-                    area.appendChild(div);
-                }
-            }
+            if(area.children.length === 0) for(let i=1; i<=500; i++) { let div = document.createElement('div'); div.className='t-box'; div.innerText=i; area.appendChild(div); }
             for(let i=1; i<=500; i++) {
                 let box = area.children[i-1];
-                if(sold[i]) {
-                    if(sold[i] === phone) { box.className = 't-box mine'; box.onclick = () => refund(i); }
-                    else { box.className = 't-box sold'; box.onclick = null; }
-                } else { box.className = 't-box'; box.onclick = () => buy(i); }
+                if(sold[i]) { box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold'; box.onclick = null; }
+                else { box.className = 't-box'; box.onclick = () => buy(i); }
             }
         }
 
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
-            if(board.children.length === 0) {
-                for(let i=1; i<=75; i++) {
-                    let d = document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i;
-                    board.appendChild(d);
-                }
-            }
-            drawn.forEach(b => { 
-                let n = b.substring(1);
-                let el = document.getElementById('b-'+n);
-                if(el) el.classList.add('active');
-            });
+            if(board.children.length === 0) for(let i=1; i<=75; i++) { let d = document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i; board.appendChild(d); }
+            drawn.forEach(b => { let el = document.getElementById('b-'+b.substring(1)); if(el) el.classList.add('active'); });
         }
 
         function renderCard(card) {
+            const container = document.createElement('div');
+            container.style.marginBottom = "15px";
+            // Rule 3: Add B-I-N-G-O Header
+            container.innerHTML = `<div class="bingo-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className = 'bingo-card';
             card.forEach((n, i) => {
                 const cell = document.createElement('div');
                 cell.className = (i === 12) ? "cell free" : "cell";
                 cell.innerText = (i === 12) ? "FREE" : n;
-                cell.onclick = () => cell.classList.toggle('selected');
+                cell.onclick = () => cell.classList.toggle('selected'); // Visual selection
                 grid.appendChild(cell);
             });
-            document.getElementById('card-area').appendChild(grid);
+            container.appendChild(grid);
+            document.getElementById('card-area').appendChild(container);
         }
 
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}); }
-        function withdraw() { let a = prompt("መጠን:"); fetch('/request_withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:a, target_phone:phone})}); }
-        
+        function claim() { 
+            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            .then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); }); 
+        }
+
         setInterval(update, 2000);
     </script>
 </body>
