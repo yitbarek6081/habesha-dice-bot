@@ -1,178 +1,167 @@
-import os, time, random, requests, threading
-from flask import Flask, render_template, jsonify, request
-from pymongo import MongoClient, ReturnDocument
-from flask_cors import CORS
+<!DOCTYPE html>
+<html lang="am">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BESH BINGO - PREMIUM</title>
+    <style>
+        :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
+        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 0; }
+        .header-banner { background: #1e293b; padding: 15px; border-bottom: 3px solid var(--gold); }
+        .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 10px; margin: 10px; border-radius: 12px; }
+        .stats b { display: block; color: var(--gold); }
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 200px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
+        .t-box { background: #fff; color: #000; font-size: 0.7rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .t-box.mine { background: var(--gold); border: 2px solid white; }
+        .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
+        #ball-circle { width: 80px; height: 80px; background: radial-gradient(circle, #fff, var(--gold)); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; margin: 15px auto; border: 4px solid #1e293b; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 8px 8px; }
+        .cell { background: #fff; color: #000; height: 45px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.2rem; cursor: pointer; }
+        .cell.selected { background: var(--gold) !important; border: 2px solid #b45309; }
+        .cell.free { background: #ff3e3e !important; color: white; font-size: 0.7rem; }
+        #bingo-btn { width: 80%; padding: 15px; background: red; color: white; font-size: 1.5rem; font-weight: 900; border-radius: 10px; margin: 10px; border:none; }
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center; }
+    </style>
+</head>
+<body>
+    <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
 
-app = Flask(__name__, template_folder='templates')
-CORS(app)
+    <div class="header-banner"><h1>BESH BINGO</h1></div>
 
-# --- CONFIG ---
-ADMIN_ID = "7956330391" 
-BOT_TOKEN = "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc" 
-MONGO_URL = os.getenv("MONGO_URL")
-RENDER_URL = "https://habesha-dice-bot.onrender.com" 
-HOUSE_WALLET = "0945880474" # 20% ኮሚሽን የሚገባበት ቁጥር
+    <div class="stats">
+        <div>BALANCE<b id="balance">0 ETB</b></div>
+        <div>PLAYERS<b id="p-count">0</b></div>
+        <div>JACKPOT<b id="prize">0 ETB</b></div>
+    </div>
 
-client = MongoClient(MONGO_URL)
-db = client['bingo_db']
-wallets = db['wallets']
+    <div id="lobby-ui">
+        <div id="timer" style="font-size: 2rem; color: var(--gold);">30</div>
+        <p>ካርቴላ ለመግዛት ቁጥር ይንኩ (10 ETB)</p>
+        <div class="grid-500" id="ticket-area"></div>
+    </div>
 
-game_state = {
-    "status": "lobby", "timer": 30, "pot": 0, "players": {},
-    "sold_tickets": {}, "current_ball": "--", "drawn_balls": [], "winner": None
-}
+    <div id="game-ui" style="display:none;">
+        <div id="ball-circle">--</div>
+        <div id="card-area" style="padding:10px;"></div>
+        <button id="bingo-btn" onclick="claim()">BINGO!</button>
+    </div>
 
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try: requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"})
-    except: print("Telegram Error")
+    <div id="result-ui" class="modal">
+        <div style="text-align:center;">
+            <h1 style="color:var(--gold); font-size:3rem;">BINGO!</h1>
+            <div id="winner-info" style="font-size:2rem; color:white;"></div>
+        </div>
+    </div>
 
-# --- WEBHOOK SETTING ---
-def set_webhook():
-    webhook_url = f"{RENDER_URL}/webhook"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
-    try:
-        r = requests.get(url)
-        print(f"Webhook set result: {r.json()}")
-    except:
-        print("Webhook set failed")
+    <script>
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ:");
+        let username = localStorage.getItem('username') || prompt("የተጫዋች ስም ያስገቡ:");
+        if(!phone || !username) location.reload();
+        localStorage.setItem('phone', phone); localStorage.setItem('username', username);
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.json
-    if "message" in data and "text" in data["message"]:
-        msg = data["message"]["text"]
-        chat_id = str(data["message"]["chat"]["id"])
-        if chat_id == ADMIN_ID and msg.startswith("/add"):
-            try:
-                parts = msg.split()
-                if len(parts) == 3:
-                    target_phone = parts[1]
-                    amount = float(parts[2])
-                    wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
-                    send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-                else:
-                    send_telegram("❌ ስህተት! ፎርማቱ: `/add phone amount` መሆን አለበት።")
-            except Exception as e:
-                send_telegram(f"❌ ስህተት: {str(e)}")
-    return "OK", 200
+        let currentCardData = null; 
+        let announced = false;
+        let lastBall = "--";
+        let validToMark = [];
 
-def is_winner(card, drawn_numbers):
-    drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) # FREE space
-    for i in range(5):
-        if all(card[i*5 + j] in drawn_set for j in range(5)): return True
-        if all(card[j*5 + i] in drawn_set for j in range(5)): return True
-    if all(card[i*6] in drawn_set for i in range(5)): return True
-    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True
-    return False
+        function speakBall(ball) {
+            if (!ball || ball === "--") return;
+            let utterance = new SpeechSynthesisUtterance(ball.replace(/([A-Z])(\d+)/, '$1 $2'));
+            utterance.lang = 'en-US'; utterance.rate = 0.8;
+            window.speechSynthesis.speak(utterance);
+        }
 
-def game_loop():
-    balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
-    while True:
-        if game_state["status"] == "lobby":
-            for i in range(30, -1, -1):
-                if game_state["status"] != "lobby": break
-                game_state["timer"] = i
-                time.sleep(1)
-            if len(game_state["players"]) >= 2:
-                game_state["status"] = "playing"
-                shuffled = balls.copy(); random.shuffle(shuffled)
-                for b in shuffled:
-                    if game_state["status"] != "playing": break
-                    game_state["current_ball"] = b
-                    game_state["drawn_balls"].append(b)
-                    time.sleep(5) 
-            else: game_state["timer"] = 30
-        time.sleep(1)
+        function update() {
+            fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance.toFixed(0) + " ETB";
+                document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
+                document.getElementById('p-count').innerText = d.active_players;
+                document.getElementById('timer').innerText = d.timer;
+                validToMark = d.valid_to_mark || [];
 
-@app.route('/')
-def index(): return render_template('index.html')
+                if(d.status === "lobby") {
+                    document.getElementById('lobby-ui').style.display='block'; 
+                    document.getElementById('game-ui').style.display='none'; 
+                    document.getElementById('result-ui').style.display='none';
+                    currentCardData = null; announced = false; lastBall = "--";
+                    renderTickets(d.sold_tickets);
+                } else if(d.status === "playing") {
+                    document.getElementById('lobby-ui').style.display='none'; 
+                    document.getElementById('game-ui').style.display='block';
+                    document.getElementById('ball-circle').innerText = d.current_ball;
+                    
+                    if (d.current_ball !== lastBall) {
+                        lastBall = d.current_ball; speakBall(lastBall);
+                    }
 
-@app.route('/get_status')
-def get_status():
-    phone = request.args.get('phone')
-    user = wallets.find_one({"phone": phone})
-    p_data = game_state["players"].get(phone, {"cards": []})
-    valid_balls = game_state["drawn_balls"][-3:]
-    return jsonify({
-        **game_state, 
-        "balance": user['balance'] if user else 0, 
-        "my_cards": p_data["cards"], 
-        "active_players": len(game_state["players"]),
-        "valid_to_mark": valid_balls
-    })
+                    if(d.my_cards.length > 0 && !currentCardData) { 
+                        currentCardData = d.my_cards; 
+                        document.getElementById('card-area').innerHTML = "";
+                        d.my_cards.forEach((c, i) => renderCard(c, i)); 
+                    }
+                } else if(d.status === "result") {
+                    document.getElementById('result-ui').style.display='flex';
+                    document.getElementById('winner-info').innerText = d.winner + " 🏆";
+                    if(!announced) { document.getElementById('win-horn').play(); announced = true; }
+                }
+            });
+        }
 
-@app.route('/buy_specific_ticket', methods=['POST'])
-def buy_ticket():
-    d = request.json
-    ph, t_num, uname = d.get('phone'), str(d.get('ticket_num')), d.get('username')
-    res = wallets.find_one_and_update({"phone": ph, "balance": {"$gte": 10}}, {"$inc": {"balance": -10}}, return_document=ReturnDocument.AFTER)
-    if res and game_state["status"] == "lobby":
-        game_state["sold_tickets"][t_num], game_state["pot"] = ph, game_state["pot"] + 10
-        card = []
-        for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]: card.append(random.sample(range(r[0], r[1]+1), 5))
-        flat = [card[c][r] for r in range(5) for c in range(5)]; flat[12] = 0
-        if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "username": uname, "tickets": [t_num]}
-        else: 
-            game_state["players"][ph]["cards"].append(flat)
-            game_state["players"][ph]["tickets"].append(t_num)
-        return jsonify({"success": True})
-    return jsonify({"success": False})
+        function renderTickets(sold) {
+            const area = document.getElementById('ticket-area');
+            if(area.children.length === 0) {
+                for(let i=1; i<=500; i++) { 
+                    let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i;
+                    area.appendChild(div); 
+                }
+            }
+            for(let i=1; i<=500; i++) {
+                let box = document.getElementById('t-'+i);
+                if(sold[i]) {
+                    box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold';
+                    box.onclick = (sold[i] === phone) ? () => refund(i) : null;
+                } else { 
+                    box.className='t-box'; box.onclick=()=>buy(i); 
+                }
+            }
+        }
 
-@app.route('/cancel_ticket', methods=['POST'])
-def cancel_ticket():
-    d = request.json
-    ph, t_num = d.get('phone'), str(d.get('ticket_num'))
-    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
-        game_state["pot"] -= 10
-        del game_state["sold_tickets"][t_num]
-        if ph in game_state["players"]:
-            idx = game_state["players"][ph]["tickets"].index(t_num)
-            game_state["players"][ph]["cards"].pop(idx)
-            game_state["players"][ph]["tickets"].pop(idx)
-            if not game_state["players"][ph]["tickets"]: del game_state["players"][ph]
-        return jsonify({"success": True})
-    return jsonify({"success": False})
+        function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update); }
+        
+        function refund(n) { 
+            if(confirm(n + " ቁጥርን መልሰው 10 ብር እንዲመለስልዎት ይፈልጋሉ?")) 
+                fetch('/return_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})}).then(update); 
+        }
 
-@app.route('/claim_bingo', methods=['POST'])
-def claim_bingo():
-    ph = request.json.get('phone')
-    p_data = game_state["players"].get(ph)
-    if game_state["status"] == "playing" and p_data and any(is_winner(c, game_state["drawn_balls"]) for c in p_data["cards"]):
-        total_pot = game_state["pot"]
-        win_amt = total_pot * 0.8
-        commission = total_pot * 0.2
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
-        wallets.update_one({"phone": HOUSE_WALLET}, {"$inc": {"balance": commission}}, upsert=True)
-        game_state["winner"], game_state["status"] = p_data["username"], "result"
-        send_telegram(f"🏆 *Winner Found!*\n👤: {p_data['username']}\n💰 Prize: {win_amt} ETB")
-        def reset():
-            time.sleep(10); game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30})
-        threading.Thread(target=reset).start()
-        return jsonify({"success": True})
-    return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+        function renderCard(card, cardIdx) {
+            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
+            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;border-radius:8px 8px 0 0;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
+            const grid = document.createElement('div'); grid.className='bingo-card';
+            card.forEach((n, i) => {
+                const cell=document.createElement('div');
+                if(i === 12) { cell.className="cell free selected"; cell.innerText="FREE"; }
+                else {
+                    cell.className="cell"; cell.innerText=n;
+                    cell.onclick = () => { 
+                        let validNums = validToMark.map(b => parseInt(b.substring(1)));
+                        if (!cell.classList.contains('selected') && !validNums.includes(n)) {
+                            alert("ይህ ቁጥር አልፎበታል! ማቅለም አይችሉም።"); return;
+                        }
+                        cell.classList.toggle('selected'); 
+                    };
+                }
+                grid.appendChild(cell);
+            });
+            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
+        }
 
-@app.route('/request_deposit', methods=['POST'])
-def request_deposit():
-    d = request.json
-    msg = f"💰 *Deposit Request*\n📞 Phone: `{d['phone']}`\n💵 Amount: `{d['amount']}`\n🆔 ID: `{d.get('transaction_id')}`\n\n👇 *Copy & Add:*\n`/add {d['phone']} {d['amount']}`"
-    send_telegram(msg)
-    return jsonify({"success": True})
+        function claim() { 
+            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            .then(r=>r.json()).then(d=>{ if(!d.success) alert(d.msg); }); 
+        }
 
-@app.route('/withdraw', methods=['POST'])
-def withdraw():
-    d = request.json
-    ph, amt = d.get('phone'), float(d.get('amount'))
-    user = wallets.find_one({"phone": ph})
-    if user and user.get('balance', 0) >= amt:
-        wallets.update_one({"phone": ph}, {"$inc": {"balance": -amt}})
-        send_telegram(f"💸 *Withdraw Request*\n📞 `{ph}`\n💵 `{amt} ETB`")
-        return jsonify({"success": True})
-    return jsonify({"success": False})
-
-if __name__ == '__main__':
-    threading.Timer(5, set_webhook).start() 
-    threading.Thread(target=game_loop, daemon=True).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+        setInterval(update, 2000);
+        update();
+    </script>
+</body>
+</html>
