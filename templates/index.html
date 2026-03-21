@@ -238,7 +238,39 @@
             fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt})})
             .then(()=> { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); });
         }
+let lastBall = "--";
 
+// 1. ድምፅ መጥሪያ (Voice Caller)
+function speakBall(ball) {
+    if (!ball || ball === "--") return;
+    let synth = window.speechSynthesis;
+    let utterance = new SpeechSynthesisUtterance(ball.replace("-", " "));
+    utterance.lang = 'en-US';
+    utterance.rate = 0.8;
+    synth.speak(utterance);
+}
+
+// 2. ቁጥር ማቅለሚያ (ከ2 ኳስ በላይ የቆየ ቁጥር አይቀለምም)
+function toggleCell(id, num) {
+    fetch(`/get_status?phone=${phone}`).then(r => r.json()).then(d => {
+        // FREE space (0) ሁልጊዜ ይቀለማል
+        if (num !== 0) {
+            let validNums = d.valid_to_mark.map(b => parseInt(b.substring(1)));
+            if (!validNums.includes(num)) {
+                alert("ይህ ቁጥር አልፎበታል! ማቅለም አይችሉም።");
+                return;
+            }
+        }
+        document.getElementById(id).classList.toggle('selected');
+    });
+}
+
+// 3. ኳስ በተለወጠ ቁጥር ድምፅ እንዲያሰማ update() ውስጥ ይግባ
+// (update ፈንክሽንህ ውስጥ ይሄን ጨምር)
+if (d.current_ball !== lastBall) {
+    lastBall = d.current_ball;
+    speakBall(lastBall);
+}
         setInterval(update, 2000);
         update();
     </script>
