@@ -115,6 +115,16 @@ def get_status():
 def buy_ticket():
     d = request.json
     ph, t_num, uname = d.get('phone'), str(d.get('ticket_num')), d.get('username')
+    @app.route('/cancel_ticket', methods=['POST'])
+def cancel_ticket():
+    d = request.json
+    ph, t_num = d.get('phone'), str(d.get('ticket_num'))
+    
+    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
+        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
+        if t_num in game_state["sold_tickets"]:
+            del game_state["sold_tickets"][t_num]
+        game_state["pot"] -= 10
     # Check balance and decrement
     res = wallets.find_one_and_update({"phone": ph, "balance": {"$gte": 10}}, {"$inc": {"balance": -10}}, return_document=ReturnDocument.AFTER)
     if res and game_state["status"] == "lobby":
