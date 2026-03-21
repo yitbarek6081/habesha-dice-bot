@@ -117,10 +117,22 @@
 
         let currentCardData = null; 
         let announced = false;
+        let lastBall = "--";
+        let validToMark = [];
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Number Copied: " + n); }
+
+        // ድምፅ መጥሪያ (Voice Caller)
+        function speakBall(ball) {
+            if (!ball || ball === "--") return;
+            let synth = window.speechSynthesis;
+            let utterance = new SpeechSynthesisUtterance(ball.replace("-", " "));
+            utterance.lang = 'en-US';
+            utterance.rate = 0.8;
+            synth.speak(utterance);
+        }
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
@@ -128,6 +140,7 @@
                 document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
                 document.getElementById('p-count').innerText = d.active_players;
                 document.getElementById('timer').innerText = d.timer;
+                validToMark = d.valid_to_mark || [];
 
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='block'; 
@@ -135,13 +148,19 @@
                     document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; 
                     document.getElementById('card-area').innerHTML="";
-                    currentCardData = null; announced = false; 
+                    currentCardData = null; announced = false; lastBall = "--";
                     localStorage.removeItem('mySelections');
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display='none'; 
                     document.getElementById('game-ui').style.display='block';
                     document.getElementById('ball-circle').innerText = d.current_ball;
+                    
+                    if (d.current_ball !== lastBall) {
+                        lastBall = d.current_ball;
+                        speakBall(lastBall); // ድምፅ እንዲጠራ
+                    }
+
                     renderMainBoard(d.drawn_balls);
                     if(d.my_cards.length > 0 && !currentCardData) { 
                         currentCardData = d.my_cards; 
@@ -176,7 +195,7 @@
         }
 
         function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update); }
-        function refund(n) { if(confirm(n + " ቁጥርን መልሰው 10 ብር እንዲመለስልዎት ይፈልጋሉ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})}).then(update); }
+        function refund(n) { if(confirm(n + " ቁጥርን መልሰው 10 ብር እንዲመለስልዎት ይፈልጋሉ?")) fetch('/return_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})}).then(update); }
 
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
@@ -210,6 +229,14 @@
                     cell.className="cell"; cell.innerText=n;
                     if(selections[cid]) cell.classList.add('selected');
                     cell.onclick = () => { 
+                        // 2-Ball Marking Limit Check
+                        if (!cell.classList.contains('selected')) {
+                            let validNums = validToMark.map(b => parseInt(b.substring(1)));
+                            if (!validNums.includes(n)) {
+                                alert("ይህ ቁጥር አልፎበታል! ማቅለም አይችሉም።");
+                                return;
+                            }
+                        }
                         cell.classList.toggle('selected'); 
                         selections[cid]=cell.classList.contains('selected'); 
                         localStorage.setItem('mySelections', JSON.stringify(selections)); 
@@ -238,39 +265,7 @@
             fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt})})
             .then(()=> { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); });
         }
-let lastBall = "--";
 
-// 1. ድምፅ መጥሪያ (Voice Caller)
-function speakBall(ball) {
-    if (!ball || ball === "--") return;
-    let synth = window.speechSynthesis;
-    let utterance = new SpeechSynthesisUtterance(ball.replace("-", " "));
-    utterance.lang = 'en-US';
-    utterance.rate = 0.8;
-    synth.speak(utterance);
-}
-
-// 2. ቁጥር ማቅለሚያ (ከ2 ኳስ በላይ የቆየ ቁጥር አይቀለምም)
-function toggleCell(id, num) {
-    fetch(`/get_status?phone=${phone}`).then(r => r.json()).then(d => {
-        // FREE space (0) ሁልጊዜ ይቀለማል
-        if (num !== 0) {
-            let validNums = d.valid_to_mark.map(b => parseInt(b.substring(1)));
-            if (!validNums.includes(num)) {
-                alert("ይህ ቁጥር አልፎበታል! ማቅለም አይችሉም።");
-                return;
-            }
-        }
-        document.getElementById(id).classList.toggle('selected');
-    });
-}
-
-// 3. ኳስ በተለወጠ ቁጥር ድምፅ እንዲያሰማ update() ውስጥ ይግባ
-// (update ፈንክሽንህ ውስጥ ይሄን ጨምር)
-if (d.current_ball !== lastBall) {
-    lastBall = d.current_ball;
-    speakBall(lastBall);
-}
         setInterval(update, 2000);
         update();
     </script>
