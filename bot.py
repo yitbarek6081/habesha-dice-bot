@@ -27,39 +27,31 @@ def send_telegram(text):
     try: requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"})
     except: print("Telegram Error")
 
-# --- WEBHOOK SETTING LOGIC ---
+# --- WEBHOOK SETUP ---
 def set_webhook():
-    # ቦቱ መረጃ የሚልክበትን ትክክለኛ አድራሻ ለቴሌግራም ሰርቨር እናሳውቃለን
     webhook_url = f"{RENDER_URL}/telegram_webhook"
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
     try:
         r = requests.get(url)
-        print(f"Webhook set result: {r.json()}")
-    except:
-        print("Webhook set failed")
+        print(f"Webhook set: {r.json()}")
+    except: print("Webhook failed")
 
-# --- TELEGRAM WEBHOOK ENDPOINT (ይህ ነው ዋናው ለውጥ) ---
 @app.route('/telegram_webhook', methods=['POST'])
 def telegram_webhook():
     data = request.json
     if "message" in data and "text" in data["message"]:
         msg = data["message"]["text"]
         chat_id = str(data["message"]["chat"]["id"])
-        
-        # Admin /add logic (ብር ለመጨመር)
         if chat_id == ADMIN_ID and msg.startswith("/add"):
             try:
                 parts = msg.split()
-                if len(parts) == 3:
-                    target_phone = parts[1]
-                    amount = float(parts[2])
-                    wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
-                    send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-            except Exception as e:
-                send_telegram(f"❌ ስህተት: {str(e)}")
+                target_phone, amount = parts[1], float(parts[2])
+                wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
+                send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
+            except: send_telegram("❌ ስህተት! ፎርማት: `/add phone amount`")
     return "OK", 200
 
-# --- WINNING LOGIC ---
+# --- GAME LOGIC ---
 def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
     drawn_set.add(0) # FREE space
@@ -70,7 +62,6 @@ def is_winner(card, drawn_numbers):
     if all(card[(i+1)*4] in drawn_set for i in range(5)): return True
     return False
 
-# --- GAME LOOP ---
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
@@ -152,7 +143,6 @@ def claim_bingo():
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
 if __name__ == '__main__':
-    # ሰርቨሩ እንደተነሳ ከ5 ሰከንድ በኋላ ዌብሁኩን በራሱ ያስተካክላል
     threading.Timer(5, set_webhook).start() 
     threading.Thread(target=game_loop, daemon=True).start()
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
