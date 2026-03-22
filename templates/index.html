@@ -120,23 +120,25 @@
 
         let currentCardData = null, announced = false, lastBall = "--", isVoiceOn = false;
 
-        // ሞባይል ላይ ድምፅ እንዲነቃ የተስተካከለ toggleVoice
+        // ለስልክ የተስተካከለ ድምፅ መክፈቻ (Unlocker)
         function toggleVoice() {
             isVoiceOn = !isVoiceOn;
             const btn = document.getElementById('voice-btn');
-            if(isVoiceOn && window.speechSynthesis) {
-                btn.innerText = "🔊 VOICE ON"; btn.className = "btn-main btn-voice-on";
-                // ሞባይል ብሮውዘርን ድምፅ እንዲያወጣ "Unlock" እናደርገዋለን
-                let unlockMsg = new SpeechSynthesisUtterance("Voice Enabled");
-                unlockMsg.volume = 0; // መጀመሪያ ድምፅ እንዳይሰማ
-                window.speechSynthesis.speak(unlockMsg);
+            if(isVoiceOn) {
+                btn.innerText = "🔊 VOICE ON"; 
+                btn.className = "btn-main btn-voice-on";
+                // ድምፅ በስልክ እንዲነቃ ባዶ ንግግር "Unlock" እናደርጋለን
+                if ('speechSynthesis' in window) {
+                    let unlockMsg = new SpeechSynthesisUtterance("");
+                    window.speechSynthesis.speak(unlockMsg);
+                }
             } else {
-                btn.innerText = "🔇 VOICE OFF"; btn.className = "btn-main btn-voice-off";
-                window.speechSynthesis.cancel();
+                btn.innerText = "🔇 VOICE OFF"; 
+                btn.className = "btn-main btn-voice-off";
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
             }
         }
 
-        // ለሞባይል የተሻሻለ speak function
         function speak(text) {
             if(!isVoiceOn || !window.speechSynthesis) return;
             window.speechSynthesis.cancel();
@@ -144,13 +146,20 @@
             msg.lang = 'en-US';
             msg.rate = 0.85; 
             msg.pitch = 1.0;
-            msg.volume = 1.0;
             window.speechSynthesis.speak(msg);
         }
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
-        function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
+        function copyNum(n) { 
+            const el = document.createElement('textarea');
+            el.value = n;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            alert("ስልክ ቁጥሩ ተቀድቷል: " + n); 
+        }
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
@@ -158,18 +167,25 @@
                 document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
                 document.getElementById('p-count').innerText = d.active_players;
                 document.getElementById('timer').innerText = d.timer;
+                
                 if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                    document.getElementById('lobby-ui').style.display='block'; 
+                    document.getElementById('game-ui').style.display='none'; 
+                    document.getElementById('result-ui').style.display='none';
+                    document.getElementById('main-board').innerHTML=""; 
+                    document.getElementById('card-area').innerHTML="";
                     currentCardData = null; announced = false; lastBall = "--";
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block';
+                    document.getElementById('lobby-ui').style.display='none'; 
+                    document.getElementById('game-ui').style.display='block';
                     document.getElementById('ball-circle').innerText = d.current_ball;
+                    
                     if (d.current_ball !== lastBall && d.current_ball !== "--") { 
                         speak(d.current_ball.charAt(0) + " " + d.current_ball.substring(1)); 
                         lastBall = d.current_ball; 
                     }
+                    
                     renderMainBoard(d.drawn_balls);
                     if(d.my_cards.length > 0 && !currentCardData) { 
                         currentCardData = d.my_cards; 
@@ -179,81 +195,17 @@
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
                     document.getElementById('winner-info').innerText = d.winner + " 🏆";
-                    if(!announced) { if(isVoiceOn) { document.getElementById('win-horn').play(); speak(`Winner is ${d.winner}`); } announced = true; }
+                    if(!announced) { 
+                        if(isVoiceOn) { document.getElementById('win-horn').play(); speak(`Winner is ${d.winner}`); } 
+                        announced = true; 
+                    }
                 }
             }).catch(() => {});
         }
 
         function renderTickets(sold) {
             const area = document.getElementById('ticket-area');
-            if(area.children.length === 0) { for(let i=1; i<=500; i++) { let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i; area.appendChild(div); } }
-            for(let i=1; i<=500; i++) {
-                let box = document.getElementById('t-'+i);
-                if(sold[i]) { box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold'; box.onclick = (sold[i] === phone) ? () => refund(i) : null; }
-                else { box.className='t-box'; box.onclick=()=>buy(i); }
-            }
-        }
-
-        function buy(n) { 
-            const myCount = document.querySelectorAll('.t-box.mine').length;
-            if (myCount >= 2) return alert("በአንድ ጨዋታ ከ 2 ካርተላ በላይ መግዛት አይቻልም!");
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update); 
-        }
-
-        function refund(n) { if(confirm("መልሰው 10 ብር ይውሰዱ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})}).then(update); }
-        
-        function renderMainBoard(drawn) {
-            const board = document.getElementById('main-board');
-            if(board.children.length === 0) { for(let i=1; i<=75; i++) { let d=document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i; board.appendChild(d); } }
-            drawn.forEach(b => { let num = b.substring(1); let el = document.getElementById('b-'+num); if(el) el.classList.add('active'); });
-        }
-
-        function renderCard(card, cardIdx) {
-            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
-            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
-            const grid = document.createElement('div'); grid.className='bingo-card';
-            card.forEach((n, i) => {
-                const cell=document.createElement('div');
-                if(i === 12) { cell.className="cell free selected"; cell.innerText="FREE"; }
-                else { cell.className="cell"; cell.innerText=n; cell.onclick = () => cell.classList.toggle('selected'); }
-                grid.appendChild(cell);
-            });
-            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
-        }
-
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=>{ if(!d.success) alert(d.msg); }); }
-        
-        function subD() {
-            let amt=document.getElementById('da').value, tid=document.getElementById('di').value;
-            if(!amt || !tid) return alert("መረጃ በትክክል ያስገቡ!");
-            fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
-            closeM('dep-m'); alert("ጥያቄዎ ተልኳል!");
-        }
-
-        function subW() {
-            let amtInput = document.getElementById('wa').value;
-            let amt = parseInt(amtInput);
-            let balEl = document.getElementById('balance');
-            let currentBal = parseFloat(balEl.innerText.replace(/[^0-9.]/g, '')) || 0;
-
-            if(!amtInput || amt < 20) return alert("ቢያንስ 20 ብር ማውጣት ይችላሉ!");
-            if(amt > currentBal) return alert("ሂሳብዎ በቂ አይደለም!");
-
-            let oldBalText = balEl.innerText;
-            balEl.innerText = (currentBal - amt).toFixed(0) + " ETB";
-
-            fetch('/withdraw', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({ phone: phone, amount: amt })
-            }).then(response => {
-                if(response.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); update(); }
-                else { balEl.innerText = oldBalText; alert("አልተሳካም!"); }
-            }).catch(() => { balEl.innerText = oldBalText; alert("ስህተት!"); });
-        }
-
-        setInterval(update, 2000); 
-        update();
-    </script>
-</body>
-</html>
+            if(area.children.length === 0) { 
+                for(let i=1; i<=500; i++) { 
+                    let div=document.createElement('div'); 
+                    div.className='t-box'; div.innerText=i;
