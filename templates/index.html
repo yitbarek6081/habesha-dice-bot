@@ -46,6 +46,7 @@
         <div>PLAYERS<b id="p-count">0</b></div>
         <div>JACKPOT<b id="prize">0 ETB</b></div>
     </div>
+    
     <div id="lobby-ui">
         <div class="action-bar">
             <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
@@ -55,6 +56,7 @@
         <div id="timer">30</div>
         <div class="grid-500" id="ticket-area"></div>
     </div>
+
     <div id="game-ui" style="display:none;">
         <div id="ball-circle">--</div>
         <div class="game-layout">
@@ -145,7 +147,7 @@
                     document.getElementById('winner-info').innerText = d.winner + " 🏆";
                     if(!announced) { if(isVoiceOn) { document.getElementById('win-horn').play(); setTimeout(()=> speak(`Congratulations ${d.winner}!`), 1000); } announced = true; }
                 }
-            });
+            }).catch(e => console.error("Update Error:", e));
         }
 
         function renderTickets(sold) {
@@ -158,12 +160,9 @@
             }
         }
 
-        // ማሻሻያ፡ የ 2 ካርተላ ገደብ ተጨምሯል
         function buy(n) { 
             const myTicketsCount = document.querySelectorAll('.t-box.mine').length;
-            if (myTicketsCount >= 2) { 
-                return alert("በአንድ ጨዋታ ከ 2 ካርተላ በላይ መግዛት አይቻልም!"); 
-            }
+            if (myTicketsCount >= 2) { return alert("በአንድ ጨዋታ ከ 2 ካርተላ በላይ መግዛት አይቻልም!"); }
             fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update); 
         }
 
@@ -197,13 +196,36 @@
             closeM('dep-m'); alert("ጥያቄዎ ተልኳል!");
         }
 
-        // ማሻሻያ፡ የባላንስ ማረጋገጫ ተጨምሯል
+        // --- የተስተካከለ Withdraw ፈንክሽን ---
         function subW() {
-            let amt = parseInt(document.getElementById('wa').value);
-            let currentBal = parseFloat(document.getElementById('balance').innerText);
-            if(!amt || amt < 20) { return alert("ቢያንስ 20 ብር ማውጣት ይችላሉ!"); }
-            if(amt > currentBal) { return alert("ሂሳብዎ በቂ አይደለም! ያለዎት ባላንስ: " + currentBal + " ETB"); }
-            fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt})}).then(()=> { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); });
+            let amtInput = document.getElementById('wa').value;
+            let amt = parseInt(amtInput);
+            
+            // ባላንሱን ከጽሁፉ ውስጥ ቁጥሩን ብቻ ነጥሎ ለማውጣት
+            let balanceText = document.getElementById('balance').innerText; 
+            let currentBal = parseFloat(balanceText.replace(/[^0-9.]/g, '')) || 0;
+
+            if(!amtInput || amt < 20) {
+                return alert("ቢያንስ 20 ብር ማውጣት ይችላሉ!");
+            }
+            if(amt > currentBal) {
+                return alert("ሂሳብዎ በቂ አይደለም! ያለዎት ባላንስ: " + currentBal + " ETB");
+            }
+
+            fetch('/withdraw', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({ phone: phone, amount: amt })
+            }).then(response => {
+                if(response.ok) {
+                    closeM('with-m');
+                    alert("የክፍያ ጥያቄዎ ተልኳል!");
+                } else {
+                    alert("ጥያቄው አልተሳካም። እባክዎ ድጋሚ ይሞክሩ!");
+                }
+            }).catch(err => {
+                alert("ከቦቱ ጋር መገናኘት አልተቻለም!");
+            });
         }
 
         setInterval(update, 2000); 
