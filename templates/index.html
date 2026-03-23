@@ -25,28 +25,8 @@
         .main-board { border: 1px solid #333; height: 380px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: rgba(0,0,0,0.8); border-radius: 10px; }
         .ball-dot { font-size: 0.7rem; background: #111; padding: 5px; color: #444; border-radius: 3px; }
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
-        .bingo-card { 
-    display: grid; 
-    grid-template-columns: repeat(5, 1fr); 
-    gap: 1px;            /* በሳጥኖቹ መካከል ያለውን ክፍተት በጣም ማጥበብ */
-    background: #444; 
-    padding: 1px;        /* የውጭውን ጠርዝ ማሳነስ */
-    
-    /* መጠኑን ለመቀነስ ወሳኝ የሆኑት */
-    width: 100px;        /* ጠቅላላ ስፋቱን ከ 300+ ወደ 220 ዝቅ ማድረግ */
-    margin: 2px auto;    /* መሃል እንዲሆን እና ከላይ ትንሽ ክፍተት እንዲኖረው */
-    border-radius: 2px;
-}
-       /* በካርዱ ውስጥ ያሉትን ሳጥኖች (Cells) ለማሳነስ */
-.bingo-cell {
-    height: 10px;        /* የሳጥኖቹን ቁመት መቀነስ */
-    font-size: 0.6rem;  /* የቁጥሮቹን መጠን ማሳነስ */
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-}
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 2px; }
+        .cell { background: #fff; color: #000; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; }
         .cell.selected { background: var(--gold) !important; border: 2px solid #b45309; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
         #bingo-btn { width: 80%; padding: 8px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 20px; border: 2px solid white; margin: 10px auto; display: block; }
