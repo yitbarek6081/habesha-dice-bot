@@ -19,13 +19,18 @@
 
         .grid-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 5px; max-height: 300px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
         .t-box { background: #fff; color: #000; font-size: 0.8rem; padding: 10px 0; font-weight: bold; border-radius: 5px; cursor: pointer; }
-        .t-box.mine { background: var(--gold); border: 2px solid white; }
+        .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
         .t-box.sold { background: #333; color: #666; cursor: default; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
-        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; overflow-y: auto; align-items: center; justify-content: center; padding: 10px; }
-        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 95%; max-width: 350px; margin: auto; }
+        /* Modal ማስተካከያ - በትንሽ ስልክ እንዳይሸሸግ */
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; overflow-y: auto; align-items: flex-start; justify-content: center; padding: 20px 10px; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 100%; max-width: 350px; margin: 40px auto; position: relative; }
+        
         input { padding: 12px; margin: 8px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; }
 
+        #copy-toast { visibility: hidden; background-color: var(--green); color: #000; text-align: center; border-radius: 20px; padding: 8px 15px; position: fixed; z-index: 3000; top: 20px; left: 50%; transform: translateX(-50%); font-weight: bold; }
+        
         #ball-circle { width: 75px; height: 75px; background: radial-gradient(circle, #fff, var(--gold)); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 900; margin: 15px auto; border: 4px solid #1e293b; }
         .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; }
         .cell { background: #fff; color: #000; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; }
@@ -33,6 +38,7 @@
     </style>
 </head>
 <body>
+    <div id="copy-toast">ቁጥሩ ተቀድቷል! ✅</div>
     <div class="header-banner"><h3>BESH BINGO</h3></div>
     <div class="stats">
         <div>BALANCE<b id="balance">0 ETB</b></div>
@@ -46,6 +52,7 @@
             <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
         </div>
         <div id="timer" style="font-size: 2.5rem; font-weight: 900; color: var(--gold);">30</div>
+        <p style="font-size: 0.7rem; color: #888;">ካርተላ ለመመለስ የገዙትን (ቢጫ) ቁጥር ይንኩ</p>
         <div class="grid-tickets" id="ticket-area"></div>
     </div>
 
@@ -58,20 +65,21 @@
     <div id="dep-m" class="modal">
         <div class="modal-content">
             <h2 style="color:var(--green);">DEPOSIT</h2>
-            <p>Send Telebirr to: <br><b>0945880474</b></p>
-            <input type="number" id="da" placeholder="Amount (ETB)">
+            <p>ቁጥሩን ለመቅዳት ይንኩት፦</p>
+            <div onclick="copyNum('0945880474')" style="background:#000; padding:15px; border-radius:10px; color:var(--gold); font-size:1.4rem; font-weight:bold; cursor:pointer; border:1px dashed var(--gold); margin-bottom:15px;">0945880474</div>
+            <input type="number" id="da" placeholder="መጠን (ETB)">
             <input type="text" id="di" placeholder="Transaction ID">
             <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT REQUEST</button>
-            <button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button>
+            <button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px; cursor:pointer;">CLOSE</button>
         </div>
     </div>
 
     <div id="with-m" class="modal">
         <div class="modal-content">
             <h2 style="color:var(--orange);">WITHDRAW</h2>
-            <input type="number" id="wa" placeholder="Amount (Min 20)">
+            <input type="number" id="wa" placeholder="መጠን (ቢያንስ 20)">
             <button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM WITHDRAW</button>
-            <button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button>
+            <button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px; cursor:pointer;">CLOSE</button>
         </div>
     </div>
 
@@ -83,6 +91,15 @@
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
+
+        // ስልክ ቁጥር ኮፒ ማድረጊያ
+        function copyNum(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                let toast = document.getElementById("copy-toast");
+                toast.style.visibility = "visible";
+                setTimeout(() => { toast.style.visibility = "hidden"; }, 2000);
+            });
+        }
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
@@ -115,17 +132,39 @@
             for(let i=1; i<=200; i++) {
                 let box = document.getElementById('t-'+i);
                 if(sold[i]) {
-                    box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold';
-                    box.onclick = null;
+                    if(sold[i] === phone) {
+                        box.className = 't-box mine';
+                        box.onclick = () => refund(i); // የገዛኸውን ስትነካው እንዲመለስ
+                    } else {
+                        box.className = 't-box sold';
+                        box.onclick = null;
+                    }
                 } else {
                     box.className='t-box'; box.onclick=()=>buy(i);
                 }
             }
         }
 
+        function refund(n) {
+            if(confirm(n + " ቁጥር ካርተላን መልሰው 10 ብር መውሰድ ይፈልጋሉ?")) {
+                fetch('/cancel_ticket', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({phone, ticket_num:n})
+                }).then(r => r.json()).then(d => {
+                    if(d.success) update();
+                    else alert("መመለስ አልተቻለም (ጨዋታ ተጀምሮ ሊሆን ይችላል)!");
+                });
+            }
+        }
+
         function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update); }
         function subD() { fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('da').value, transaction_id:document.getElementById('di').value})}); closeM('dep-m'); alert("ጥያቄ ተልኳል!"); }
-        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(()=> {closeM('with-m'); update();}); }
+        function subW() { 
+            let amt = document.getElementById('wa').value;
+            if(amt < 20) return alert("ዝቅተኛው የማውጫ መጠን 20 ብር ነው!");
+            fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt})}).then(()=> {closeM('with-m'); update();}); 
+        }
         function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=> { if(!d.success) alert(d.msg); }); }
 
         function renderCard(card) {
