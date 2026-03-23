@@ -11,22 +11,24 @@
         .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 10px; margin: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }
         .stats b { display: block; font-size: 1.1rem; color: var(--gold); }
         
-        /* BINGO Title on Ticket */
         .bingo-title { display: grid; grid-template-columns: repeat(5, 1fr); font-weight: 900; font-size: 1.5rem; padding: 10px 0; background: #1e293b; border-radius: 10px 10px 0 0; }
         .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #333; padding: 5px; border-radius: 0 0 10px 10px; }
         .cell { background: #fff; color: #000; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.2rem; border-radius: 4px; }
         .cell.selected { background: var(--gold) !important; color: #000; box-shadow: inset 0 0 8px rgba(0,0,0,0.4); }
 
-        .grid-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(55px, 1fr)); gap: 6px; max-height: 350px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 12px; }
-        .t-box { background: #fff; color: #000; padding: 15px 0; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        /* ትኬቶቹ በ 15% ቀንሰዋል (46px) */
+        .grid-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; max-height: 350px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 12px; }
+        .t-box { background: #fff; color: #000; padding: 12px 0; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
         .t-box.mine { background: var(--gold); animation: pulse 1.5s infinite; border: 2px solid #fff; }
         .t-box.sold { background: #222; color: #555; cursor: not-allowed; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
         
         .btn { padding: 12px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; width: 48%; }
         .btn-dep { background: var(--green); } .btn-with { background: var(--orange); color: #fff; }
+        
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center; }
         .modal-content { background: #1e293b; padding: 25px; border-radius: 20px; width: 85%; }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: none; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -47,10 +49,14 @@
         <div class="grid-tickets" id="ticket-area"></div>
     </div>
 
-    <div id="game-ui" style="display:none; padding: 15px;">
-        <div id="ball-circle" style="width:85px; height:85px; background:radial-gradient(circle, #fff, var(--gold)); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.2rem; font-weight:900; color:#000; margin: 0 auto 20px; border: 5px solid #1e293b;">--</div>
-        <div id="card-area"></div>
-        <button id="bingo-btn" style="width:100%; padding:20px; background:var(--red); color:white; border-radius:15px; font-weight:900; font-size:1.6rem; margin-top:20px; border:none;" onclick="claim()">BINGO!</button>
+    <div id="with-m" class="modal">
+        <div class="modal-content">
+            <h3 style="color:var(--orange)">ገንዘብ ማውጫ</h3>
+            <p>የሚያወጡትን የገንዘብ መጠን ያስገቡ (ቢያንስ 20 ብር)</p>
+            <input type="number" id="wa" placeholder="መጠን (ETB)">
+            <button class="btn btn-with" style="width:100%" onclick="subW()">ጥያቄ ላክ</button>
+            <button onclick="closeM('with-m')" style="margin-top:15px; background:none; color:#888; border:none;">ዝጋ</button>
+        </div>
     </div>
 
     <div id="dep-m" class="modal">
@@ -58,11 +64,17 @@
             <h3 style="color:var(--green)">ገንዘብ ማስገቢያ</h3>
             <p>በዚህ ቁጥር በቴሌብር ይላኩ፦</p>
             <div style="background:#000; padding:15px; color:var(--gold); font-size:1.6rem; font-weight:900; border:2px dashed var(--gold); margin-bottom:15px;">0945880474</div>
-            <input type="number" id="da" placeholder="መጠን (ETB)" style="width:100%; padding:12px; margin-bottom:10px; border-radius:8px; border:none;">
-            <input type="text" id="di" placeholder="Transaction ID" style="width:100%; padding:12px; margin-bottom:10px; border-radius:8px; border:none;">
+            <input type="number" id="da" placeholder="መጠን (ETB)">
+            <input type="text" id="di" placeholder="Transaction ID">
             <button class="btn btn-dep" style="width:100%" onclick="subD()">ጥያቄ ላክ</button>
             <button onclick="closeM('dep-m')" style="margin-top:15px; background:none; color:#888; border:none;">ዝጋ</button>
         </div>
+    </div>
+
+    <div id="game-ui" style="display:none; padding: 15px;">
+        <div id="ball-circle" style="width:85px; height:85px; background:radial-gradient(circle, #fff, var(--gold)); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.2rem; font-weight:900; color:#000; margin: 0 auto 20px; border: 5px solid #1e293b;">--</div>
+        <div id="card-area"></div>
+        <button id="bingo-btn" style="width:100%; padding:20px; background:var(--red); color:white; border-radius:15px; font-weight:900; font-size:1.6rem; margin-top:20px; border:none;" onclick="claim()">BINGO!</button>
     </div>
 
     <script>
@@ -73,6 +85,20 @@
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
+
+        // Withdraw Request Function
+        function subW() {
+            const amount = document.getElementById('wa').value;
+            if(!amount || amount < 20) return alert("እባክዎን ከ 20 ብር በላይ ያስገቡ!");
+            fetch('/withdraw', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone, amount: parseFloat(amount)})
+            }).then(r=>r.json()).then(d=>{
+                if(d.success) { alert("ጥያቄ ተልኳል!"); closeM('with-m'); update(); }
+                else alert(d.msg);
+            });
+        }
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
