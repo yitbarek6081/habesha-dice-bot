@@ -16,7 +16,7 @@
         .btn-deposit { background: var(--green); color: #000; }
         .btn-withdraw { background: var(--orange); color: white; }
         #ball-circle { width: 75px; height: 75px; background: radial-gradient(circle, #fff, var(--gold)); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 900; margin: 15px auto; border: 4px solid #1e293b; box-sizing: border-box; }
-        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 160px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
+        .grid-500 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; max-height: 160px; overflow-y: auto; background: #000; padding: 7px; margin: 10px; border-radius: 7px; }
         .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
         .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
         .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
@@ -29,7 +29,7 @@
         .cell { background: #fff; color: #000; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; }
         .cell.selected { background: var(--gold) !important; border: 2px solid #b45309; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
-        #bingo-btn { width: 90%; padding: 12px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: 2px solid white; margin: 10px auto; display: block; }
+        #bingo-btn { width: 80%; padding: 8px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: 2px solid white; margin: 10px auto; display: block; }
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; }
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; }
@@ -65,7 +65,7 @@
         <div class="modal-content">
             <h2 style="color:var(--orange);">WITHDRAW</h2>
             <input type="number" id="wa" placeholder="Amount (ETB)">
-            <button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM WITHDRAW</button>
+            <button class="btn-main btn-withdraw" style="width:60%" onclick="subW()">CONFIRM WITHDRAW</button>
             <button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px; cursor:pointer;">CLOSE</button>
         </div>
     </div>
@@ -75,7 +75,7 @@
             <p>Send Telebirr to: <br><b style="color:var(--gold); font-size:1.2rem;">0945880474</b></p>
             <input type="number" id="da" placeholder="Amount (ETB)">
             <input type="text" id="di" placeholder="Transaction ID">
-            <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT REQUEST</button>
+            <button class="btn-main btn-deposit" style="width:60%" onclick="subD()">SUBMIT REQUEST</button>
             <button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px; cursor:pointer;">CLOSE</button>
         </div>
     </div>
