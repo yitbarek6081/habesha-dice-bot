@@ -48,14 +48,43 @@ def webhook():
                 send_telegram(f"⚠️ ከ `{parts[1]}` {parts[2]} ETB ተቀንሷል።")
     return "OK", 200
 
+# --- 1. ካርተላ መመለሻ (Refund) ---
+@app.route('/cancel_ticket', methods=['POST'])
+def cancel_ticket():
+    d = request.json
+    ph, t_num = d.get('phone'), str(d.get('ticket_num'))
+    # ጨዋታው ገና በሎቢ ላይ ከሆነ እና ካርተላው የሱ ከሆነ ብቻ ይመልሳል
+    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
+        wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}}) # 10 ብር ይመልሳል
+        game_state["pot"] -= 10
+        del game_state["sold_tickets"][t_num]
+        
+        if ph in game_state["players"]:
+            if len(game_state["players"][ph]["cards"]) > 0:
+                game_state["players"][ph]["cards"].pop() # የመጨረሻውን ካርተላ ያስወግዳል
+            if not game_state["players"][ph]["cards"]:
+                del game_state["players"][ph] # ካርተላ ከሌለው ተጫዋቹን ያስወግዳል
+        return jsonify({"success": True})
+    return jsonify({"success": False, "msg": "መመለስ አይቻልም!"})
+
+# --- 2. የዲፖዚት ጥያቄ መቀበያ ---
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json
+    ph = d.get('phone')
+    amt = d.get('amount')
+    tid = d.get('transaction_id')
+    send_telegram(f"💰 *Deposit Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB\n🆔 TXID: `{tid}`")
+    return jsonify({"success": True})
+
 def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) # FREE space
+    drawn_set.add(0)
     for i in range(5):
-        if all(card[i*5 + j] in drawn_set for j in range(5)): return True # Horizontal
-        if all(card[j*5 + i] in drawn_set for j in range(5)): return True # Vertical
-    if all(card[i*6] in drawn_set for i in range(5)): return True # Diagonal \
-    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True # Diagonal /
+        if all(card[i*5 + j] in drawn_set for j in range(5)): return True 
+        if all(card[j*5 + i] in drawn_set for j in range(5)): return True 
+    if all(card[i*6] in drawn_set for i in range(5)): return True 
+    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True 
     return False
 
 def game_loop():
@@ -105,10 +134,15 @@ def buy_ticket():
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
+# --- 3. የገንዘብ ማውጫ (Min 20 ETB ገደብ ተጨምሮበታል) ---
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     d = request.json
     ph, amt = d.get('phone'), float(d.get('amount'))
+    
+    if amt < 20:
+        return jsonify({"success": False, "msg": "ዝቅተኛው የማውጫ መጠን 20 ብር ነው!"})
+
     res = wallets.find_one_and_update({"phone": ph, "balance": {"$gte": amt}}, {"$inc": {"balance": -amt}}, return_document=ReturnDocument.AFTER)
     if res:
         send_telegram(f"📤 *Withdraw Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB")
