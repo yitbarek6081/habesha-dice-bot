@@ -44,6 +44,14 @@
         .cell.selected { background: var(--gold) !important; border: 1px solid #b45309; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
 
+        /* Winner Overlay */
+        #winner-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9);
+            z-index: 5000; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .congrats-text { font-size: 2.5rem; color: var(--gold); font-weight: 900; animation: bounce 0.5s infinite alternate; }
+        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.1); } }
+
         /* Modals */
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: flex-start; padding-top: 50px; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 12px; width: 85%; max-width: 320px; border: 1px solid var(--gold); }
@@ -54,6 +62,12 @@
 </head>
 <body>
     <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
+
+    <div id="winner-overlay">
+        <div class="congrats-text">🏆 CONGRATS! 🏆</div>
+        <div id="win-name" style="font-size: 2rem; color: white; margin: 15px 0;"></div>
+        <div style="color: var(--green); font-size: 1.2rem;">እንኳን ደስ ያለህ/ሽ!</div>
+    </div>
 
     <div class="header-section">
         <div class="header-banner"><h1>BESH BINGO</h1></div>
@@ -121,7 +135,7 @@
             btn.style.background = isVoiceOn ? "var(--green)" : "#334155";
             if(isVoiceOn) { 
                 let u = new SpeechSynthesisUtterance("Voice On"); 
-                u.volume = 0; 
+                u.volume = 0.5; 
                 window.speechSynthesis.speak(u); 
             }
         }
@@ -149,6 +163,7 @@
                     document.getElementById('lobby-ui').style.display='block';
                     document.getElementById('game-ui').style.display='none';
                     document.getElementById('result-ui').style.display='none';
+                    document.getElementById('winner-overlay').style.display='none';
                     currentCardData = null; announced = false;
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
@@ -166,6 +181,15 @@
                         d.my_cards.forEach((c, i) => renderCard(c, i));
                     }
                 } else if(d.status === "result") {
+                    // አሸናፊውን ለ 3 ሰከንድ አሳይ
+                    if(!announced) {
+                        const overlay = document.getElementById('winner-overlay');
+                        document.getElementById('win-name').innerText = d.winner;
+                        overlay.style.display = 'flex';
+                        document.getElementById('win-horn').play();
+                        announced = true;
+                        setTimeout(() => { overlay.style.display = 'none'; }, 3000);
+                    }
                     document.getElementById('result-ui').style.display='flex';
                     document.getElementById('winner-info').innerText = d.winner + " 🏆";
                 }
@@ -195,11 +219,20 @@
 
         function buy(n) {
             if(document.querySelectorAll('.t-box.mine').length >= 2) return alert("ከ 2 በላይ አይፈቀድም");
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update);
+            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:String(n), username})}).then(update);
         }
 
         function refund(n) {
-            if(confirm("ሰርዝ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})}).then(update);
+            if(confirm("ካርተላ ቁጥር " + n + " ይመለስ?")) {
+                fetch('/cancel_ticket', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({phone: phone, ticket_num: String(n)}) 
+                }).then(r=>r.json()).then(res => {
+                    if(res.success) { alert("ብር ተመልሷል!"); update(); }
+                    else { alert("መመለስ አይቻልም!"); }
+                });
+            }
         }
 
         function renderMainBoard(drawn) {
@@ -211,6 +244,7 @@
                     board.appendChild(d);
                 }
             }
+            document.querySelectorAll('.ball-dot').forEach(el => el.classList.remove('active'));
             drawn.forEach(b => {
                 let num = b.substring(1);
                 let el = document.getElementById('b-'+num);
