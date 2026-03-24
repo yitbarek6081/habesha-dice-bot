@@ -66,6 +66,7 @@ def game_loop():
                 if game_state["status"] != "lobby": break
                 game_state["timer"] = i
                 time.sleep(1)
+            
             if len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -75,7 +76,8 @@ def game_loop():
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
                     time.sleep(5)
-            else: game_state["timer"] = 30
+            else: 
+                game_state["timer"] = 30 # ተጫዋች ካልሞላ እንደገና ቆጠራ ይጀምራል
         time.sleep(1)
 
 @app.route('/')
@@ -132,9 +134,14 @@ def claim_bingo():
         wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
         game_state["winner"], game_state["status"] = p_data["username"], "result"
         send_telegram(f"🏆 *Winner!* \n👤 {p_data['username']} \n💰 {win_amt} ETB")
+        
+        # --- RESET LOGIC (5 SECONDS) ---
         def reset():
-            time.sleep(10)
-            game_state.update({"status": "lobby", "winner": None, "pot": 0, "players": {}, "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30})
+            time.sleep(5) # ውጤቱ ለ 5 ሰከንድ ብቻ ይታያል
+            game_state.update({
+                "status": "lobby", "winner": None, "pot": 0, "players": {}, 
+                "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
+            })
         threading.Thread(target=reset).start()
         return jsonify({"success": True})
     return jsonify({"success": False})
