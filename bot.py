@@ -107,7 +107,7 @@ def buy_ticket():
         if ph not in game_state["players"]: game_state["players"][ph] = {"cards": [flat], "username": uname}
         else: game_state["players"][ph]["cards"].append(flat)
         return jsonify({"success": True})
-    return jsonify({"success": False, "msg": "No balance!"})
+    return jsonify({"success": False})
 
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
@@ -122,23 +122,6 @@ def cancel_ticket():
             else: del game_state["players"][ph]
         return jsonify({"success": True})
     return jsonify({"success": False})
-
-@app.route('/withdraw', methods=['POST'])
-def withdraw():
-    d = request.json
-    ph, amt = d.get('phone'), float(d.get('amount'))
-    if amt < 20: return jsonify({"success": False})
-    res = wallets.find_one_and_update({"phone": ph, "balance": {"$gte": amt}}, {"$inc": {"balance": -amt}}, return_document=ReturnDocument.AFTER)
-    if res:
-        send_telegram(f"📤 *Withdraw Request*\n📞 `{ph}`\n💵 `{amt}` ETB")
-        return jsonify({"success": True})
-    return jsonify({"success": False})
-
-@app.route('/request_deposit', methods=['POST'])
-def request_deposit():
-    d = request.json
-    send_telegram(f"📥 *Deposit*\n📞 `{d.get('phone')}`\n💵 `{d.get('amount')}`\n🆔 `{d.get('transaction_id')}`")
-    return jsonify({"success": True})
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
@@ -155,6 +138,22 @@ def claim_bingo():
         threading.Thread(target=reset).start()
         return jsonify({"success": True})
     return jsonify({"success": False})
+
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
+    d = request.json
+    ph, amt = d.get('phone'), float(d.get('amount'))
+    res = wallets.find_one_and_update({"phone": ph, "balance": {"$gte": amt}}, {"$inc": {"balance": -amt}}, return_document=ReturnDocument.AFTER)
+    if res:
+        send_telegram(f"📤 *Withdraw Request*\n📞 `{ph}`\n💵 `{amt}` ETB")
+        return jsonify({"success": True})
+    return jsonify({"success": False})
+
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json
+    send_telegram(f"📥 *Deposit*\n📞 `{d.get('phone')}`\n💵 `{d.get('amount')}`\n🆔 `{d.get('transaction_id')}`")
+    return jsonify({"success": True})
 
 if __name__ == '__main__':
     threading.Timer(5, set_webhook).start()
