@@ -3,56 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BESH BINGO - PREMIUM</title>
+    <title>HABESHA BINGO</title>
     <style>
-        :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
-        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; }
-        .header-section { position: sticky; top: 0; z-index: 1000; background: var(--bg); border-bottom: 2px solid var(--gold); }
-        .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 8px; margin: 5px 10px; border-radius: 10px; }
+        :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; }
+        body { 
+            background: var(--bg); color: white; font-family: sans-serif; text-align: center; 
+            margin: 0; padding: 0; touch-action: manipulation; width: 100vw; overflow-x: hidden;
+        }
+        .header { position: sticky; top: 0; z-index: 1000; background: var(--bg); border-bottom: 2px solid var(--gold); padding: 5px 0; }
+        .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 8px; margin: 5px; border-radius: 10px; font-size: 0.8rem; }
         .stats b { display: block; font-size: 1rem; color: var(--gold); }
-        .action-bar { display: flex; justify-content: center; gap: 5px; padding: 5px 10px; }
-        .btn-main { flex: 1; padding: 10px 2px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; font-size: 0.7rem; }
-        .btn-deposit { background: var(--green); color: #000; }
-        .btn-withdraw { background: var(--orange); color: white; }
-        .btn-voice { background: #334155; color: white; }
-        #timer { font-size: 2.2rem; font-weight: 900; color: var(--gold); margin: 5px 0; }
-        .grid-500 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; max-height: 250px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 8px; }
-        .t-box { background: #fff; color: #000; font-size: 0.85rem; padding: 10px 0; font-weight: bold; border-radius: 4px; }
-        .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
-        .t-box.sold { background: #222; color: #555; }
-        .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; padding: 10px; }
-        .main-board { border: 1px solid #333; height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #000; }
-        .ball-dot { font-size: 0.7rem; background: #111; padding: 5px; color: #444; border-radius: 3px; }
-        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 3px; }
-        .cell { background: #fff; color: #000; height: 35px; display: flex; align-items: center; justify-content: center; font-weight: 900; }
-        .cell.selected { background: var(--gold) !important; }
+        .btn-main { padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1; margin: 0 2px; }
+        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); margin: 10px 0; }
+        .grid-500 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; height: 300px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 8px; }
+        .t-box { background: #fff; color: #000; font-size: 0.9rem; padding: 12px 0; font-weight: bold; border-radius: 4px; }
+        .t-box.mine { background: var(--gold); border: 2px solid #fff; animation: pulse 1s infinite; }
+        .t-box.sold { background: #333; color: #777; pointer-events: none; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; background: #444; padding: 5px; border-radius: 5px; margin-bottom: 10px; }
+        .cell { 
+            background: #fff; color: #000; height: 45px; display: flex; align-items: center; 
+            justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 3px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .cell.selected { background: var(--gold) !important; color: #000; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
-        #winner-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 5000; flex-direction: column; justify-content: center; align-items: center; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: flex-start; padding-top: 50px; }
-        .modal-content { background: #1e293b; padding: 20px; border-radius: 12px; width: 85%; max-width: 320px; border: 1px solid var(--gold); }
-        input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; background: #111; padding: 5px; height: 200px; overflow-y: auto; }
+        .ball-dot { font-size: 0.7rem; padding: 5px; color: #444; border: 1px solid #222; }
+        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 12px; width: 85%; }
+        input { padding: 12px; margin: 10px 0; width: 90%; border-radius: 8px; border: none; }
+        #winner-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 5000; flex-direction: column; justify-content: center; align-items: center; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.95); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
-    <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
+    <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
     <div id="winner-overlay">
-        <div style="font-size:2.5rem; color:var(--gold); font-weight:900;">🏆 CONGRATS! 🏆</div>
-        <div id="win-name" style="font-size:2rem; color:white; margin:15px 0;"></div>
+        <h1 style="color:var(--gold); font-size: 3rem;">🏆 BINGO!</h1>
+        <h2 id="win-name" style="font-size: 2rem;"></h2>
     </div>
 
-    <div class="header-section">
-        <div style="padding:10px 0;"><h1 style="color:var(--gold); margin:0;">BESH BINGO</h1></div>
+    <div class="header">
+        <h2 style="margin: 5px; color: var(--gold);">HABESHA BINGO</h2>
         <div class="stats">
-            <div>BALANCE<b id="balance">0 ETB</b></div>
+            <div>BALANCE<b id="balance">0</b></div>
             <div>PLAYERS<b id="p-count">0</b></div>
-            <div>JACKPOT<b id="prize">0 ETB</b></div>
+            <div>PRIZE<b id="prize">0</b></div>
         </div>
-        <div class="action-bar">
-            <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
-            <button id="voice-btn" class="btn-main btn-voice" onclick="toggleVoice()">🔇 VOICE OFF</button>
-            <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
+        <div style="display: flex; padding: 0 10px;">
+            <button class="btn-main" style="background:var(--green);" onclick="openM('dep-m')">DEPOSIT</button>
+            <button class="btn-main" style="background:#444; color:#fff;" onclick="toggleVoice()" id="v-btn">🔇 VOICE OFF</button>
+            <button class="btn-main" style="background:orange;" onclick="openM('with-m')">WITHDRAW</button>
         </div>
     </div>
 
@@ -61,46 +63,49 @@
         <div class="grid-500" id="ticket-area"></div>
     </div>
 
-    <div id="game-ui" style="display:none;">
-        <div id="ball-circle" style="width:70px; height:70px; background:radial-gradient(circle, #fff, var(--gold)); color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; font-weight:900; margin:10px auto;">--</div>
-        <div class="game-layout">
-            <div class="main-board" id="main-board"></div>
-            <div>
-                <div id="card-area"></div>
-                <button onclick="claim()" style="width:100%; padding:10px; background:var(--red); color:white; font-weight:900; border:none; margin-top:10px;">BINGO!</button>
-            </div>
-        </div>
+    <div id="game-ui" style="display:none; padding: 10px;">
+        <div id="ball-circle" style="width:80px; height:80px; background:#fff; color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:900; margin:10px auto; border: 5px solid var(--gold);">--</div>
+        <div class="main-board" id="main-board"></div>
+        <hr border="1" color="#222">
+        <div id="card-area"></div>
+        <button onclick="claim()" style="width:100%; padding:15px; background:var(--red); color:white; font-weight:900; border:none; border-radius:10px; font-size:1.5rem;">BINGO!</button>
     </div>
 
     <div id="dep-m" class="modal"><div class="modal-content">
-        <h2 style="color:var(--green);">DEPOSIT</h2>
+        <h3>DEPOSIT</h3>
         <input type="number" id="da" placeholder="Amount">
         <input type="text" id="di" placeholder="Transaction ID">
-        <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button>
-        <button onclick="closeM('dep-m')" style="color:#888; background:none; border:none;">CLOSE</button>
+        <button onclick="subD()" class="btn-main" style="background:var(--green); width:100%;">SUBMIT</button>
+        <button onclick="closeM('dep-m')" style="background:none; color:#888; border:none; margin-top:10px;">CLOSE</button>
     </div></div>
 
     <div id="with-m" class="modal"><div class="modal-content">
-        <h2 style="color:var(--orange);">WITHDRAW</h2>
+        <h3>WITHDRAW</h3>
         <input type="number" id="wa" placeholder="Amount">
-        <button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button>
-        <button onclick="closeM('with-m')" style="color:#888; background:none; border:none;">CLOSE</button>
+        <button onclick="subW()" class="btn-main" style="background:orange; width:100%;">CONFIRM</button>
+        <button onclick="closeM('with-m')" style="background:none; color:#888; border:none; margin-top:10px;">CLOSE</button>
     </div></div>
 
     <script>
-        let phone = localStorage.getItem('phone') || prompt("ስልክ ያስገቡ:");
-        let username = localStorage.getItem('username') || prompt("ስም ያስገቡ:");
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር:");
+        let username = localStorage.getItem('username') || prompt("ስም:");
         localStorage.setItem('phone', phone); localStorage.setItem('username', username);
 
-        let announced = false, isVoiceOn = false, lastBall = "--";
+        let isVoice = false, lastBall = "--", announced = false;
 
-        function toggleVoice() {
-            isVoiceOn = !isVoiceOn;
-            document.getElementById('voice-btn').innerText = isVoiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
+        function saveMarks() {
+            let marks = [];
+            document.querySelectorAll('.cell.selected').forEach(c => marks.push(c.id));
+            localStorage.setItem('marks', JSON.stringify(marks));
         }
 
-        function speak(t) { if(isVoiceOn) { let m = new SpeechSynthesisUtterance(t); window.speechSynthesis.speak(m); } }
+        function loadMarks() {
+            let marks = JSON.parse(localStorage.getItem('marks') || "[]");
+            marks.forEach(id => { let el = document.getElementById(id); if(el) el.classList.add('selected'); });
+        }
 
+        function toggleVoice() { isVoice = !isVoice; document.getElementById('v-btn').innerText = isVoice ? "🔊 VOICE ON" : "🔇 VOICE OFF"; }
+        function speak(t) { if(isVoice) { let s = new SpeechSynthesisUtterance(t); s.lang = 'en-US'; window.speechSynthesis.speak(s); } }
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
 
@@ -115,6 +120,8 @@
                     document.getElementById('lobby-ui').style.display='block';
                     document.getElementById('game-ui').style.display='none';
                     document.getElementById('winner-overlay').style.display='none';
+                    localStorage.removeItem('marks'); 
+                    document.getElementById('card-area').innerHTML = "";
                     announced = false; renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display='none';
@@ -123,14 +130,14 @@
                     if(d.current_ball !== lastBall) { speak(d.current_ball); lastBall = d.current_ball; }
                     renderMainBoard(d.drawn_balls);
                     if(d.my_cards.length > 0 && document.getElementById('card-area').children.length === 0) {
-                        d.my_cards.forEach(c => renderCard(c));
+                        d.my_cards.forEach((c, i) => renderCard(c, i));
+                        loadMarks();
                     }
                 } else if(d.status === "result" && !announced) {
                     document.getElementById('win-name').innerText = d.winner;
                     document.getElementById('winner-overlay').style.display='flex';
                     document.getElementById('win-horn').play();
                     announced = true;
-                    setTimeout(() => { document.getElementById('winner-overlay').style.display='none'; }, 3000);
                 }
             });
         }
@@ -139,50 +146,53 @@
             const area = document.getElementById('ticket-area');
             if(area.children.length === 0) {
                 for(let i=1; i<=500; i++) {
-                    let div = document.createElement('div');
-                    div.className = 't-box'; div.innerText = i; div.id = 't-'+i;
-                    area.appendChild(div);
+                    let b = document.createElement('div'); b.className='t-box'; b.id='t-'+i; b.innerText=i;
+                    area.appendChild(b);
                 }
             }
             for(let i=1; i<=500; i++) {
-                let box = document.getElementById('t-'+i);
-                if(sold[i]) {
-                    box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold';
-                    box.onclick = (sold[i] === phone) ? () => refund(i) : null;
+                let b = document.getElementById('t-'+i);
+                let owner = sold[String(i)];
+                if(owner) {
+                    b.className = (owner === phone) ? 't-box mine' : 't-box sold';
+                    b.onclick = (owner === phone) ? () => refund(i) : null;
                 } else {
-                    box.className = 't-box'; box.onclick = () => buy(i);
+                    b.className = 't-box'; b.onclick = () => buy(i);
                 }
             }
         }
 
         function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:String(n), username})}).then(update); }
-        function refund(n) { if(confirm("መመለስ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:String(n)})}).then(update); }
+        function refund(n) { if(confirm("መመለስ ይፈልጋሉ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:String(n)})}).then(update); }
 
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
             if(board.children.length === 0) {
                 for(let i=1; i<=75; i++) {
-                    let d = document.createElement('div'); d.className = 'ball-dot'; d.id = 'b-'+i; d.innerText = i; board.appendChild(d);
+                    let d = document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i; board.appendChild(d);
                 }
             }
             drawn.forEach(b => { let el = document.getElementById('b-'+b.substring(1)); if(el) el.classList.add('active'); });
         }
 
-        function renderCard(card) {
+        function renderCard(card, cardIdx) {
             const grid = document.createElement('div'); grid.className = 'bingo-card';
             card.forEach((n, i) => {
                 const cell = document.createElement('div');
+                cell.id = `c-${cardIdx}-${i}`;
                 cell.className = (i === 12) ? "cell free selected" : "cell";
                 cell.innerText = (i === 12) ? "FREE" : n;
-                cell.onclick = () => cell.classList.toggle('selected');
+                cell.onclick = () => { 
+                    if(i!==12) { cell.classList.toggle('selected'); saveMarks(); }
+                };
                 grid.appendChild(cell);
             });
             document.getElementById('card-area').appendChild(grid);
         }
 
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=> { if(!d.success) alert("አልሞላም!"); }); }
+        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=>{ if(!d.success) alert("ቢንጎ አልሞላም!"); }); }
         function subD() { fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('da').value, transaction_id:document.getElementById('di').value})}); closeM('dep-m'); alert("ተልኳል!"); }
-        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(() => { closeM('with-m'); alert("ተልኳል!"); }); }
+        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(()=> { closeM('with-m'); alert("ተልኳል!"); }); }
 
         setInterval(update, 2000); update();
     </script>
