@@ -26,7 +26,7 @@
         }
         .t-box { 
             flex: 0 0 18%; background: #fff; color: #000; font-size: 0.9rem; padding: 12px 0; 
-            font-weight: bold; border-radius: 6px; text-align: center;
+            font-weight: bold; border-radius: 6px; text-align: center; cursor: pointer;
         }
         .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
         .t-box.sold { background: #222; color: #555; pointer-events: none; }
@@ -36,7 +36,6 @@
         .ball-dot { font-size: 0.7rem; background: #111; padding: 5px; color: #444; border-radius: 3px; border: 1px solid #222; }
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
 
-        /* ቢንጎ ካርድ ማሻሻያ */
         .card-container { margin-bottom: 15px; }
         .card-header-letters { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-bottom: 2px; }
         .letter { background: var(--gold); color: #000; font-weight: 900; padding: 5px 0; border-radius: 3px; font-size: 0.9rem; }
@@ -61,6 +60,7 @@
 </head>
 <body>
     <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
+    
     <div id="winner-overlay">
         <div style="font-size:3rem; color:var(--gold); font-weight:900;">🏆 BINGO! 🏆</div>
         <div id="win-name" style="font-size:2rem; color:white; margin:15px 0;"></div>
@@ -137,8 +137,7 @@
         function speak(t) { 
             if(isVoiceOn) { 
                 let m = new SpeechSynthesisUtterance(t); 
-                m.lang = 'en-US'; 
-                m.rate = 0.9;
+                m.lang = 'en-US'; m.rate = 0.9;
                 window.speechSynthesis.speak(m); 
             } 
         }
@@ -206,8 +205,33 @@
             }
         }
 
-        function buy(n) { fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:String(n), username})}).then(update); }
-        function refund(n) { if(confirm("ቲኬቱን መመለስ ይፈልጋሉ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:String(n)})}).then(update); }
+        function buy(n) { 
+            fetch('/buy_specific_ticket', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone, ticket_num:String(n), username})
+            }).then(update); 
+        }
+
+        // --- የተስተካከለው የ Refund Function ---
+        function refund(n) { 
+            if(confirm(n + " ቁጥር ቲኬትን መመለስ ይፈልጋሉ?")) {
+                fetch('/cancel_ticket', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({phone, ticket_num:String(n)})
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.success) {
+                        alert("ተመልሷል! 10 ብር ወደ ባላንስዎ ተጨምሯል።");
+                        update(); 
+                    } else {
+                        alert("ስህተት: " + (d.msg || "መመለስ አልተቻለም"));
+                    }
+                });
+            }
+        }
 
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
@@ -226,15 +250,12 @@
         function renderCard(card, cardIdx) {
             const container = document.createElement('div');
             container.className = 'card-container';
-
-            // BINGO Header ፊደላት
             const header = document.createElement('div');
             header.className = 'card-header-letters';
             ['B', 'I', 'N', 'G', 'O'].forEach(l => {
                 let d = document.createElement('div'); d.className = 'letter'; d.innerText = l; header.appendChild(d);
             });
             container.appendChild(header);
-
             const grid = document.createElement('div'); 
             grid.className = 'bingo-card';
             card.forEach((n, i) => {
@@ -249,9 +270,9 @@
             document.getElementById('card-area').appendChild(container);
         }
 
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=> { if(!d.success) alert("ቢንጎ አልሞላም! እባክዎ በትክክል ምልክት ማድረጉን ያረጋግጡ።"); }); }
-        function subD() { fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('da').value, transaction_id:document.getElementById('di').value})}).then(()=> { closeM('dep-m'); alert("ጥያቄው ተልኳል! አድሚኑ ሲያረጋግጥ ብር ይጨመራል።"); }); }
-        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(r=>r.json()).then(d => { if(d.success){ closeM('with-m'); alert("የማውጣት ጥያቄ ተልኳል!"); } else { alert("በቂ ብር የለዎትም!"); } }); }
+        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=> { if(!d.success) alert("ቢንጎ አልሞላም!"); }); }
+        function subD() { fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('da').value, transaction_id:document.getElementById('di').value})}).then(()=> { closeM('dep-m'); alert("ጥያቄው ተልኳል!"); }); }
+        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(r=>r.json()).then(d => { if(d.success){ closeM('with-m'); alert("ጥያቄ ተልኳል!"); } else { alert("በቂ ብር የለዎትም!"); } }); }
 
         setInterval(update, 2000); update();
     </script>
