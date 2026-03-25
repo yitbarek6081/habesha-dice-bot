@@ -96,13 +96,23 @@
         </div>
     </div>
 
-    <div id="dep-m" class="modal"><div class="modal-content">
+    <div id="dep-m" class="modal">
+    <div class="modal-content">
         <h2 style="color:var(--green); margin-top:0;">DEPOSIT</h2>
-        <input type="number" id="da" placeholder="Amount (ETB)">
-        <input type="text" id="di" placeholder="Transaction ID">
-        <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button>
-        <button onclick="closeM('dep-m')" style="color:#888; background:none; border:none; margin-top:10px;">CLOSE</button>
-    </div></div>
+        
+        <div onclick="copyNumber('0945008474')" style="background:rgba(0,0,0,0.3); padding:5px; border-radius:5px; border:1px dashed var(--gold); margin-bottom:5px; cursor:pointer; position:relative;">
+            <small style="color:#aaa; display:block; margin-bottom:2px;">ለመቅዳት ቁጥሩን ይንኩት (Click to Copy)</small>
+            <strong style="font-size:1rem; color:var(--gold); letter-spacing:1px;">0945008474</strong>
+            <span style="display:block; font-size:0.7rem; color:var(--green); margin-top:5px;">📋 ይጫኑት</span>
+        </div>
+
+        <input type="number" id="da" placeholder="የብር መጠን (Amount)">
+        <input type="text" id="di" placeholder="የግብይት መታወቂያ (Transaction ID)">
+        
+        <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">ጥያቄ ላክ (SUBMIT)</button>
+        <button onclick="closeM('dep-m')" style="color:#888; background:none; border:none; margin-top:15px; cursor:pointer;">ዝጋ (CLOSE)</button>
+    </div>
+</div>
 
     <div id="with-m" class="modal"><div class="modal-content">
         <h2 style="color:var(--orange); margin-top:0;">WITHDRAW</h2>
