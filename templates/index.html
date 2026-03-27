@@ -5,73 +5,157 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BESH BINGO - PREMIUM</title>
     <style>
-        :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; touch-action: manipulation; }
+        :root { 
+            --gold: #ffcc00; 
+            --bg: #050a18; 
+            --red: #ff3e3e; 
+            --green: #00ff88; 
+            --orange: #ff8800; 
+            --glass: rgba(255, 255, 255, 0.07);
+        }
         
-        .header-section { position: sticky; top: 0; z-index: 1000; background: var(--bg); border-bottom: 2px solid var(--gold); }
-        .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 8px; margin: 5px 10px; border-radius: 10px; }
-        .stats b { display: block; font-size: 1rem; color: var(--gold); }
-        .action-bar { display: flex; justify-content: center; gap: 5px; padding: 5px 10px; }
-        .btn-main { flex: 1; padding: 12px 2px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; font-size: 0.75rem; }
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { 
+            background: var(--bg); 
+            color: white; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            text-align: center; 
+            margin: 0; padding: 0; 
+            overflow-x: hidden; 
+            width: 100vw; 
+            touch-action: manipulation; 
+        }
+
+        /* --- UI Components --- */
+        .header-section { 
+            position: sticky; top: 0; z-index: 1000; 
+            background: rgba(5, 10, 24, 0.9); 
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid var(--gold); 
+        }
+
+        .stats { 
+            display: flex; justify-content: space-around; 
+            background: var(--glass); 
+            padding: 10px; margin: 5px 10px; 
+            border-radius: 12px; 
+        }
+        .stats div { font-size: 0.7rem; color: #aaa; }
+        .stats b { display: block; font-size: 1.1rem; color: var(--gold); }
+        
+        #prize { 
+            color: var(--green); 
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+            animation: pulse-green 2s infinite;
+        }
+
+        .action-bar { display: flex; justify-content: center; gap: 8px; padding: 5px 10px; }
+        .btn-main { 
+            flex: 1; padding: 12px 2px; border: none; border-radius: 8px; 
+            font-weight: 900; cursor: pointer; font-size: 0.75rem; 
+            transition: transform 0.1s;
+        }
+        .btn-main:active { transform: scale(0.95); }
         .btn-deposit { background: var(--green); color: #000; }
         .btn-withdraw { background: var(--orange); color: white; }
         .btn-voice { background: #334155; color: white; }
-        
-        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); margin: 5px 0; }
 
+        /* --- Lobby Grid --- */
+        #timer { font-size: 3rem; font-weight: 900; color: var(--gold); margin: 5px 0; font-variant-numeric: tabular-nums; }
         .grid-500 { 
-            display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; 
-            max-height: 280px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 8px; 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 8px; 
+            max-height: 40vh; 
+            overflow-y: auto; 
+            background: #000; 
+            padding: 12px; margin: 10px; 
+            border-radius: 12px; 
+            border: 1px solid #222;
         }
         .t-box { 
-            flex: 0 0 18%; background: #fff; color: #000; font-size: 0.9rem; padding: 12px 0; 
-            font-weight: bold; border-radius: 6px; text-align: center; cursor: pointer;
+            background: #fff; color: #000; font-size: 1rem; padding: 15px 0; 
+            font-weight: bold; border-radius: 8px; cursor: pointer;
+            transition: all 0.2s;
         }
         .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
-        .t-box.sold { background: #222; color: #555; pointer-events: none; }
+        .t-box.sold { background: #222; color: #555; pointer-events: none; opacity: 0.5; }
 
-        .game-layout { display: grid; grid-template-columns: 1fr 2.5fr; gap: 8px; padding: 10px; }
-        .main-board { border: 1px solid #333; height: 350px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; background: #000; }
-        .ball-dot { font-size: 0.7rem; background: #111; padding: 5px; color: #444; border-radius: 3px; border: 1px solid #222; }
-        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
+        /* --- Game Play UI --- */
+        #ball-circle { 
+            width: 80px; height: 80px; 
+            background: radial-gradient(circle at 30% 30%, #fff, var(--gold)); 
+            color: #000; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 2.2rem; font-weight: 900; 
+            margin: 15px auto; border: 4px solid #fff;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
 
-        .card-container { margin-bottom: 15px; }
-        .card-header-letters { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin-bottom: 2px; }
-        .letter { background: var(--gold); color: #000; font-weight: 900; padding: 5px 0; border-radius: 3px; font-size: 0.9rem; }
-        .bingo-card { display: flex; flex-wrap: wrap; gap: 3px; background: #444; padding: 2px; border-radius: 3px; }
+        .game-layout { display: grid; grid-template-columns: 1fr 2.5fr; gap: 10px; padding: 10px; }
+        .main-board { 
+            border: 1px solid #333; height: 400px; overflow-y: auto; 
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; 
+            padding: 8px; background: #000; border-radius: 8px;
+        }
+        .ball-dot { 
+            font-size: 0.8rem; background: #111; padding: 6px; 
+            color: #444; border-radius: 4px; border: 1px solid #222; 
+        }
+        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; transform: scale(1.05); }
+
+        /* --- Bingo Card --- */
+        .card-container { margin-bottom: 20px; animation: slideIn 0.3s ease-out; }
+        .card-header-letters { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-bottom: 4px; }
+        .letter { background: var(--gold); color: #000; font-weight: 900; padding: 6px 0; border-radius: 4px; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #334155; padding: 4px; border-radius: 6px; }
         .cell { 
-            flex: 0 0 18.5%; background: #fff; color: #000; height: 35px; display: flex; 
-            align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; border-radius: 3px;
+            background: #fff; color: #000; aspect-ratio: 1/1; 
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: 900; font-size: 1.2rem; border-radius: 4px;
         }
-        .cell.selected { background: var(--gold) !important; box-shadow: inset 0 0 8px rgba(0,0,0,0.4); }
-        .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
+        .cell.selected { background: var(--gold) !important; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transform: scale(0.95); }
+        .cell.free { background: var(--red) !important; color: white; font-size: 0.7rem; }
 
+        /* --- Modals & Overlays --- */
         .modal { 
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); 
-            z-index: 5000; align-items: flex-start; justify-content: center; padding-top: 15vh;
+            display: none; position: fixed; inset: 0; 
+            background: rgba(0,0,0,0.9); z-index: 5000; 
+            align-items: center; justify-content: center; 
         }
-        .modal-content { background: #1e293b; padding: 25px; border-radius: 20px; width: 85%; max-width: 340px; border: 2px solid var(--gold); }
+        .modal-content { 
+            background: #1e293b; padding: 30px; border-radius: 24px; 
+            width: 90%; max-width: 350px; border: 1px solid var(--gold); 
+        }
         
-        input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; font-size: 16px; }
-        #winner-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        #winner-overlay { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(0,0,0,0.95); z-index: 9999; 
+            flex-direction: column; justify-content: center; align-items: center; 
+        }
+
+        /* --- Animations --- */
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        @keyframes pulse-green { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
     <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
+    <audio id="click-sound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
     
     <div id="winner-overlay">
-        <div style="font-size:3rem; color:var(--gold); font-weight:900;">🏆 BINGO! 🏆</div>
-        <div id="win-name" style="font-size:2rem; color:white; margin:15px 0;"></div>
+        <div style="font-size:3.5rem; color:var(--gold); font-weight:900;">🏆 BINGO! 🏆</div>
+        <div id="win-name" style="font-size:2rem; color:white; margin:20px 0; text-transform: uppercase;"></div>
+        <button onclick="document.getElementById('winner-overlay').style.display='none'" style="padding:10px 30px; border-radius:20px; border:none; background:var(--gold); font-weight:bold;">ቆንጆ!</button>
     </div>
 
     <div class="header-section">
-        <div style="padding:10px 0;"><h2 style="color:var(--gold); margin:0;">BESH BINGO</h2></div>
+        <div style="padding:12px 0;"><h2 style="color:var(--gold); margin:0; letter-spacing: 2px;">BESH BINGO</h2></div>
         <div class="stats">
-            <div>BALANCE<b id="balance">0 ETB</b></div>
-            <div>PLAYERS<b id="p-count">0</b></div>
-            <div>JACKPOT<b id="prize">0 ETB</b></div>
+            <div>ቀሪ ሂሳብ<b id="balance">0 ETB</b></div>
+            <div>ተጫዋቾች<b id="p-count">0</b></div>
+            <div>ትልቅ ሽልማት<b id="prize">0 ETB</b></div>
         </div>
         <div class="action-bar">
             <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
@@ -81,42 +165,57 @@
     </div>
 
     <div id="lobby-ui">
-        <div id="timer">30</div>
+        <div id="timer">--</div>
+        <div style="color: #888; font-size: 0.8rem; margin-bottom: 5px;">ቁጥር ይምረጡ (10 ETB)</div>
         <div class="grid-500" id="ticket-area"></div>
     </div>
 
     <div id="game-ui" style="display:none;">
-        <div id="ball-circle" style="width:75px; height:75px; background:radial-gradient(circle, #fff, var(--gold)); color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:900; margin:10px auto; border:3px solid #fff;">--</div>
+        <div id="ball-circle">--</div>
         <div class="game-layout">
             <div class="main-board" id="main-board"></div>
             <div>
                 <div id="card-area"></div>
-                <button onclick="claim()" style="width:100%; padding:15px; background:var(--red); color:white; font-weight:900; border:none; border-radius:10px; font-size:1.2rem; margin-top:5px;">BINGO!</button>
+                <button onclick="claim()" style="width:100%; padding:18px; background:var(--red); color:white; font-weight:900; border:none; border-radius:12px; font-size:1.4rem; margin-top:10px; box-shadow: 0 4px 15px rgba(255, 62, 62, 0.4);">BINGO!</button>
             </div>
         </div>
     </div>
 
     <div id="dep-m" class="modal"><div class="modal-content">
         <h2 style="color:var(--green); margin-top:0;">DEPOSIT</h2>
-        <input type="number" id="da" placeholder="Amount (ETB)">
-        <input type="text" id="di" placeholder="Transaction ID">
-        <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button>
-        <button onclick="closeM('dep-m')" style="color:#888; background:none; border:none; margin-top:10px;">CLOSE</button>
+        <input type="number" id="da" placeholder="መጠን (ETB)">
+        <input type="text" id="di" placeholder="ትራንዛክሽን ቁጥር (Transaction ID)">
+        <button class="btn-main btn-deposit" style="width:100%; font-size:1rem;" onclick="subD()">ጥያቄ ላክ</button>
+        <button onclick="closeM('dep-m')" style="color:#888; background:none; border:none; margin-top:15px; width:100%;">ተመለስ</button>
     </div></div>
 
     <div id="with-m" class="modal"><div class="modal-content">
         <h2 style="color:var(--orange); margin-top:0;">WITHDRAW</h2>
-        <input type="number" id="wa" placeholder="Amount (ETB)">
-        <button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button>
-        <button onclick="closeM('with-m')" style="color:#888; background:none; border:none; margin-top:10px;">CLOSE</button>
+        <input type="number" id="wa" placeholder="መጠን (ETB)">
+        <button class="btn-main btn-withdraw" style="width:100%; font-size:1rem;" onclick="subW()">ብር አውጣ</button>
+        <button onclick="closeM('with-m')" style="color:#888; background:none; border:none; margin-top:15px; width:100%;">ተመለስ</button>
     </div></div>
 
     <script>
         let phone = localStorage.getItem('phone') || prompt("ስልክ ያስገቡ:");
         let username = localStorage.getItem('username') || prompt("ስም ያስገቡ:");
-        localStorage.setItem('phone', phone); localStorage.setItem('username', username);
+        if(!phone || !username) { location.reload(); }
+        localStorage.setItem('phone', phone); 
+        localStorage.setItem('username', username);
 
-        let announced = false, isVoiceOn = false, lastBall = "--";
+        let announced = false, isVoiceOn = false, lastBall = "--", isProcessing = false;
+
+        function playClick() { document.getElementById('click-sound').currentTime = 0; document.getElementById('click-sound').play(); }
+        function openM(id) { document.getElementById(id).style.display='flex'; }
+        function closeM(id) { document.getElementById(id).style.display='none'; }
+        function toggleVoice() { isVoiceOn = !isVoiceOn; document.getElementById('voice-btn').innerText = isVoiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF"; }
+        
+        function speak(t) { 
+            if(isVoiceOn) { 
+                let m = new SpeechSynthesisUtterance(t); 
+                m.lang = 'en-US'; m.rate = 1.0; window.speechSynthesis.speak(m); 
+            } 
+        }
 
         function saveMarks() {
             let marks = [];
@@ -128,22 +227,6 @@
             let marks = JSON.parse(localStorage.getItem('bingo_marks') || "[]");
             marks.forEach(id => { let el = document.getElementById(id); if(el) el.classList.add('selected'); });
         }
-
-        function toggleVoice() {
-            isVoiceOn = !isVoiceOn;
-            document.getElementById('voice-btn').innerText = isVoiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
-        }
-
-        function speak(t) { 
-            if(isVoiceOn) { 
-                let m = new SpeechSynthesisUtterance(t); 
-                m.lang = 'en-US'; m.rate = 0.9;
-                window.speechSynthesis.speak(m); 
-            } 
-        }
-
-        function openM(id) { document.getElementById(id).style.display='flex'; }
-        function closeM(id) { document.getElementById(id).style.display='none'; }
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
@@ -159,16 +242,18 @@
                     localStorage.removeItem('bingo_marks');
                     document.getElementById('card-area').innerHTML = "";
                     document.getElementById('main-board').innerHTML = "";
-                    announced = false; 
+                    announced = false; lastBall = "--";
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display='none';
                     document.getElementById('game-ui').style.display='block';
-                    document.getElementById('ball-circle').innerText = d.current_ball;
+                    
                     if(d.current_ball !== lastBall && d.current_ball !== "--") { 
+                        document.getElementById('ball-circle').innerText = d.current_ball;
                         speak(d.current_ball); 
                         lastBall = d.current_ball; 
                     }
+                    
                     renderMainBoard(d.drawn_balls);
                     if(d.my_cards.length > 0 && document.getElementById('card-area').children.length === 0) {
                         d.my_cards.forEach((c, i) => renderCard(c, i));
@@ -179,56 +264,54 @@
                     document.getElementById('winner-overlay').style.display = 'flex';
                     document.getElementById('win-horn').play();
                     announced = true;
-                    setTimeout(() => { document.getElementById('winner-overlay').style.display='none'; }, 5000);
                 }
-            });
+            }).catch(e => console.error("Update error"));
         }
 
         function renderTickets(sold) {
             const area = document.getElementById('ticket-area');
             if(area.children.length === 0) {
+                const frag = document.createDocumentFragment();
                 for(let i=1; i<=500; i++) {
                     let div = document.createElement('div');
                     div.className = 't-box'; div.innerText = i; div.id = 't-'+i;
-                    area.appendChild(div);
+                    frag.appendChild(div);
                 }
+                area.appendChild(frag);
             }
             for(let i=1; i<=500; i++) {
                 let box = document.getElementById('t-'+i);
                 let owner = sold[String(i)];
+                let currentClass = 't-box';
+                let currentClick = () => buy(i);
+
                 if(owner) {
-                    box.className = (owner === phone) ? 't-box mine' : 't-box sold';
-                    box.onclick = (owner === phone) ? () => refund(i) : null;
-                } else {
-                    box.className = 't-box'; box.onclick = () => buy(i);
+                    currentClass = (owner === phone) ? 't-box mine' : 't-box sold';
+                    currentClick = (owner === phone) ? () => refund(i) : null;
                 }
+                if(box.className !== currentClass) box.className = currentClass;
+                box.onclick = currentClick;
             }
         }
 
         function buy(n) { 
+            if(isProcessing) return;
+            isProcessing = true;
             fetch('/buy_specific_ticket', {
                 method:'POST', 
                 headers:{'Content-Type':'application/json'}, 
                 body:JSON.stringify({phone, ticket_num:String(n), username})
-            }).then(update); 
+            }).then(() => { isProcessing = false; update(); }).catch(() => isProcessing = false); 
         }
 
-        // --- የተስተካከለው የ Refund Function ---
         function refund(n) { 
             if(confirm(n + " ቁጥር ቲኬትን መመለስ ይፈልጋሉ?")) {
                 fetch('/cancel_ticket', {
-                    method:'POST', 
-                    headers:{'Content-Type':'application/json'}, 
+                    method:'POST', headers:{'Content-Type':'application/json'}, 
                     body:JSON.stringify({phone, ticket_num:String(n)})
-                })
-                .then(r => r.json())
-                .then(d => {
-                    if(d.success) {
-                        alert("ተመልሷል! 10 ብር ወደ ባላንስዎ ተጨምሯል።");
-                        update(); 
-                    } else {
-                        alert("ስህተት: " + (d.msg || "መመለስ አልተቻለም"));
-                    }
+                }).then(r => r.json()).then(d => {
+                    if(d.success) { alert("ተመልሷል!"); update(); } 
+                    else { alert("መመለስ አልተቻለም: " + d.msg); }
                 });
             }
         }
@@ -241,9 +324,9 @@
                 }
             }
             drawn.forEach(b => { 
-                let num = b.substring(1);
+                let num = b.replace(/\D/g,'');
                 let el = document.getElementById('b-'+num); 
-                if(el) el.classList.add('active'); 
+                if(el && !el.classList.contains('active')) el.classList.add('active'); 
             });
         }
 
@@ -263,18 +346,42 @@
                 cell.id = `cell-${cardIdx}-${i}`;
                 cell.className = (i === 12) ? "cell free selected" : "cell";
                 cell.innerText = (i === 12) ? "FREE" : n;
-                cell.onclick = () => { if(i!==12) { cell.classList.toggle('selected'); saveMarks(); } };
+                cell.onclick = () => { 
+                    if(i!==12) { 
+                        cell.classList.toggle('selected'); 
+                        playClick();
+                        saveMarks(); 
+                    } 
+                };
                 grid.appendChild(cell);
             });
             container.appendChild(grid);
             document.getElementById('card-area').appendChild(container);
         }
 
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=> { if(!d.success) alert("ቢንጎ አልሞላም!"); }); }
-        function subD() { fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('da').value, transaction_id:document.getElementById('di').value})}).then(()=> { closeM('dep-m'); alert("ጥያቄው ተልኳል!"); }); }
-        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(r=>r.json()).then(d => { if(d.success){ closeM('with-m'); alert("ጥያቄ ተልኳል!"); } else { alert("በቂ ብር የለዎትም!"); } }); }
+        function claim() { 
+            fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})})
+            .then(r=>r.json()).then(d=> { if(!d.success) alert("ቢንጎ አልሞላም ወይም ጨዋታው አልቋል!"); }); 
+        }
 
-        setInterval(update, 2000); update();
+        function subD() { 
+            let a = document.getElementById('da').value, t = document.getElementById('di').value;
+            if(!a || !t) return alert("ሁሉንም ቦታ ይሙሉ");
+            fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:a, transaction_id:t})})
+            .then(()=> { closeM('dep-m'); alert("ጥያቄው ተልኳል! በአጭር ጊዜ ውስጥ ይጨመራል።"); }); 
+        }
+
+        function subW() { 
+            let a = document.getElementById('wa').value;
+            fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:a})})
+            .then(r=>r.json()).then(d => { 
+                if(d.success){ closeM('with-m'); alert("ጥያቄ ተልኳል!"); } 
+                else { alert("በቂ ብር የለዎትም!"); } 
+            }); 
+        }
+
+        setInterval(update, 2000); 
+        update();
     </script>
 </body>
 </html>
