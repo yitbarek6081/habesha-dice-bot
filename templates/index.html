@@ -9,7 +9,6 @@
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; touch-action: manipulation; }
         
-        /* --- Header & Stats --- */
         .header-section { position: sticky; top: 0; z-index: 1000; background: var(--bg); border-bottom: 2px solid var(--gold); }
         .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 8px; margin: 5px 10px; border-radius: 10px; }
         .stats b { display: block; font-size: 0.9rem; color: var(--gold); }
@@ -21,20 +20,28 @@
         
         #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); margin: 5px 0; }
 
-        /* --- Game Layout & Main Board --- */
-        .game-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; padding: 10px; height: 380px; align-items: start; }
+        .grid-500 { 
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; 
+            max-height: 280px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 8px; 
+        }
+        .t-box { 
+            flex: 0 0 18%; background: #fff; color: #000; font-size: 0.8rem; padding: 10px 0; 
+            font-weight: bold; border-radius: 6px; text-align: center; cursor: pointer;
+        }
+        .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
+        .t-box.sold { background: #222; color: #555; pointer-events: none; }
+
+        .game-layout { display: grid; grid-template-columns: 1fr 2.2fr; gap: 8px; padding: 10px; align-items: start; }
         .main-board { 
-            border: 1px solid #333; height: 350px; overflow-y: auto; 
+            border: 1px solid #333; height: 320px; overflow-y: auto; 
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; 
             padding: 5px; background: #000; scroll-behavior: smooth; border-radius: 8px;
         }
-        .ball-dot { font-size: 0.7rem; background: #111; padding: 5px; color: #444; border-radius: 3px; border: 1px solid #222; }
-        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
-        .ball-dot.last-called { background: #fff !important; color: #000; transform: scale(1.1); box-shadow: 0 0 10px var(--gold); z-index: 10; }
+        .ball-dot { font-size: 0.75rem; background: #111; padding: 8px 0; color: #444; border-radius: 4px; border: 1px solid #222; }
+        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; border-color: #fff; }
 
-        /* --- EXACT 27x27 BINGO CARD --- */
-        .card-wrapper { display: inline-block; width: 145px; margin: 0 auto; } /* Total width: (27*5) + (2*5 gaps) */
-        
+        /* EXACT 27x27 BINGO CARD */
+        .card-wrapper { display: inline-block; width: 145px; margin: 0 auto; } 
         .card-header-letters { display: grid; grid-template-columns: repeat(5, 27px); gap: 2px; margin-bottom: 2px; }
         .letter { background: var(--gold); color: #000; font-weight: 900; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 2px; font-size: 0.8rem; }
         
@@ -42,35 +49,30 @@
         .cell { 
             background: #fff; color: #000; width: 27px; height: 27px; 
             display: flex; align-items: center; justify-content: center; 
-            font-weight: 900; font-size: 0.9rem; border-radius: 2px; cursor: pointer;
+            font-weight: 900; font-size: 0.85rem; border-radius: 2px; cursor: pointer;
         }
-        .cell.selected { background: var(--gold) !important; box-shadow: inset 0 0 4px rgba(0,0,0,0.5); }
+        .cell.selected { background: var(--gold) !important; box-shadow: inset 0 0 5px rgba(0,0,0,0.4); }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.4rem; font-weight: bold; }
 
-        /* --- ALIGNED BINGO BUTTON --- */
+        /* ALIGNED BINGO BUTTON */
         .btn-claim { 
             width: 145px; padding: 12px 0; background: var(--red); color: white; 
-            font-weight: 900; border: none; border-radius: 8px; font-size: 1.1rem; 
+            font-weight: 900; border: none; border-radius: 8px; font-size: 1rem; 
             margin-top: 10px; cursor: pointer; box-shadow: 0 4px 0 #b32a2a; 
         }
-        .btn-claim:active { transform: translateY(2px); box-shadow: 0 2px 0 #b32a2a; }
+        .btn-claim:active { transform: translateY(2px); box-shadow: 0 1px 0 #b32a2a; }
 
-        /* --- Modals & Inputs --- */
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 5000; align-items: flex-start; justify-content: center; padding-top: 15vh; }
         .modal-content { background: #1e293b; padding: 25px; border-radius: 20px; width: 85%; max-width: 340px; border: 2px solid var(--gold); }
-        .modal-content input { padding: 14px; margin-bottom: 20px; width: 100%; border-radius: 8px; border: none; font-size: 16px; background: #000; color: white; }
-        
-        .copy-box { background: rgba(255,204,0,0.1); border: 1px dashed var(--gold); padding: 10px; margin-bottom: 15px; border-radius: 10px; cursor: pointer; }
-        #toast { visibility: hidden; background: var(--green); color: #000; padding: 8px 15px; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); border-radius: 50px; font-weight: bold; z-index: 10000; }
-        #toast.show { visibility: visible; }
+        input { padding: 12px; margin: 8px 0; width: 100%; border-radius: 8px; border: none; font-size: 16px; }
         
         #winner-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
     <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
-    <div id="toast">ቁጥሩ ተገልብጧል!</div>
-
+    
     <div id="winner-overlay">
         <div style="font-size:3rem; color:var(--gold); font-weight:900;">🏆 BINGO! 🏆</div>
         <div id="win-name" style="font-size:2rem; color:white; margin:15px 0;"></div>
@@ -90,49 +92,52 @@
         </div>
     </div>
 
-    <div id="game-ui" style="display:block; padding-top: 10px;">
-        <div id="ball-circle" style="width:60px; height:60px; background:radial-gradient(circle, #fff, var(--gold)); color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; font-weight:900; margin:0 auto 10px auto; border:3px solid #fff;">--</div>
-        
+    <div id="lobby-ui">
+        <div id="timer">30</div>
+        <div class="grid-500" id="ticket-area"></div>
+    </div>
+
+    <div id="game-ui" style="display:none;">
+        <div id="ball-circle" style="width:65px; height:65px; background:radial-gradient(circle, #fff, var(--gold)); color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; font-weight:900; margin:10px auto; border:3px solid #fff;">--</div>
         <div class="game-layout">
             <div class="main-board" id="main-board"></div>
-            
-            <div id="card-area">
+            <div>
+                <div id="card-area"></div>
                 </div>
         </div>
     </div>
 
     <div id="dep-m" class="modal"><div class="modal-content">
         <h2 style="color:var(--green); margin-top:0;">DEPOSIT</h2>
-        <div class="copy-box" onclick="copyToClipboard('0945880474')">
-            <div style="font-size:0.7rem; color:var(--gold);">ለመገልበጥ ይጫኑ (Click to Copy)</div>
-            <div style="font-size:1.2rem; font-weight:bold;">0945880474</div>
-        </div>
-        <input type="number" id="da" placeholder="መጠን (Amount)">
-        <input type="text" id="di" placeholder="ትራንዛክሽን ቁጥር (Transaction ID)">
+        <input type="number" id="da" placeholder="Amount (ETB)">
+        <input type="text" id="di" placeholder="Transaction ID">
         <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button>
         <button onclick="closeM('dep-m')" style="color:#888; background:none; border:none; margin-top:10px;">CLOSE</button>
     </div></div>
 
     <div id="with-m" class="modal"><div class="modal-content">
         <h2 style="color:var(--orange); margin-top:0;">WITHDRAW</h2>
-        <input type="number" id="wa" placeholder="መጠን (Amount)">
+        <input type="number" id="wa" placeholder="Amount (ETB)">
         <button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button>
         <button onclick="closeM('with-m')" style="color:#888; background:none; border:none; margin-top:10px;">CLOSE</button>
     </div></div>
 
     <script>
-        // Existing logic (Phone/Username/Speech/Modals)
-        let phone = localStorage.getItem('phone') || "0912345678"; 
-        let isVoiceOn = false;
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ያስገቡ:");
+        let username = localStorage.getItem('username') || prompt("ስም ያስገቡ:");
+        localStorage.setItem('phone', phone); localStorage.setItem('username', username);
 
-        function openM(id) { document.getElementById(id).style.display='flex'; }
-        function closeM(id) { document.getElementById(id).style.display='none'; }
-        
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                let t = document.getElementById("toast");
-                t.className = "show"; setTimeout(() => t.className = "", 2000);
-            });
+        let announced = false, isVoiceOn = false, lastBall = "--";
+
+        function saveMarks() {
+            let marks = [];
+            document.querySelectorAll('.cell.selected').forEach(c => marks.push(c.id));
+            localStorage.setItem('bingo_marks', JSON.stringify(marks));
+        }
+
+        function loadMarks() {
+            let marks = JSON.parse(localStorage.getItem('bingo_marks') || "[]");
+            marks.forEach(id => { let el = document.getElementById(id); if(el) el.classList.add('selected'); });
         }
 
         function toggleVoice() {
@@ -140,12 +145,127 @@
             document.getElementById('voice-btn').innerText = isVoiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
         }
 
-        // --- Aligned Rendering Function ---
+        function speak(t) { 
+            if(isVoiceOn) { 
+                let m = new SpeechSynthesisUtterance(t); 
+                m.lang = 'en-US'; m.rate = 1.0; window.speechSynthesis.speak(m); 
+            } 
+        }
+
+        function openM(id) { document.getElementById(id).style.display='flex'; }
+        function closeM(id) { document.getElementById(id).style.display='none'; }
+
+        function update() {
+            fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance + " ETB";
+                document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
+                document.getElementById('p-count').innerText = d.active_players;
+                document.getElementById('timer').innerText = d.timer;
+
+                if(d.status === "lobby") {
+                    document.getElementById('lobby-ui').style.display='block';
+                    document.getElementById('game-ui').style.display='none';
+                    document.getElementById('winner-overlay').style.display='none';
+                    localStorage.removeItem('bingo_marks');
+                    document.getElementById('card-area').innerHTML = "";
+                    document.getElementById('main-board').innerHTML = "";
+                    announced = false; 
+                    renderTickets(d.sold_tickets);
+                } else if(d.status === "playing") {
+                    document.getElementById('lobby-ui').style.display='none';
+                    document.getElementById('game-ui').style.display='block';
+                    document.getElementById('ball-circle').innerText = d.current_ball;
+                    if(d.current_ball !== lastBall && d.current_ball !== "--") { 
+                        speak(d.current_ball); 
+                        lastBall = d.current_ball; 
+                    }
+                    renderMainBoard(d.drawn_balls, d.current_ball);
+                    if(d.my_cards.length > 0 && document.getElementById('card-area').children.length === 0) {
+                        d.my_cards.forEach((c, i) => renderCard(c, i));
+                        loadMarks();
+                    }
+                } else if(d.status === "result" && !announced) {
+                    document.getElementById('win-name').innerText = d.winner;
+                    document.getElementById('winner-overlay').style.display = 'flex';
+                    document.getElementById('win-horn').play();
+                    announced = true;
+                    setTimeout(() => { document.getElementById('winner-overlay').style.display='none'; }, 5000);
+                }
+            });
+        }
+
+        function renderTickets(sold) {
+            const area = document.getElementById('ticket-area');
+            if(area.children.length === 0) {
+                for(let i=1; i<=500; i++) {
+                    let div = document.createElement('div');
+                    div.className = 't-box'; div.innerText = i; div.id = 't-'+i;
+                    area.appendChild(div);
+                }
+            }
+            for(let i=1; i<=500; i++) {
+                let box = document.getElementById('t-'+i);
+                let owner = sold[String(i)];
+                if(owner) {
+                    box.className = (owner === phone) ? 't-box mine' : 't-box sold';
+                    box.onclick = (owner === phone) ? () => refund(i) : null;
+                } else {
+                    box.className = 't-box'; box.onclick = () => buy(i);
+                }
+            }
+        }
+
+        function buy(n) { 
+            fetch('/buy_specific_ticket', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone, ticket_num:String(n), username})
+            }).then(update); 
+        }
+
+        function refund(n) { 
+            if(confirm(n + " ቁጥር ቲኬትን መመለስ ይፈልጋሉ?")) {
+                fetch('/cancel_ticket', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({phone, ticket_num:String(n)})
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.success) {
+                        alert("ተመልሷል! 10 ብር ወደ ባላንስዎ ተጨምሯል።");
+                        update(); 
+                    } else {
+                        alert("ስህተት: " + (d.msg || "መመለስ አልተቻለም"));
+                    }
+                });
+            }
+        }
+
+        function renderMainBoard(drawn, current) {
+            const board = document.getElementById('main-board');
+            if(board.children.length === 0) {
+                for(let i=1; i<=75; i++) {
+                    let d = document.createElement('div'); d.className = 'ball-dot'; d.id = 'b-'+i; d.innerText = i; board.appendChild(d);
+                }
+            }
+            drawn.forEach(b => { 
+                let num = b.toString().replace(/\D/g,'');
+                let el = document.getElementById('b-'+num); 
+                if(el) {
+                    el.classList.add('active');
+                    // AUTO SCROLL LOGIC
+                    if(num == current.toString().replace(/\D/g,'')) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            });
+        }
+
         function renderCard(card, cardIdx) {
             const wrapper = document.createElement('div');
             wrapper.className = 'card-wrapper';
-            
-            // Header
+
             const header = document.createElement('div');
             header.className = 'card-header-letters';
             ['B', 'I', 'N', 'G', 'O'].forEach(l => {
@@ -153,49 +273,32 @@
             });
             wrapper.appendChild(header);
 
-            // Grid
             const grid = document.createElement('div'); 
             grid.className = 'bingo-card';
             card.forEach((n, i) => {
                 const cell = document.createElement('div');
+                cell.id = `cell-${cardIdx}-${i}`;
                 cell.className = (i === 12) ? "cell free selected" : "cell";
                 cell.innerText = (i === 12) ? "FREE" : n;
-                cell.onclick = () => { if(i!==12) cell.classList.toggle('selected'); };
+                cell.onclick = () => { if(i!==12) { cell.classList.toggle('selected'); saveMarks(); } };
                 grid.appendChild(cell);
             });
             wrapper.appendChild(grid);
 
-            // Aligned Button
-            const claimBtn = document.createElement('button');
-            claimBtn.className = 'btn-claim';
-            claimBtn.innerText = 'BINGO!';
-            claimBtn.onclick = () => alert("Claiming Bingo...");
-            
-            wrapper.appendChild(claimBtn);
+            const btn = document.createElement('button');
+            btn.className = 'btn-claim';
+            btn.innerText = 'BINGO!';
+            btn.onclick = claim;
+            wrapper.appendChild(btn);
+
             document.getElementById('card-area').appendChild(wrapper);
         }
 
-        // Example Render for testing
-        const demoCard = [1,2,3,4,5,16,17,18,19,20,31,32,0,34,35,46,47,48,49,50,61,62,63,64,65];
-        renderCard(demoCard, 0);
+        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=> { if(!d.success) alert("ቢንጎ አልሞላም!"); }); }
+        function subD() { fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('da').value, transaction_id:document.getElementById('di').value})}).then(()=> { closeM('dep-m'); alert("ጥያቄው ተልኳል!"); }); }
+        function subW() { fetch('/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:document.getElementById('wa').value})}).then(r=>r.json()).then(d => { if(d.success){ closeM('with-m'); alert("ጥያቄ ተልኳል!"); } else { alert("በቂ ብር የለዎትም!"); } }); }
 
-        // Main Board Auto-Scroll Logic (Mock Drawn)
-        function renderMainBoard(drawn, current) {
-            const board = document.getElementById('main-board');
-            board.innerHTML = '';
-            for(let i=1; i<=75; i++) {
-                let d = document.createElement('div'); 
-                d.className = 'ball-dot'; 
-                d.innerText = i;
-                if(drawn.includes(i)) d.classList.add('active');
-                if(i == current) {
-                    d.classList.add('last-called');
-                    setTimeout(() => d.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-                }
-                board.appendChild(d);
-            }
-        }
-        renderMainBoard([1, 15, 27], 27);
+        setInterval(update, 2000); update();
     </script>
 </body>
 </html>
