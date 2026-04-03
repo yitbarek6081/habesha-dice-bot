@@ -38,31 +38,28 @@ def webhook():
     if "message" in data and "text" in data["message"]:
         msg = data["message"]["text"]
         chat_id = str(data["message"]["chat"]["id"])
-        user_info = data["message"]["from"]
-        first_name = user_info.get("first_name", "ተጫዋች")
 
-        # --- የኤጀንት ስልክ ቁጥር መከታተያ (START) ---
+        # --- የኤጀንት ስልክ ቁጥር መከታተያ (አዲስ ተጫዋች ብቻ) ---
         if msg.startswith("/start"):
             parts = msg.split()
             if len(parts) > 1:
-                agent_phone = parts[1] # የኤጀንቱ ስልክ ቁጥር ከሊንኩ ይወጣል
+                agent_phone = parts[1]
+                # ተጫዋቹ በዳታቤዝ ውስጥ መኖሩን ቼክ እናደርጋለን
+                existing_user = wallets.find_one({"phone": chat_id})
                 
-                # ለአድሚን (ለአንተ) ማሳወቂያ መላክ
-                noti = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
-                        f"📝 ስም: {first_name}\n"
-                        f"🆔 Chat ID: `{chat_id}`\n"
-                        f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**")
-                send_telegram(noti)
-                
-                # በዳታቤዝ ውስጥ ኤጀንቱን መመዝገብ
-                wallets.update_one(
-                    {"phone": chat_id},
-                    {"$set": {"referred_by": agent_phone}},
-                    upsert=True
-                )
-        # --- የኤጀንት ስልክ ቁጥር መከታተያ (END) ---
+                # ፍጹም አዲስ ከሆነ ብቻ ኤጀንቱን መመዝገብ
+                if not existing_user:
+                    wallets.update_one(
+                        {"phone": chat_id},
+                        {"$set": {
+                            "phone": chat_id, 
+                            "balance": 0, 
+                            "referred_by": agent_phone
+                        }},
+                        upsert=True
+                    )
+        # --- መጨረሻ ---
 
-        # /add ስልክ መጠን (ባላንስ ለመጨመር)
         if chat_id == ADMIN_ID and msg.startswith("/add"):
             try:
                 parts = msg.split()
@@ -72,7 +69,6 @@ def webhook():
                     send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
             except: send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
         
-        # /sub ስልክ መጠን (ባላንስ ለመቀነስ)
         elif chat_id == ADMIN_ID and msg.startswith("/sub"):
             try:
                 parts = msg.split()
@@ -87,12 +83,12 @@ def webhook():
 # --- የቢንጎ ህግ ማረጋገጫ ---
 def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) # FREE space (0)
+    drawn_set.add(0) 
     for i in range(5):
-        if all(card[i*5 + j] in drawn_set for j in range(5)): return True # አግድም
-        if all(card[j*5 + i] in drawn_set for j in range(5)): return True # ቁልቁል
-    if all(card[i*6] in drawn_set for i in range(5)): return True # ዲያጎናል \
-    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True # ዲያጎናል /
+        if all(card[i*5 + j] in drawn_set for j in range(5)): return True 
+        if all(card[j*5 + i] in drawn_set for j in range(5)): return True 
+    if all(card[i*6] in drawn_set for i in range(5)): return True 
+    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True 
     return False
 
 def game_loop():
@@ -147,7 +143,7 @@ def buy_ticket():
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             card.append(random.sample(range(r[0], r[1]+1), 5))
         flat = [card[c][r] for r in range(5) for c in range(5)]
-        flat[12] = 0 # Center Free
+        flat[12] = 0 
         if ph not in game_state["players"]:
             game_state["players"][ph] = {"cards": [flat], "username": uname}
         else:
@@ -172,7 +168,27 @@ def cancel_ticket():
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json
-    msg = f"💰 *Deposit Request*\n📞 Phone: `{d['phone']}`\n💵 Amount: `{d['amount']}` ETB\n🆔 ID: `{d.get('transaction_id','N/A')}`\n\n👇 Approve:\n`/add {d['phone']} {d['amount']}`"
+    ph = str(d.get('phone'))
+    amt = d.get('amount')
+    t_id = d.get('transaction_id', 'N/A')
+    
+    user = wallets.find_one({"phone": ph})
+    
+    if user and "referred_by" in user:
+        agent_phone = user["referred_by"]
+        msg = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
+               f"📝 ስም: `{ph}`\n"
+               f"🆔 Chat ID: `{ph}`\n"
+               f"💵 መጠን: `{amt}` ETB\n"
+               f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**\n\n"
+               f"👇 Approve ለማድረግ:\n`/add {ph} {amt}`")
+    else:
+        msg = (f"💰 *Deposit Request*\n"
+               f"📞 Phone: `{ph}`\n"
+               f"💵 Amount: `{amt}` ETB\n"
+               f"🆔 ID: `{t_id}`\n\n"
+               f"👇 Approve:\n`/add {ph} {amt}`")
+               
     send_telegram(msg)
     return jsonify({"success": True})
 
