@@ -38,6 +38,30 @@ def webhook():
     if "message" in data and "text" in data["message"]:
         msg = data["message"]["text"]
         chat_id = str(data["message"]["chat"]["id"])
+        user_info = data["message"]["from"]
+        first_name = user_info.get("first_name", "ተጫዋች")
+
+        # --- የኤጀንት ስልክ ቁጥር መከታተያ (START) ---
+        if msg.startswith("/start"):
+            parts = msg.split()
+            if len(parts) > 1:
+                agent_phone = parts[1] # የኤጀንቱ ስልክ ቁጥር ከሊንኩ ይወጣል
+                
+                # ለአድሚን (ለአንተ) ማሳወቂያ መላክ
+                noti = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
+                        f"📝 ስም: {first_name}\n"
+                        f"🆔 Chat ID: `{chat_id}`\n"
+                        f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**")
+                send_telegram(noti)
+                
+                # በዳታቤዝ ውስጥ ኤጀንቱን መመዝገብ
+                wallets.update_one(
+                    {"phone": chat_id},
+                    {"$set": {"referred_by": agent_phone}},
+                    upsert=True
+                )
+        # --- የኤጀንት ስልክ ቁጥር መከታተያ (END) ---
+
         # /add ስልክ መጠን (ባላንስ ለመጨመር)
         if chat_id == ADMIN_ID and msg.startswith("/add"):
             try:
@@ -79,7 +103,6 @@ def game_loop():
                 if game_state["status"] != "lobby": break
                 game_state["timer"] = i
                 time.sleep(1)
-            # ቢያንስ 2 ተጫዋች ሲኖር ይጀምራል
             if len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -111,27 +134,20 @@ def get_status():
 def buy_ticket():
     d = request.json
     ph, t_num, uname = d.get('phone'), str(d.get('ticket_num')), d.get('username')
-    
-    # የ 2 ካርተላ ገደብ ማረጋገጫ (Backend Safety)
     if ph in game_state["players"] and len(game_state["players"][ph]["cards"]) >= 2:
         return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
-    
-    # ባላንስ ቀንሶ ካርተላ መስጠት
     res = wallets.find_one_and_update(
         {"phone": ph, "balance": {"$gte": 10}}, 
         {"$inc": {"balance": -10}}, 
         return_document=ReturnDocument.AFTER
     )
-    
     if res and game_state["status"] == "lobby":
         game_state["sold_tickets"][t_num], game_state["pot"] = ph, game_state["pot"] + 10
         card = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             card.append(random.sample(range(r[0], r[1]+1), 5))
-        
         flat = [card[c][r] for r in range(5) for c in range(5)]
         flat[12] = 0 # Center Free
-        
         if ph not in game_state["players"]:
             game_state["players"][ph] = {"cards": [flat], "username": uname}
         else:
@@ -160,19 +176,15 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
-# --- አዲሱ የ Withdraw መቀበያ ክፍል ---
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     d = request.json
     ph, amt = d.get('phone'), float(d.get('amount'))
-    
-    # ባላንስ ቀንሶ ለAdmin መላክ
     res = wallets.find_one_and_update(
         {"phone": ph, "balance": {"$gte": amt}},
         {"$inc": {"balance": -amt}},
         return_document=ReturnDocument.AFTER
     )
-    
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
@@ -184,11 +196,10 @@ def claim_bingo():
     ph = request.json.get('phone')
     p_data = game_state["players"].get(ph)
     if game_state["status"] == "playing" and p_data and any(is_winner(c, game_state["drawn_balls"]) for c in p_data["cards"]):
-        win_amt = game_state["pot"] * 0.8 # 20% House cut
+        win_amt = game_state["pot"] * 0.8
         wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
         game_state["winner"], game_state["status"] = p_data["username"], "result"
         send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n📞 Phone: `{ph}` \n💰 Prize: {win_amt} ETB")
-        
         def reset():
             time.sleep(10)
             game_state.update({
