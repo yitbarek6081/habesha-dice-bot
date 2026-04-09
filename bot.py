@@ -16,7 +16,7 @@ client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# የጨዋታ ሁኔታ - በሜሞሪ ውስጥ የሚቀመጥ
+# የጨዋታ ሁኔታ - በሜሞሪ ውስጥ የሚቀመጥ (ለፈጣን ምላሽ)
 game_state = {
     "status": "lobby", "timer": 30, "pot": 0, "players": {},
     "sold_tickets": {}, "current_ball": "--", "drawn_balls": [], "winner": None
@@ -96,6 +96,7 @@ def game_loop():
                 game_state["timer"] = i
                 time.sleep(1)
             
+            # ቢያንስ 2 ሰው ሲኖር ጨዋታው ይጀምራል
             if len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -181,22 +182,20 @@ def claim_bingo():
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
-# --- GUNICORN STARTUP LOGIC ---
-# ይህ ክፍል በ Gunicorn ሲነሳ threads አንድ ጊዜ ብቻ እንዲጀምሩ ያደርጋል
-def startup():
-    # ለአንድ ሰከንድ ቆይቶ webhook እና game_loop ያስነሳል
-    time.sleep(1)
-    set_webhook()
-    # thread በአንድ worker ብቻ እንዲነሳ ለማረጋገጥ
+# --- GUNICORN/PRODUCTION STARTUP LOGIC ---
+def startup_tasks():
+    """ሰርቨሩ ሲነሳ አንድ ጊዜ ብቻ ጨዋታውን የሚቀሰቅስ"""
     if not os.environ.get("GAME_LOOP_STARTED"):
         os.environ["GAME_LOOP_STARTED"] = "true"
-        t = threading.Thread(target=game_loop, daemon=True)
-        t.start()
-        print("🚀 Game Loop and Webhook initialized")
+        time.sleep(2)
+        set_webhook()
+        print("🚀 Starting Game Loop Thread...")
+        threading.Thread(target=game_loop, daemon=True).start()
 
-# በስተጀርባ ስራዎችን ይጀምሩ
-threading.Thread(target=startup, daemon=True).start()
+# Flask context ውስጥ ሆኖ ስራዎችን ማስጀመር
+with app.app_context():
+    threading.Thread(target=startup_tasks, daemon=True).start()
 
 if __name__ == '__main__':
-    # Local ሙከራ ላይ ብቻ የሚሰራ
+    # ይህ ለ Local ሙከራ ብቻ ነው
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
