@@ -33,12 +33,41 @@ def get_db_state():
     except:
         return get_initial_state()
 
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
-    except:
-        print("Telegram Error")
+def update_db_state(update_data):
+    game_db.update_one({"id": "global"}, {"$set": update_data}, upsert=True)
+
+# --- GAME LOOP (ሰዓት እና ኳስ ማውጫ) ---
+def game_loop():
+    balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
+    while True:
+        try:
+            state = get_db_state()
+            if state["status"] == "lobby":
+                if state["timer"] > 0:
+                    game_db.update_one({"id": "global"}, {"$inc": {"timer": -1}})
+                else:
+                    if len(state["players"]) >= 2:
+                        update_db_state({"status": "playing", "drawn_balls": []})
+                        shuffled = balls.copy(); random.shuffle(shuffled)
+                        drawn = []
+                        for b in shuffled:
+                            curr = get_db_state()
+                            if curr["status"] != "playing": break
+                            drawn.append(b)
+                            update_db_state({"current_ball": b, "drawn_balls": drawn})
+                            time.sleep(5)
+                    else:
+                        update_db_state({"timer": 30})
+            time.sleep(1)
+        except:
+            time.sleep(5)
+
+# --- ROUTES ---
+
+@app.route('/')
+def index():
+    # የቀድሞውን ጽሁፍ በ render_template ቀይረነዋል
+    return render_template('index.html')
 
 @app.route('/get_status')
 def get_status():
@@ -53,16 +82,27 @@ def get_status():
         "active_players": len(state.get("players", {}))
     })
 
-@app.route('/')
-def index():
-    return "Bingo Server is Live!"
+# --- WEBHOOK & TELEGRAM ---
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    if "message" in data and "text" in data["message"]:
+        msg = data["message"]["text"]
+        chat_id = str(data["message"]["chat"]["id"])
+        # የኤጀንት ሲስተም
+        if msg.startswith("/start"):
+            parts = msg.split()
+            if len(parts) > 1 and not wallets.find_one({"phone": chat_id}):
+                wallets.update_one({"phone": chat_id}, {"$set": {"phone": chat_id, "balance": 0, "referred_by": parts[1]}}, upsert=True)
+    return "OK", 200
 
 if __name__ == '__main__':
     # Webhook Set
-    try:
-        requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={RENDER_URL}/webhook")
-    except:
-        pass
+    try: requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={RENDER_URL}/webhook")
+    except: pass
+    
+    # Game Loop ጀምር
+    threading.Thread(target=game_loop, daemon=True).start()
     
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
