@@ -31,7 +31,7 @@
             box-sizing: border-box;
         }
 
-        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 160px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 200px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
         .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
         .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
         .t-box.sold { background: #333; color: #666; pointer-events: none; }
@@ -52,11 +52,10 @@
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; }
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; }
-        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); }
+        #timer { font-size: 3rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 10px var(--gold); margin: 10px 0; }
     </style>
 </head>
 <body>
-    <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
     <div class="header-banner"><h1>BESH BINGO</h1></div>
     
     <div class="stats">
@@ -72,6 +71,7 @@
             <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
         </div>
         <div id="timer">30</div>
+        <p style="font-size: 0.8rem; color: #888;">ካርተላ ይምረጡ (10 ETB)</p>
         <div class="grid-500" id="ticket-area"></div>
     </div>
 
@@ -87,11 +87,11 @@
     </div>
 
     <div id="with-m" class="modal"><div class="modal-content"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#ccc; background:none; border:none; margin-top:10px;">CLOSE</button></div></div>
-    <div id="dep-m" class="modal"><div class="modal-content"><h2 style="color:var(--green);">DEPOSIT</h2><p>Telebirr: <b style="color:var(--gold);">0945880474</b></p><input type="number" id="da" placeholder="Amount"><input type="text" id="di" placeholder="ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#ccc; background:none; border:none; margin-top:10px;">CLOSE</button></div></div>
-    <div id="result-ui" class="modal"><h1 style="color:var(--gold); font-size:3rem;">BINGO!</h1><div id="winner-info" style="font-size:1.5rem;"></div></div>
+    <div id="dep-m" class="modal"><div class="modal-content"><h2 style="color:var(--green);">DEPOSIT</h2><p>Telebirr: <b style="color:var(--gold);">0945880474</b></p><input type="number" id="da" placeholder="Amount"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#ccc; background:none; border:none; margin-top:10px;">CLOSE</button></div></div>
+    <div id="result-ui" class="modal"><h1 style="color:var(--gold); font-size:3rem;">BINGO!</h1><div id="winner-info" style="font-size:1.5rem; margin-bottom: 20px;"></div><button class="btn-main btn-deposit" onclick="location.reload()">OK</button></div>
 
     <script>
-        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ:");
+        let phone = localStorage.getItem('phone') || prompt("ስልክ ቁጥር ያስገቡ (e.g. 09...):");
         let username = localStorage.getItem('username') || prompt("የተጫዋች ስም ያስገቡ:");
         if(!phone || !username) location.reload();
         localStorage.setItem('phone', phone); localStorage.setItem('username', username);
@@ -103,14 +103,13 @@
             const btn = document.getElementById('voice-btn');
             btn.innerText = isVoiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
             btn.className = isVoiceOn ? "btn-main btn-voice-on" : "btn-main btn-voice-off";
-            if(isVoiceOn) window.speechSynthesis.speak(new SpeechSynthesisUtterance("Voice active"));
         }
 
         function speak(text) {
             if(!isVoiceOn) return;
             window.speechSynthesis.cancel();
             const msg = new SpeechSynthesisUtterance(text);
-            msg.lang = 'en-US'; msg.rate = 0.8;
+            msg.lang = 'en-US'; msg.rate = 0.9;
             window.speechSynthesis.speak(msg);
         }
 
@@ -119,7 +118,7 @@
 
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance.toFixed(0) + " ETB";
+                document.getElementById('balance').innerText = d.balance + " ETB";
                 document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
                 document.getElementById('p-count').innerText = d.active_players;
                 document.getElementById('timer').innerText = d.timer;
@@ -164,7 +163,7 @@
                 let box = document.getElementById('t-'+i);
                 if(sold[i]) {
                     box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold';
-                    box.onclick = (sold[i] === phone) ? () => refund(i) : null;
+                    box.onclick = null;
                 } else {
                     box.className = 't-box'; box.onclick = () => buy(i);
                 }
@@ -176,15 +175,6 @@
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({phone, ticket_num:n, username})
             }).then(r=>r.json()).then(res => { if(!res.success) alert(res.msg); update(); });
-        }
-
-        function refund(n) {
-            if(confirm("Cancel ticket?")) {
-                fetch('/cancel_ticket', {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({phone, ticket_num:n})
-                }).then(update);
-            }
         }
 
         function renderMainBoard(drawn) {
@@ -225,11 +215,11 @@
 
         function subD() {
             let amt=document.getElementById('da').value, tid=document.getElementById('di').value;
+            if(!amt || !tid) return alert("Please fill all fields");
             fetch('/request_deposit', {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({phone, amount:amt, transaction_id:tid})
-            });
-            closeM('dep-m'); alert("Request Sent!");
+            }).then(() => { closeM('dep-m'); alert("Deposit request sent to admin!"); });
         }
 
         function subW() {
@@ -237,10 +227,11 @@
             fetch('/withdraw', {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({phone, amount:amt})
-            }).then(r=>r.json()).then(d => { if(d.success) { alert("Sent!"); closeM('with-m'); } else alert(d.msg); });
+            }).then(r=>r.json()).then(d => { if(d.success) { alert("Withdrawal request sent!"); closeM('with-m'); } else alert(d.msg); });
         }
 
-        setInterval(update, 2000);
+        // በየሰከንዱ እንዲያድስ (Timer እንዲቆጥር)
+        setInterval(update, 1000);
         update();
     </script>
 </body>
