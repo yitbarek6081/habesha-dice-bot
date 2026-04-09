@@ -15,25 +15,28 @@ RENDER_URL = "https://habesha-dice-bot.onrender.com"
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
+game_db = db['game_state'] # ሰዓቱን እዚህ እናስቀምጣለን
 
-# የጨዋታ ሁኔታ
-game_state = {
-    "status": "lobby", "timer": 30, "pot": 0, "players": {},
+# የመጀመሪያ ሁኔታ (Initial Memory State)
+initial_state = {
+    "id": "global", "status": "lobby", "timer": 30, "pot": 0, "players": {},
     "sold_tickets": {}, "current_ball": "--", "drawn_balls": [], "winner": None
 }
+
+def get_db_state():
+    state = game_db.find_one({"id": "global"})
+    if not state:
+        game_db.insert_one(initial_state)
+        return initial_state
+    return state
+
+def update_db_state(update_data):
+    game_db.update_one({"id": "global"}, {"$set": update_data})
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try: requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"})
     except: print("Telegram Error")
-
-def set_webhook():
-    webhook_url = f"{RENDER_URL}/webhook"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
-    try:
-        requests.get(url)
-        print("✅ Webhook set successfully")
-    except: print("❌ Webhook set failed")
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -61,15 +64,9 @@ def webhook():
                     wallets.update_one({"phone": p[1]}, {"$inc": {"balance": float(p[2])}}, upsert=True)
                     send_telegram(f"✅ ለ `{p[1]}` {p[2]} ETB ተጨምሯል።")
                 except: send_telegram("❌ ስህተት! /add ስልክ መጠን")
-            elif msg.startswith("/sub"):
-                try:
-                    p = msg.split()
-                    wallets.update_one({"phone": p[1]}, {"$inc": {"balance": -float(p[2])}})
-                    send_telegram(f"⚠️ ከ `{p[1]}` {p[2]} ETB ተቀንሷል።")
-                except: send_telegram("❌ ስህተት! /sub ስልክ መጠን")
-
     return "OK", 200
 
+# --- የቢንጎ ህግ ማረጋገጫ ---
 def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
     drawn_set.add(0) 
@@ -81,48 +78,55 @@ def is_winner(card, drawn_numbers):
     return False
 
 def game_loop():
-    """የቢንጎ ሰዓት እና ኳስ ማውጫ ዋና ሉፕ"""
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         try:
-            if game_state["status"] == "lobby":
-                if game_state["timer"] > 0:
-                    game_state["timer"] -= 1
+            state = get_db_state()
+            if state["status"] == "lobby":
+                if state["timer"] > 0:
+                    game_db.update_one({"id": "global"}, {"$inc": {"timer": -1}})
                 else:
-                    if len(game_state["players"]) >= 2: # ቢያንስ 2 ሰው
-                        game_state["status"] = "playing"
-                        game_state["drawn_balls"] = []
-                        shuffled = balls.copy()
-                        random.shuffle(shuffled)
+                    if len(state["players"]) >= 2:
+                        update_db_state({"status": "playing", "drawn_balls": []})
+                        shuffled = balls.copy(); random.shuffle(shuffled)
+                        drawn = []
                         for b in shuffled:
-                            if game_state["status"] != "playing": break
-                            game_state["current_ball"] = b
-                            game_state["drawn_balls"].append(b)
+                            current_state = get_db_state()
+                            if current_state["status"] != "playing": break
+                            drawn.append(b)
+                            update_db_state({"current_ball": b, "drawn_balls": drawn})
                             time.sleep(5)
                     else:
-                        game_state["timer"] = 30 # ሰው ከሌለ መልሶ መቁጠር
+                        update_db_state({"timer": 30})
             time.sleep(1)
         except Exception as e:
-            print(f"Loop Error: {e}")
-            time.sleep(1)
+            time.sleep(2)
 
 @app.route('/get_status')
 def get_status():
+    # ሰዓቱ መቆሙን ቼክ አድርጎ በየጥያቄው መቀስቀስ (Fail-safe)
+    if not any(t.name == "BingoLoop" for t in threading.enumerate()):
+        threading.Thread(target=game_loop, name="BingoLoop", daemon=True).start()
+        
+    state = get_db_state()
     phone = request.args.get('phone')
     user = wallets.find_one({"phone": phone})
-    p_data = game_state["players"].get(phone, {"cards": []})
+    p_data = state["players"].get(phone if phone else "", {"cards": []})
+    
     return jsonify({
-        **game_state, 
-        "balance": user['balance'] if user else 0, 
-        "my_cards": p_data["cards"], 
-        "active_players": len(game_state["players"])
+        **state,
+        "balance": user['balance'] if user else 0,
+        "my_cards": p_data["cards"],
+        "active_players": len(state["players"])
     })
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
     d = request.json
     ph, t_num, uname = d.get('phone'), str(d.get('ticket_num')), d.get('username')
-    if ph in game_state["players"] and len(game_state["players"][ph]["cards"]) >= 2:
+    state = get_db_state()
+    
+    if ph in state["players"] and len(state["players"][ph]["cards"]) >= 2:
         return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
     
     res = wallets.find_one_and_update(
@@ -130,52 +134,49 @@ def buy_ticket():
         {"$inc": {"balance": -10}}, 
         return_document=ReturnDocument.AFTER
     )
-    if res and game_state["status"] == "lobby":
-        game_state["sold_tickets"][t_num], game_state["pot"] = ph, game_state["pot"] + 10
+    if res and state["status"] == "lobby":
         card = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             card.append(random.sample(range(r[0], r[1]+1), 5))
-        flat = [card[c][r] for r in range(5) for c in range(5)]
-        flat[12] = 0 
-        if ph not in game_state["players"]:
-            game_state["players"][ph] = {"cards": [flat], "username": uname}
-        else:
-            game_state["players"][ph]["cards"].append(flat)
+        flat = [card[c][r] for r in range(5) for c in range(5)]; flat[12] = 0 
+        
+        game_db.update_one({"id": "global"}, {
+            "$set": {f"players.{ph}": {"cards": (state["players"].get(ph, {}).get("cards", []) + [flat]), "username": uname},
+                     f"sold_tickets.{t_num}": ph},
+            "$inc": {"pot": 10}
+        })
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ባላንስ የለም ወይም ጨዋታ ተጀምሯል!"})
+
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json
+    ph, amt = str(d.get('phone')), d.get('amount')
+    user = wallets.find_one({"phone": ph})
+    ref = f"\n📲 ኤጀንት: {user['referred_by']}" if user and "referred_by" in user else ""
+    msg = f"💰 *Deposit Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB{ref}\n\nApprove:\n`/add {ph} {amt}`"
+    send_telegram(msg)
+    return jsonify({"success": True})
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     ph = request.json.get('phone')
-    p_data = game_state["players"].get(ph)
-    if game_state["status"] == "playing" and p_data and any(is_winner(c, game_state["drawn_balls"]) for c in p_data["cards"]):
-        win_amt = game_state["pot"] * 0.8
+    state = get_db_state()
+    p_data = state["players"].get(ph)
+    if state["status"] == "playing" and p_data and any(is_winner(c, state["drawn_balls"]) for c in p_data["cards"]):
+        win_amt = state["pot"] * 0.8
         wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
-        game_state["winner"], game_state["status"] = p_data["username"], "result"
+        update_db_state({"winner": p_data["username"], "status": "result"})
         send_telegram(f"🏆 *WINNER!* \n👤 {p_data['username']} \n💰 Prize: {win_amt} ETB")
-        
         def reset():
             time.sleep(10)
-            game_state.update({
-                "status": "lobby", "winner": None, "pot": 0, "players": {}, 
-                "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
-            })
+            update_db_state(initial_state)
         threading.Thread(target=reset).start()
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
-# --- ሰዓቱ እንዳይቆም የሚያደርግ ዘዴ (Auto-Restart) ---
-def monitor_loop():
-    while True:
-        if not any(t.name == "BingoLoop" for t in threading.enumerate()):
-            print("⚠️ Game loop starting...")
-            loop_thread = threading.Thread(target=game_loop, name="BingoLoop", daemon=True)
-            loop_thread.start()
-        time.sleep(10)
-
-with app.app_context():
-    set_webhook()
-    threading.Thread(target=monitor_loop, daemon=True).start()
+@app.route('/')
+def index(): return render_template('index.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
