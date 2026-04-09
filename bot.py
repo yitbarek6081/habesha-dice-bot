@@ -16,7 +16,7 @@ client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# ጨዋታው በሰርቨሩ ሜሞሪ ላይ እንዲቀመጥ
+# የጨዋታው ሁኔታ
 game_state = {
     "status": "lobby", "timer": 30, "pot": 0, "players": {},
     "sold_tickets": {}, "current_ball": "--", "drawn_balls": [], "winner": None
@@ -33,33 +33,53 @@ def set_webhook():
     try: requests.get(url, timeout=5)
     except: print("Webhook set failed")
 
-# --- GAME LOOP (ሰዓቱ እንዲቆጥር የተስተካከለው) ---
+# --- ቢንጎ ቼከር (ከላይ መሆን አለበት) ---
+def is_winner(card, drawn_numbers):
+    drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
+    drawn_set.add(0) # For FREE space
+    for i in range(5):
+        if all(card[i*5 + j] in drawn_set for j in range(5)): return True 
+        if all(card[j*5 + i] in drawn_set for j in range(5)): return True 
+    if all(card[i*6] in drawn_set for i in range(5)): return True 
+    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True 
+    return False
+
+# --- GAME LOOP (ሰዓቱ በትክክል እንዲቆጥር የተስተካከለ) ---
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         try:
             if game_state["status"] == "lobby":
+                # ተጫዋች ቢኖርም ባይኖርም ሰዓቱ እንዲቆጥር
                 if game_state["timer"] > 0:
                     game_state["timer"] -= 1
                 else:
-                    # ሰዓቱ 0 ሲደርስ ቢያንስ 1 ተጫዋች ካለ ይጀምራል
-                    if len(game_state["players"]) >= 1: 
+                    # ሰዓቱ 0 ሲደርስ ቢያንስ 1 ተጫዋች ካለ ጨዋታ ይጀምራል
+                    if len(game_state["players"]) >= 1:
                         game_state["status"] = "playing"
                         game_state["drawn_balls"] = []
-                        shuffled = balls.copy()
+                        shuffled = list(balls)
                         random.shuffle(shuffled)
                         for b in shuffled:
                             if game_state["status"] != "playing": break
                             game_state["current_ball"] = b
                             game_state["drawn_balls"].append(b)
-                            time.sleep(4) # የኳስ ፍጥነት
+                            time.sleep(4) 
                     else:
-                        # ተጫዋች ከሌለ ሰዓቱን መልሶ 30 ያደርጋል
+                        # ሰው ከሌለ ሰዓቱን መልሶ 30 ያደርጋል
                         game_state["timer"] = 30
-            time.sleep(1)
+            
+            elif game_state["status"] == "result":
+                time.sleep(10) # ውጤቱን ለ 10 ሰከንድ አሳይ
+                game_state.update({
+                    "status": "lobby", "winner": None, "pot": 0, "players": {}, 
+                    "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
+                })
+
+            time.sleep(1) # በየሰከንዱ መቁጠሩን ያረጋግጣል
         except Exception as e:
             print(f"Loop Error: {e}")
-            time.sleep(5)
+            time.sleep(2)
 
 @app.route('/')
 def index(): return render_template('index.html')
@@ -70,21 +90,16 @@ def webhook():
     if "message" in data and "text" in data["message"]:
         msg = data["message"]["text"]
         chat_id = str(data["message"]["chat"]["id"])
-
-        # --- የኤጀንት ሲስተም ---
+        
         if msg.startswith("/start"):
             parts = msg.split()
-            if len(parts) > 1:
-                agent_phone = parts[1]
-                existing_user = wallets.find_one({"phone": chat_id})
-                if not existing_user:
-                    wallets.update_one(
-                        {"phone": chat_id},
-                        {"$set": {"phone": chat_id, "balance": 0, "referred_by": agent_phone}},
-                        upsert=True
-                    )
+            agent_phone = parts[1] if len(parts) > 1 else None
+            wallets.update_one(
+                {"phone": chat_id},
+                {"$setOnInsert": {"phone": chat_id, "balance": 0, "referred_by": agent_phone}},
+                upsert=True
+            )
 
-        # --- ADMIN COMMANDS ---
         if chat_id == ADMIN_ID:
             if msg.startswith("/add"):
                 p = msg.split()
@@ -96,7 +111,6 @@ def webhook():
                 if len(p) == 3:
                     wallets.update_one({"phone": p[1]}, {"$inc": {"balance": -float(p[2])}})
                     send_telegram(f"⚠️ ከ `{p[1]}` {p[2]} ETB ተቀንሷል።")
-
     return "OK", 200
 
 @app.route('/get_status')
@@ -148,44 +162,23 @@ def claim_bingo():
     ph = request.json.get('phone')
     p_data = game_state["players"].get(ph)
     
-    # ቢንጎ መሆኑን ለማረጋገጥ is_winner ፈንክሽን እዚህ መኖር አለበት (ከላይ አለ)
-    from __main__ import is_winner 
-
     if game_state["status"] == "playing" and p_data:
-        if any(is_winner(c, game_state["drawn_balls"]) for c in p_data["cards"]):
-            win_amt = game_state["pot"] * 0.8
-            wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
-            game_state["winner"], game_state["status"] = p_data["username"], "result"
-            send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n💰 Prize: {win_amt} ETB")
-            
-            def reset():
-                time.sleep(10)
-                game_state.update({
-                    "status": "lobby", "winner": None, "pot": 0, "players": {}, 
-                    "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
-                })
-            threading.Thread(target=reset).start()
-            return jsonify({"success": True})
+        for card in p_data["cards"]:
+            if is_winner(card, game_state["drawn_balls"]):
+                win_amt = game_state["pot"] * 0.8
+                wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
+                game_state["winner"] = p_data["username"]
+                game_state["status"] = "result"
+                send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n💰 Prize: {win_amt} ETB")
+                return jsonify({"success": True})
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
-
-# --- ቢንጎ ቼከር ---
-def is_winner(card, drawn_numbers):
-    drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) 
-    for i in range(5):
-        if all(card[i*5 + j] in drawn_set for j in range(5)): return True 
-        if all(card[j*5 + i] in drawn_set for j in range(5)): return True 
-    if all(card[i*6] in drawn_set for i in range(5)): return True 
-    if all(card[(i+1)*4] in drawn_set for i in range(5)): return True 
-    return False
 
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json
     ph, amt = str(d.get('phone')), d.get('amount')
     user = wallets.find_one({"phone": ph})
-    
-    agent_info = f"\n📲 ኤጀንት: `{user['referred_by']}`" if user and "referred_by" in user else ""
+    agent_info = f"\n📲 ኤጀንት: `{user['referred_by']}`" if user and user.get('referred_by') else ""
     msg = f"💰 *Deposit Request*\n📞 Phone: `{ph}`\n💵 Amt: `{amt}` ETB{agent_info}\n\nApprove: `/add {ph} {amt}`"
     send_telegram(msg)
     return jsonify({"success": True})
