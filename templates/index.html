@@ -21,7 +21,7 @@
         .btn-voice-off { background: var(--red); color: white; }
         .btn-voice-on { background: var(--green); color: #000; box-shadow: 0 0 10px var(--green); }
 
-        /* የቁጥሩ መዛባት ማስተካከያ (Ball Circle) */
+        /* Ball Circle Configuration Layout */
         #ball-circle { 
             width: 75px; height: 75px; 
             background: radial-gradient(circle, #fff, var(--gold)); 
@@ -33,9 +33,10 @@
         }
 
         .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 160px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
-        .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; }
+        .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .t-box.processing { background: #64748b; color: #cbd5e1; cursor: not-allowed; pointer-events: none; }
         .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
-        .t-box.sold { background: #333; color: #666; }
+        .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
         .game-layout { display: grid; grid-template-columns: 1fr 2.2fr; gap: 10px; padding: 10px; box-sizing: border-box; }
@@ -44,11 +45,12 @@
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
         
         .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; }
-        .cell { background: #fff; color: #000; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; }
+        .cell { background: #fff; color: #000; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; cursor: pointer; }
         .cell.selected { background: var(--gold) !important; border: 2px solid #b45309; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
         
-        #bingo-btn { width: 90%; padding: 12px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: 2px solid white; margin: 10px auto; display: block; }
+        #bingo-btn { width: 90%; padding: 12px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: 2px solid white; margin: 10px auto; display: block; cursor: pointer; transition: 0.2s; }
+        #bingo-btn:disabled { background: #64748b; color: #94a3b8; border-color: #475569; cursor: not-allowed; }
         
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; }
@@ -121,7 +123,6 @@
 
         let currentCardData = null, announced = false, lastBall = "--", isVoiceOn = false;
 
-        // የድምፅ መቆጣጠሪያ ማሻሻያ (ገጹ እንዳይዛባ)
         function toggleVoice() {
             isVoiceOn = !isVoiceOn;
             const btn = document.getElementById('voice-btn');
@@ -136,7 +137,7 @@
 
         function speak(text) {
             if(!isVoiceOn || !window.speechSynthesis) return;
-            window.speechSynthesis.cancel(); // ተደራራቢ ድምፅ እንዳይኖር
+            window.speechSynthesis.cancel(); 
             const msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'en-US'; msg.rate = 0.9;
             window.speechSynthesis.speak(msg);
@@ -152,9 +153,16 @@
                 document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
                 document.getElementById('p-count').innerText = d.active_players;
                 document.getElementById('timer').innerText = d.timer;
+                
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                    
+                    // Re-enable Bingo claims layout components safely 
+                    const bBtn = document.getElementById('bingo-btn');
+                    bBtn.disabled = false;
+                    bBtn.innerText = "BINGO!";
+                    
                     currentCardData = null; announced = false; lastBall = "--";
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
@@ -180,21 +188,64 @@
 
         function renderTickets(sold) {
             const area = document.getElementById('ticket-area');
-            if(area.children.length === 0) { for(let i=1; i<=500; i++) { let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i; area.appendChild(div); } }
+            if(area.children.length === 0) { 
+                for(let i=1; i<=500; i++) { 
+                    let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i; area.appendChild(div); 
+                } 
+            }
             for(let i=1; i<=500; i++) {
                 let box = document.getElementById('t-'+i);
-                if(sold[i]) { box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold'; box.onclick = (sold[i] === phone) ? () => refund(i) : null; }
-                else { box.className='t-box'; box.onclick=()=>buy(i); }
+                if(box.classList.contains('processing')) continue; // Don't break ongoing purchase mutations
+                
+                if(sold[i]) { 
+                    box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold'; 
+                    box.onclick = (sold[i] === phone) ? () => refund(i) : null; 
+                } else { 
+                    box.className='t-box'; box.onclick=()=>buy(i); 
+                }
             }
         }
 
         function buy(n) { 
             const myCount = document.querySelectorAll('.t-box.mine').length;
             if (myCount >= 2) return alert("በአንድ ጨዋታ ከ 2 ካርተላ በላይ መግዛት አይቻልም!");
-            fetch('/buy_specific_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})}).then(update); 
+            
+            const box = document.getElementById('t-'+n);
+            const fallbackClassName = box.className;
+            
+            // 1. Instantly disable to prevent double clicking
+            box.className = 't-box processing';
+            box.innerText = '...';
+            box.onclick = null;
+
+            fetch('/buy_specific_ticket', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone, ticket_num:n, username})
+            }).then(r => r.json()).then(data => {
+                if(!data.success) {
+                    alert(data.msg);
+                    box.className = fallbackClassName;
+                    box.innerText = n;
+                    box.onclick = () => buy(n);
+                }
+                update();
+            }).catch(() => {
+                box.className = fallbackClassName;
+                box.innerText = n;
+                box.onclick = () => buy(n);
+            });
         }
 
-        function refund(n) { if(confirm("መልሰው 10 ብር ይውሰዱ?")) fetch('/cancel_ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})}).then(update); }
+        function refund(n) { 
+            if(confirm("መልሰው 10 ብር ይውሰዱ?")) {
+                fetch('/cancel_ticket', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({phone, ticket_num:n})
+                }).then(update); 
+            }
+        }
         
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
@@ -215,7 +266,29 @@
             wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
 
-        function claim() { fetch('/claim_bingo', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone})}).then(r=>r.json()).then(d=>{ if(!d.success) alert(d.msg); }); }
+        function claim() { 
+            const bBtn = document.getElementById('bingo-btn');
+            
+            // 1. Immediately turn off interaction behaviors to secure operational stability
+            bBtn.disabled = true;
+            bBtn.innerText = "Checking Card...";
+
+            fetch('/claim_bingo', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone})
+            }).then(r=>r.json()).then(d=>{ 
+                if(!d.success) {
+                    alert(d.msg);
+                    // Re-enable if verified as fake or premature layout check
+                    bBtn.disabled = false;
+                    bBtn.innerText = "BINGO!";
+                } 
+            }).catch(() => {
+                bBtn.disabled = false;
+                bBtn.innerText = "BINGO!";
+            }); 
+        }
         
         function subD() {
             let amt=document.getElementById('da').value, tid=document.getElementById('di').value;
