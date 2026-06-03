@@ -157,7 +157,7 @@ def game_loop():
                     game_state["status"] = "result"
                     game_state["winner"] = "No Winner (House)"
                     send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                    threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
+                    threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
 
         time.sleep(1)
 
