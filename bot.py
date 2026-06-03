@@ -4,7 +4,7 @@ import random
 import requests
 import threading
 from flask import Flask, render_template, jsonify, request
-from pymongo import MongoClient, ReturnDocument
+from pymongo import MongoClient
 from flask_cors import CORS
 
 app = Flask(__name__, template_folder='templates')
@@ -148,6 +148,7 @@ def game_loop():
                         break
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
+                
                 time.sleep(5)
             
             # Handle scenario where 75 balls pass without a winner declaration
@@ -189,7 +190,6 @@ def buy_ticket():
     if not ph or not t_num:
         return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
 
-    # --- ATOMIC STATE DOUBLE-CLICK PROTECTION ---
     with state_lock:
         if game_state["status"] != "lobby":
             return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
@@ -197,27 +197,32 @@ def buy_ticket():
             return jsonify({"success": False, "msg": "ይህ ካርተላ ቀድሞ ተይዟል!"})
         if ph in game_state["players"] and len(game_state["players"][ph]["cards"]) >= 2:
             return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
+        
+        # ደጋግሞ ክሊክ ሲያደርግ ቀድሞ በሂደት ላይ መሆኑን ለመመዝገብ
+        game_state["sold_tickets"][t_num] = "RESERVED_LOCK"
 
-    # Deduct balance securely using MongoDB atomic query mechanics
-    res = wallets.find_and_modify(
-        query={"phone": ph, "balance": {"$gte": 10}}, 
-        update={"$inc": {"balance": -10}}, 
-        new=True
+    # ከዳታቤዝ ብር መቀነስ
+    res = wallets.find_one_and_update(
+        {"phone": ph, "balance": {"$gte": 10}}, 
+        {"$inc": {"balance": -10}},
+        return_document=True
     )
     
     if res:
-        # Generate Bingo Card structural properties
+        # የቢንጎ ቁጥሮችን ማመንጨት
         card = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             card.append(random.sample(range(r[0], r[1]+1), 5))
         flat = [card[c][r] for r in range(5) for c in range(5)]
-        flat[12] = 0  # Center element Free Space marker
+        flat[12] = 0  # Free Space
         
         with state_lock:
-            # Re-verify lobby state status before modifying game tracking map variables
-            if game_state["status"] != "lobby" or t_num in game_state["sold_tickets"]:
-                wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}}) # Rollback balance
-                return jsonify({"success": False, "msg": "ስህተት ተከስቷል ወይም ጨዋታው ተጀምሯል!"})
+            # በሂደቱ መሃል ጨዋታው ተጀምሮ ከሆነ ብሩን መመለስ
+            if game_state["status"] != "lobby":
+                if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
+                    del game_state["sold_tickets"][t_num]
+                wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}})
+                return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
                 
             game_state["sold_tickets"][t_num] = ph
             game_state["pot"] += 10
@@ -228,6 +233,12 @@ def buy_ticket():
                 game_state["players"][ph]["cards"][t_num] = flat
                 
         return jsonify({"success": True})
+    
+    # ባላንስ ከሌለው ወይም ችግር ካለ መቆለፊያውን መልሶ ማንሳት
+    with state_lock:
+        if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
+            del game_state["sold_tickets"][t_num]
+            
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
 @app.route('/cancel_ticket', methods=['POST'])
@@ -282,10 +293,10 @@ def withdraw():
     d = request.json or {}
     ph, amt = d.get('phone'), float(d.get('amount'))
     
-    res = wallets.find_and_modify(
-        query={"phone": ph, "balance": {"$gte": amt}},
-        update={"$inc": {"balance": -amt}},
-        new=True
+    res = wallets.find_one_and_update(
+        {"phone": ph, "balance": {"$gte": amt}},
+        {"$inc": {"balance": -amt}},
+        return_document=True
     )
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
@@ -295,29 +306,25 @@ def withdraw():
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
-    ph = request.json.get('phone') if request.json else None
-    if not ph:
-        return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
+    ph = request.json.get('phone')
     
-    # --- ATOMIC WINNER PROCESSING DOUBLE-CLICK PROTECTION ---
     with state_lock:
+        # ጨዋታው አስቀድሞ ካለቀ ወይም ሌላ ሰው ቀድሞ claim አድርጎ ከሆነ ወዲያውኑ ውድቅ ማድረግ
+        if game_state["status"] != "playing":
+            return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም ወይም ሌላ አሸናፊ ተገኝቷል!"})
+            
         p_data = game_state["players"].get(ph)
-        
-        # If status already changed from "playing" to "result" by the first execution click,
-        # consecutive duplicate operations drop cleanly right here.
-        if game_state["status"] != "playing" or not p_data:
+        if not p_data:
             return jsonify({"success": False, "msg": "ይገባኛል ጥያቄው ውድቅ ተደርጓል!"})
             
         cards_to_check = list(p_data["cards"].values())
         
         if any(is_winner(c, game_state["drawn_balls"]) for c in cards_to_check):
-            win_amt = game_state["pot"] * 0.8
-            
-            # Change state parameters immediately inside lock context window 
-            game_state["winner"] = p_data["username"]
+            # የሁለተኛውን ክሊክ ፍጥነት ለመግታት ወዲያውኑ ሁኔታውን (status) መቀየር
             game_state["status"] = "result"
+            game_state["winner"] = p_data["username"]
             
-            # Issue payload updates atomically inside persistence tier
+            win_amt = game_state["pot"] * 0.8
             wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
             
             send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n📞 Phone: `{ph}` \n💰 Prize: {win_amt} ETB")
