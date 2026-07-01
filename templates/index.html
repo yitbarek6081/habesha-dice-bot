@@ -163,29 +163,13 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
-        function getWinningIndices(card, drawnSet) {
-            // 1. Rows
-            for (let i = 0; i < 5; i++) {
-                let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
-                if (rowIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(rowIdxs);
-            }
-            // 2. Columns
-            for (let j = 0; j < 5; j++) {
-                let colIdxs = [j, j+5, j+10, j+15, j+20];
-                if (colIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(colIdxs);
-            }
-            // 3. Diagonals
-            let diag1 = [0, 6, 12, 18, 24];
-            if (diag1.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag1);
-            
-            let diag2 = [4, 8, 12, 16, 20];
-            if (diag2.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag2);
-            
-            // 4. Corners
-            let corners = [0, 4, 20, 24];
-            if (corners.every(idx => drawnSet.has(card[idx]))) return new Set(corners);
-
-            return new Set();
+        // ያበሩ ቁጥሮችን በማህደረ ትውስታ ውስጥ መመዝገቢያ ሎጂክ
+        function trackCell(cardId, cellVal) {
+            let key = `marked_${cardId}`;
+            let list = JSON.parse(localStorage.getItem(key) || "[]");
+            let idx = list.indexOf(cellVal);
+            if(idx > -1) { list.splice(idx, 1); } else { list.push(cellVal); }
+            localStorage.setItem(key, JSON.stringify(list));
         }
 
         function update() {
@@ -199,6 +183,9 @@
                     document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('winning-card-area').innerHTML=""; 
+                    
+                    // አዲስ ሎቢ ሲገባ የድሮ ቀለም ማጽጃ
+                    localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
                     
                     const bBtn = document.getElementById('bingo-btn');
                     if(bBtn) bBtn.disabled = false;
@@ -229,18 +216,14 @@
                             <div class="winner-grid" id="w-grid-cells"></div>
                         `;
                         const gridCells = document.getElementById('w-grid-cells');
-                        
                         let drawnSet = new Set(d.drawn_balls.map(b => parseInt(b.substring(1))));
-                        let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
                         d.winning_card.forEach((n, idx) => {
                             let cell = document.createElement('div');
                             if(idx === 12) {
-                                cell.className = "winner-cell free";
-                                cell.innerText = "FREE";
-                                if(winIdxs.has(idx)) cell.className += " hit";
+                                cell.className = "winner-cell free"; cell.innerText = "FREE";
                             } else {
-                                cell.className = winIdxs.has(idx) ? "winner-cell hit" : "winner-cell";
+                                cell.className = drawnSet.has(n) ? "winner-cell hit" : "winner-cell";
                                 cell.innerText = n;
                             }
                             gridCells.appendChild(cell);
@@ -260,11 +243,7 @@
             const area = document.getElementById('ticket-area');
             if(area.children.length === 0) { 
                 for(let i=1; i<=500; i++) { 
-                    let div=document.createElement('div'); 
-                    div.className='t-box'; 
-                    div.innerText=i; 
-                    div.id='t-'+i; 
-                    area.appendChild(div); 
+                    let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i; area.appendChild(div); 
                 } 
             }
             for(let i=1; i<=500; i++) {
@@ -281,14 +260,10 @@
         function buy(n) { 
             const myCount = document.querySelectorAll('.t-box.mine').length;
             if (myCount >= 2) return alert("በአንድ ጨዋታ ከ 2 ካርተላ በላይ መግዛት አይቻልም!");
-            
             const box = document.getElementById('t-'+n);
             if(box) { box.style.pointerEvents = "none"; box.innerText = "..."; }
-            
             fetch('/buy_specific_ticket', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone, ticket_num:n, username})
+                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})
             }).then(update).catch(()=>{ update(); }); 
         }
 
@@ -296,11 +271,8 @@
             if(confirm("መልሰው 10 ብር ይውሰዱ?")) {
                 const box = document.getElementById('t-'+n);
                 if(box) { box.style.pointerEvents = "none"; box.innerText = "..."; }
-                
                 fetch('/cancel_ticket', {
-                    method:'POST', 
-                    headers:{'Content-Type':'application/json'}, 
-                    body:JSON.stringify({phone, ticket_num:n})
+                    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})
                 }).then(update).catch(()=>{ update(); }); 
             }
         }
@@ -313,4 +285,96 @@
 
         function renderCard(card, cardIdx) {
             const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
-            wrap.innerHTML = `<div style="display:grid;grid-
+            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
+            const grid = document.createElement('div'); grid.className='bingo-card';
+            
+            // የቆዩ የተቀለሙ ቁጥሮችን መልሶ ማውጫ
+            let savedMarks = JSON.parse(localStorage.getItem(`marked_${cardIdx}`) || "[]");
+
+            card.forEach((n, i) => {
+                const cell=document.createElement('div');
+                if(i === 12) { 
+                    cell.className="cell free selected"; cell.innerText="FREE"; 
+                } else { 
+                    cell.className = savedMarks.includes(n) ? "cell selected" : "cell";
+                    cell.innerText=n; 
+                    cell.onclick = () => { 
+                        cell.classList.toggle('selected'); 
+                        trackCell(cardIdx, n);
+                    } 
+                }
+                grid.appendChild(cell);
+            });
+            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
+        }
+
+        function claim() { 
+            const bBtn = document.getElementById('bingo-btn');
+            if(bBtn) bBtn.disabled = true;
+
+            // ለኮምፒውተር ቴሌግራም (PC) ፍፁም አስተማማኝ የሆነ ሎጂክ
+            fetch('/claim_bingo', {
+                method:'POST', 
+                headers:{
+                    'Content-Type':'application/json',
+                    'Accept': 'application/json'
+                }, 
+                body:JSON.stringify({phone})
+            })
+            .then(r => {
+                if(!r.ok) throw new Error("PC Telegram network blockage");
+                return r.json();
+            })
+            .then(d=>{ 
+                if(!d.success) { 
+                    alert(d.msg); 
+                    if(bBtn) bBtn.disabled = false;
+                } 
+            }).catch(() => {
+                // በኔትወርክ ወይም በቴሌግራም ገደብ ምክንያት fetch እምቢ ካለ አማራጭ የ URL መላኪያ መንገድ
+                let altUrl = `/claim_bingo?phone=${encodeURIComponent(phone)}`;
+                fetch(altUrl, { method: 'GET' })
+                .then(r => r.json())
+                .then(d => {
+                    if(!d.success) { alert(d.msg); }
+                    if(bBtn) bBtn.disabled = false;
+                })
+                .catch(() => {
+                    alert("የቢንጎ ጥያቄ መላክ አልተሳካም! እባክዎ እንደገና ይጫኑ።");
+                    if(bBtn) bBtn.disabled = false;
+                });
+            }); 
+        }
+        
+        function subD() {
+            let amt=document.getElementById('da').value, tid=document.getElementById('di').value;
+            if(!amt || !tid) return alert("መረጃ በትክክል ያስገቡ!");
+            fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
+            closeM('dep-m'); alert("ጥያቄዎ ተልኳል!");
+        }
+
+        function subW() {
+            let amtInput = document.getElementById('wa').value;
+            let amt = parseInt(amtInput);
+            let balEl = document.getElementById('balance');
+            let currentBal = parseFloat(balEl.innerText.replace(/[^0-9.]/g, '')) || 0;
+
+            if(!amtInput || amt < 20) return alert("ቢያንስ 20 ብር ማውጣት ይችላሉ!");
+            if(amt > currentBal) return alert("ሂሳብዎ በቂ አይደለም!");
+
+            let oldBalText = balEl.innerText;
+            balEl.innerText = (currentBal - amt).toFixed(0) + " ETB";
+
+            fetch('/withdraw', {
+                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ phone: phone, amount: amt })
+            }).then(response => {
+                if(response.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); update(); }
+                else { balEl.innerText = oldBalText; alert("አልተሳካም!"); }
+            }).catch(() => { balEl.innerText = oldBalText; alert("ስህተት!"); });
+        }
+
+        setInterval(update, 2000); 
+        update();
+    </script>
+</body>
+</html>
