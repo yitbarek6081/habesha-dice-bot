@@ -68,7 +68,7 @@
         .winner-card-title { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; padding: 5px; font-size: 0.8rem; border-radius: 5px 5px 0 0; max-width: 200px; margin: 15px auto 0 auto; }
         .winner-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 200px; margin: 0 auto; }
         .winner-cell { background: #fff; color: #000; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; }
-        .winner-cell.hit { background: var(--gold); }
+        .winner-cell.hit { background: var(--gold) !important; color: #000 !important; }
         .winner-cell.free { background: var(--red); color: white; font-size: 0.55rem; }
     </style>
 </head>
@@ -128,7 +128,6 @@
         <h1 style="color:var(--gold); font-size:3rem; margin-bottom:5px;">BINGO!</h1>
         <div id="winner-info" style="font-size:1.5rem; font-weight:bold; color:white;"></div>
         <div style="margin-top:10px; font-size:0.9rem; color:#aaa;">ያሸነፈበት የካርተላ ቁጥሮች፦</div>
-        
         <div id="winning-card-area"></div>
     </div>
 
@@ -164,6 +163,31 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
+        function getWinningIndices(card, drawnSet) {
+            // 1. Rows
+            for (let i = 0; i < 5; i++) {
+                let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
+                if (rowIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(rowIdxs);
+            }
+            // 2. Columns
+            for (let j = 0; j < 5; j++) {
+                let colIdxs = [j, j+5, j+10, j+15, j+20];
+                if (colIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(colIdxs);
+            }
+            // 3. Diagonals
+            let diag1 = [0, 6, 12, 18, 24];
+            if (diag1.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag1);
+            
+            let diag2 = [4, 8, 12, 16, 20];
+            if (diag2.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag2);
+            
+            // 4. Corners
+            let corners = [0, 4, 20, 24];
+            if (corners.every(idx => drawnSet.has(card[idx]))) return new Set(corners);
+
+            return new Set();
+        }
+
         function update() {
             fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
                 document.getElementById('balance').innerText = d.balance.toFixed(0) + " ETB";
@@ -174,8 +198,8 @@
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                    document.getElementById('winning-card-area').innerHTML=""; 
                     
-                    // ጨዋታው ሲያልቅ የቢንጎ በተኑን መልሰን ዝግጁ እናደርጋለን
                     const bBtn = document.getElementById('bingo-btn');
                     if(bBtn) bBtn.disabled = false;
                     
@@ -198,7 +222,6 @@
                     document.getElementById('result-ui').style.display='flex';
                     document.getElementById('winner-info').innerText = d.winner + " 🏆";
                     
-                    // የአሸናፊውን ካርተላ ለሁሉም ሰው ማሳያ ክፍል
                     const wArea = document.getElementById('winning-card-area');
                     if(wArea && wArea.children.length === 0 && d.winning_card) {
                         wArea.innerHTML = `
@@ -207,18 +230,17 @@
                         `;
                         const gridCells = document.getElementById('w-grid-cells');
                         
-                        // የመጡትን ኳሶች በ Set መልክ መያዝ (የተመቱትን ለመለየት)
                         let drawnSet = new Set(d.drawn_balls.map(b => parseInt(b.substring(1))));
-                        drawnSet.add(0); // FREE Space መለያ
+                        let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
                         d.winning_card.forEach((n, idx) => {
                             let cell = document.createElement('div');
                             if(idx === 12) {
                                 cell.className = "winner-cell free";
                                 cell.innerText = "FREE";
+                                if(winIdxs.has(idx)) cell.className += " hit";
                             } else {
-                                // ቁጥሩ የወጣ ከሆነ የቢጫ ምልክት (hit) ያደርጋል
-                                cell.className = drawnSet.has(n) ? "winner-cell hit" : "winner-cell";
+                                cell.className = winIdxs.has(idx) ? "winner-cell hit" : "winner-cell";
                                 cell.innerText = n;
                             }
                             gridCells.appendChild(cell);
@@ -291,66 +313,4 @@
 
         function renderCard(card, cardIdx) {
             const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
-            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
-            const grid = document.createElement('div'); grid.className='bingo-card';
-            card.forEach((n, i) => {
-                const cell=document.createElement('div');
-                if(i === 12) { cell.className="cell free selected"; cell.innerText="FREE"; }
-                else { cell.className="cell"; cell.innerText=n; cell.onclick = () => cell.classList.toggle('selected'); }
-                grid.appendChild(cell);
-            });
-            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
-        }
-
-        function claim() { 
-            const bBtn = document.getElementById('bingo-btn');
-            if(bBtn) bBtn.disabled = true;
-
-            fetch('/claim_bingo', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone})
-            }).then(r=>r.json()).then(d=>{ 
-                if(!d.success) { 
-                    alert(d.msg); 
-                    if(bBtn) bBtn.disabled = false;
-                } 
-            }).catch(() => {
-                if(bBtn) bBtn.disabled = false;
-            }); 
-        }
-        
-        function subD() {
-            let amt=document.getElementById('da').value, tid=document.getElementById('di').value;
-            if(!amt || !tid) return alert("መረጃ በትክክል ያስገቡ!");
-            fetch('/request_deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, amount:amt, transaction_id:tid})});
-            closeM('dep-m'); alert("ጥያቄዎ ተልኳል!");
-        }
-
-        function subW() {
-            let amtInput = document.getElementById('wa').value;
-            let amt = parseInt(amtInput);
-            let balEl = document.getElementById('balance');
-            let currentBal = parseFloat(balEl.innerText.replace(/[^0-9.]/g, '')) || 0;
-
-            if(!amtInput || amt < 20) return alert("ቢያንስ 20 ብር ማውጣት ይችላሉ!");
-            if(amt > currentBal) return alert("ሂሳብዎ በቂ አይደለም!");
-
-            let oldBalText = balEl.innerText;
-            balEl.innerText = (currentBal - amt).toFixed(0) + " ETB";
-
-            fetch('/withdraw', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({ phone: phone, amount: amt })
-            }).then(response => {
-                if(response.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); update(); }
-                else { balEl.innerText = oldBalText; alert("አልተሳካም!"); }
-            }).catch(() => { balEl.innerText = oldBalText; alert("ስህተት!"); });
-        }
-
-        setInterval(update, 2000); 
-        update();
-    </script>
-</body>
-</html>
+            wrap.innerHTML = `<div style="display:grid;grid-
