@@ -37,15 +37,15 @@
         .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
-        .game-layout { display: grid; grid-template-columns: 1.4fr 1.8fr; gap: 10px; padding: 10px; box-sizing: border-box; }
+        .game-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 5px; box-sizing: border-box; }
         
-        /* ማይንድ ቦርድ በ BINGO ኮለምን እንዲሆን ማስተካከያ */
-        .board-container { border: 1px solid #333; background: rgba(0,0,0,0.8); border-radius: 10px; padding: 5px; height: 380px; overflow-y: auto; display: flex; flex-direction: column; }
-        .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; font-size: 0.9rem; padding: 5px 0; border-radius: 5px; margin-bottom: 5px; }
-        .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; flex: 1; }
-        .board-column { display: flex; flex-direction: column; gap: 3px; }
-        .ball-dot { font-size: 0.7rem; background: #111; padding: 5px 0; color: #444; border-radius: 3px; text-align: center; font-weight: bold; }
-        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; box-shadow: 0 0 5px var(--gold); }
+        /* ስክሮል ሳይደረግ 1-75 ሙሉ እንዲታይ የተስተካከለ ስታይል */
+        .board-container { border: 1px solid #333; background: rgba(0,0,0,0.8); border-radius: 10px; padding: 4px; display: flex; flex-direction: column; justify-content: flex-start; }
+        .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; font-size: 0.85rem; padding: 4px 0; border-radius: 5px; margin-bottom: 4px; }
+        .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; width: 100%; }
+        .board-column { display: flex; flex-direction: column; gap: 2px; }
+        .ball-dot { font-size: 0.6rem; background: #111; padding: 3px 0; color: #444; border-radius: 2px; text-align: center; font-weight: bold; }
+        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; box-shadow: 0 0 3px var(--gold); }
         
         .bingo-card { 
             display: grid; 
@@ -137,7 +137,7 @@
     <div id="result-ui" class="modal">
         <h1 style="color:var(--gold); font-size:3rem; margin-bottom:5px;">BINGO!</h1>
         <div id="winner-info" style="font-size:1.5rem; font-weight:bold; color:white;"></div>
-        <div style="margin-top:10px; font-size:0.9rem; color:#aaa;">ያሸነፈበት መስመር ብቻ፦</div>
+        <div style="margin-top:10px; font-size:0.9rem; color:#aaa;">ያሸነፈበት መስመር/ቁጥር ብቻ፦</div>
         <div id="winning-card-area"></div>
     </div>
 
@@ -181,29 +181,29 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // ያሸነፈባትን ትክክለኛ መስመር (ረድፍ፣ አምድ፣ ዲያጎናል ወዘተ) ኢንዴክስ ለይቶ ማውጫ ፈንክሽን
+        // ያሸነፈበትን መስመር ብቻ በትክክል ለይቶ ማውጫ (የተስተካከለ)
         function getWinningIndices(card, drawnSet) {
-            // 1. ረድፎችን መፈተሽ (Rows)
+            // 1. 4ቱ ማዕዘናት (4 Corners: 0, 4, 20, 24) - ቅድሚያ እንዲፈትሽ እዚህ ተቀምጧል
+            let corners = [0, 4, 20, 24];
+            if (corners.every(idx => drawnSet.has(card[idx]))) return new Set(corners);
+
+            // 2. ረድፎችን መፈተሽ (Rows)
             for (let i = 0; i < 5; i++) {
                 let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
                 if (rowIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(rowIdxs);
             }
-            // 2. አምዶችን መፈተሽ (Columns)
+            // 3. አምዶችን መፈተሽ (Columns)
             for (let j = 0; j < 5; j++) {
                 let colIdxs = [j, j+5, j+10, j+15, j+20];
                 if (colIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(colIdxs);
             }
-            // 3. ዲያጎናል 1 (\)
+            // 4. ዲያጎናል 1 (\)
             let diag1 = [0, 6, 12, 18, 24];
             if (diag1.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag1);
             
-            // 4. ዲያጎናል 2 (/)
+            // 5. ዲያጎናል 2 (/)
             let diag2 = [4, 8, 12, 16, 20];
             if (diag2.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag2);
-            
-            // 5. 4ቱ ማዕዘናት (4 Corners)
-            let corners = [0, 4, 20, 24];
-            if (corners.every(idx => drawnSet.has(card[idx]))) return new Set(corners);
 
             return new Set();
         }
@@ -253,7 +253,6 @@
                         const gridCells = document.getElementById('w-grid-cells');
                         let drawnSet = new Set(d.drawn_balls.map(b => parseInt(b.substring(1))));
                         
-                        // ያሸነፈባትን መስመር ብቻ ለይቶ ማውጫ
                         let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
                         d.winning_card.forEach((n, idx) => {
@@ -262,7 +261,6 @@
                                 cell.className = "winner-cell free"; cell.innerText = "FREE";
                                 if(winIdxs.has(idx)) cell.className += " hit";
                             } else {
-                                // ያሸነፈበት መስመር ላይ ያለ ቁጥር ከሆነ ብቻ 'hit' (ቢጫ) ይሆናል
                                 cell.className = winIdxs.has(idx) ? "winner-cell hit" : "winner-cell";
                                 cell.innerText = n;
                             }
@@ -317,12 +315,10 @@
             }
         }
         
-        // ሜይን ቦርድን በ B-I-N-G-O አምድ ከፋፍሎ መደርደሪያ ሎጂክ
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
             if(board.children.length === 0) { 
                 board.innerHTML = "";
-                // 5 አምዶችን መፍጠር
                 for(let col=0; col<5; col++) {
                     let colDiv = document.createElement('div');
                     colDiv.className = 'board-column';
