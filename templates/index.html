@@ -38,9 +38,14 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
         .game-layout { display: grid; grid-template-columns: 1.4fr 1.8fr; gap: 10px; padding: 10px; box-sizing: border-box; }
-        .main-board { border: 1px solid #333; height: 380px; overflow-y: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 5px; background: rgba(0,0,0,0.8); border-radius: 10px; }
-        .ball-dot { font-size: 0.7rem; background: #111; padding: 5px; color: #444; border-radius: 3px; }
-        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
+        
+        /* ማይንድ ቦርድ በ BINGO ኮለምን እንዲሆን ማስተካከያ */
+        .board-container { border: 1px solid #333; background: rgba(0,0,0,0.8); border-radius: 10px; padding: 5px; height: 380px; overflow-y: auto; display: flex; flex-direction: column; }
+        .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; font-size: 0.9rem; padding: 5px 0; border-radius: 5px; margin-bottom: 5px; }
+        .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; flex: 1; }
+        .board-column { display: flex; flex-direction: column; gap: 3px; }
+        .ball-dot { font-size: 0.7rem; background: #111; padding: 5px 0; color: #444; border-radius: 3px; text-align: center; font-weight: bold; }
+        .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; box-shadow: 0 0 5px var(--gold); }
         
         .bingo-card { 
             display: grid; 
@@ -68,7 +73,7 @@
         .winner-card-title { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; padding: 5px; font-size: 0.8rem; border-radius: 5px 5px 0 0; max-width: 200px; margin: 15px auto 0 auto; }
         .winner-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 200px; margin: 0 auto; }
         .winner-cell { background: #fff; color: #000; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; }
-        .winner-cell.hit { background: var(--gold) !important; color: #000 !important; }
+        .winner-cell.hit { background: var(--gold) !important; color: #000 !important; font-weight: 900; border: 1px solid white; }
         .winner-cell.free { background: var(--red); color: white; font-size: 0.55rem; }
     </style>
 </head>
@@ -95,7 +100,12 @@
     <div id="game-ui" style="display:none;">
         <div id="ball-circle">--</div>
         <div class="game-layout">
-            <div class="main-board" id="main-board"></div>
+            <div class="board-container">
+                <div class="board-header">
+                    <div>B</div><div>I</div><div>N</div><div>G</div><div>O</div>
+                </div>
+                <div class="main-board" id="main-board"></div>
+            </div>
             <div>
                 <div id="card-area"></div>
                 <button id="bingo-btn" onclick="claim()">BINGO!</button>
@@ -127,7 +137,7 @@
     <div id="result-ui" class="modal">
         <h1 style="color:var(--gold); font-size:3rem; margin-bottom:5px;">BINGO!</h1>
         <div id="winner-info" style="font-size:1.5rem; font-weight:bold; color:white;"></div>
-        <div style="margin-top:10px; font-size:0.9rem; color:#aaa;">ያሸነፈበት የካርተላ ቁጥሮች፦</div>
+        <div style="margin-top:10px; font-size:0.9rem; color:#aaa;">ያሸነፈበት መስመር ብቻ፦</div>
         <div id="winning-card-area"></div>
     </div>
 
@@ -163,13 +173,39 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
-        // ያበሩ ቁጥሮችን በማህደረ ትውስታ ውስጥ መመዝገቢያ ሎጂክ
         function trackCell(cardId, cellVal) {
             let key = `marked_${cardId}`;
             let list = JSON.parse(localStorage.getItem(key) || "[]");
             let idx = list.indexOf(cellVal);
             if(idx > -1) { list.splice(idx, 1); } else { list.push(cellVal); }
             localStorage.setItem(key, JSON.stringify(list));
+        }
+
+        // ያሸነፈባትን ትክክለኛ መስመር (ረድፍ፣ አምድ፣ ዲያጎናል ወዘተ) ኢንዴክስ ለይቶ ማውጫ ፈንክሽን
+        function getWinningIndices(card, drawnSet) {
+            // 1. ረድፎችን መፈተሽ (Rows)
+            for (let i = 0; i < 5; i++) {
+                let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
+                if (rowIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(rowIdxs);
+            }
+            // 2. አምዶችን መፈተሽ (Columns)
+            for (let j = 0; j < 5; j++) {
+                let colIdxs = [j, j+5, j+10, j+15, j+20];
+                if (colIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(colIdxs);
+            }
+            // 3. ዲያጎናል 1 (\)
+            let diag1 = [0, 6, 12, 18, 24];
+            if (diag1.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag1);
+            
+            // 4. ዲያጎናል 2 (/)
+            let diag2 = [4, 8, 12, 16, 20];
+            if (diag2.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag2);
+            
+            // 5. 4ቱ ማዕዘናት (4 Corners)
+            let corners = [0, 4, 20, 24];
+            if (corners.every(idx => drawnSet.has(card[idx]))) return new Set(corners);
+
+            return new Set();
         }
 
         function update() {
@@ -184,7 +220,6 @@
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('winning-card-area').innerHTML=""; 
                     
-                    // አዲስ ሎቢ ሲገባ የድሮ ቀለም ማጽጃ
                     localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
                     
                     const bBtn = document.getElementById('bingo-btn');
@@ -217,13 +252,18 @@
                         `;
                         const gridCells = document.getElementById('w-grid-cells');
                         let drawnSet = new Set(d.drawn_balls.map(b => parseInt(b.substring(1))));
+                        
+                        // ያሸነፈባትን መስመር ብቻ ለይቶ ማውጫ
+                        let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
                         d.winning_card.forEach((n, idx) => {
                             let cell = document.createElement('div');
                             if(idx === 12) {
                                 cell.className = "winner-cell free"; cell.innerText = "FREE";
+                                if(winIdxs.has(idx)) cell.className += " hit";
                             } else {
-                                cell.className = drawnSet.has(n) ? "winner-cell hit" : "winner-cell";
+                                // ያሸነፈበት መስመር ላይ ያለ ቁጥር ከሆነ ብቻ 'hit' (ቢጫ) ይሆናል
+                                cell.className = winIdxs.has(idx) ? "winner-cell hit" : "winner-cell";
                                 cell.innerText = n;
                             }
                             gridCells.appendChild(cell);
@@ -277,9 +317,27 @@
             }
         }
         
+        // ሜይን ቦርድን በ B-I-N-G-O አምድ ከፋፍሎ መደርደሪያ ሎጂክ
         function renderMainBoard(drawn) {
             const board = document.getElementById('main-board');
-            if(board.children.length === 0) { for(let i=1; i<=75; i++) { let d=document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i; board.appendChild(d); } }
+            if(board.children.length === 0) { 
+                board.innerHTML = "";
+                // 5 አምዶችን መፍጠር
+                for(let col=0; col<5; col++) {
+                    let colDiv = document.createElement('div');
+                    colDiv.className = 'board-column';
+                    let start = col * 15 + 1;
+                    let end = start + 14;
+                    for(let i=start; i<=end; i++) {
+                        let d = document.createElement('div');
+                        d.className = 'ball-dot';
+                        d.id = 'b-' + i;
+                        d.innerText = i;
+                        colDiv.appendChild(d);
+                    }
+                    board.appendChild(colDiv);
+                }
+            }
             drawn.forEach(b => { let num = b.substring(1); let el = document.getElementById('b-'+num); if(el) el.classList.add('active'); });
         }
 
@@ -288,7 +346,6 @@
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             
-            // የቆዩ የተቀለሙ ቁጥሮችን መልሶ ማውጫ
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${cardIdx}`) || "[]");
 
             card.forEach((n, i) => {
@@ -312,37 +369,20 @@
             const bBtn = document.getElementById('bingo-btn');
             if(bBtn) bBtn.disabled = true;
 
-            // ለኮምፒውተር ቴሌግራም (PC) ፍፁም አስተማማኝ የሆነ ሎጂክ
             fetch('/claim_bingo', {
                 method:'POST', 
-                headers:{
-                    'Content-Type':'application/json',
-                    'Accept': 'application/json'
-                }, 
+                headers:{ 'Content-Type':'application/json', 'Accept': 'application/json' }, 
                 body:JSON.stringify({phone})
             })
-            .then(r => {
-                if(!r.ok) throw new Error("PC Telegram network blockage");
-                return r.json();
-            })
+            .then(r => { if(!r.ok) throw new Error("Network error"); return r.json(); })
             .then(d=>{ 
-                if(!d.success) { 
-                    alert(d.msg); 
-                    if(bBtn) bBtn.disabled = false;
-                } 
+                if(!d.success) { alert(d.msg); if(bBtn) bBtn.disabled = false; } 
             }).catch(() => {
-                // በኔትወርክ ወይም በቴሌግራም ገደብ ምክንያት fetch እምቢ ካለ አማራጭ የ URL መላኪያ መንገድ
                 let altUrl = `/claim_bingo?phone=${encodeURIComponent(phone)}`;
                 fetch(altUrl, { method: 'GET' })
                 .then(r => r.json())
-                .then(d => {
-                    if(!d.success) { alert(d.msg); }
-                    if(bBtn) bBtn.disabled = false;
-                })
-                .catch(() => {
-                    alert("የቢንጎ ጥያቄ መላክ አልተሳካም! እባክዎ እንደገና ይጫኑ።");
-                    if(bBtn) bBtn.disabled = false;
-                });
+                .then(d => { if(!d.success) { alert(d.msg); } if(bBtn) bBtn.disabled = false; })
+                .catch(() => { alert("የቢንጎ ጥያቄ መላክ አልተሳካም!"); if(bBtn) bBtn.disabled = false; });
             }); 
         }
         
