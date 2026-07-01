@@ -43,17 +43,15 @@
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; }
         
         .bingo-card { 
-  display: grid; 
-  grid-template-columns: repeat(5, 1fr); 
-  gap: 2px; 
-  background: #444; 
-  padding: 4px; 
-  border-radius: 0 0 5px 5px; 
-  
-  /* አዲስ የተጨመረ መጠን መቆጣጠሪያ */
-  max-width: 300px;  /* ካርዱ ከ 300px በላይ እንዳይሰፋ ይከለክላል */
-  margin: 0 auto;    /* መካከለኛ ቦታ ላይ ለማስቀመጥ */
-}
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 2px; 
+            background: #444; 
+            padding: 4px; 
+            border-radius: 0 0 5px 5px; 
+            max-width: 300px;  
+            margin: 0 auto;    
+        }
         .cell { background: #fff; color: #000; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
         .cell.selected { background: var(--gold) !important; border: 0px solid #b45309; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
@@ -65,6 +63,13 @@
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; }
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; }
         #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); }
+
+        /* የአሸናፊው ትኬት ማሳያ ግሪድ ስታይል */
+        .winner-card-title { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; padding: 5px; font-size: 0.8rem; border-radius: 5px 5px 0 0; max-width: 200px; margin: 15px auto 0 auto; }
+        .winner-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 200px; margin: 0 auto; }
+        .winner-cell { background: #fff; color: #000; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; }
+        .winner-cell.hit { background: var(--gold); }
+        .winner-cell.free { background: var(--red); color: white; font-size: 0.55rem; }
     </style>
 </head>
 <body>
@@ -120,8 +125,11 @@
     </div>
 
     <div id="result-ui" class="modal">
-        <h1 style="color:var(--gold); font-size:3rem;">BINGO!</h1>
-        <div id="winner-info" style="font-size:1.5rem;"></div>
+        <h1 style="color:var(--gold); font-size:3rem; margin-bottom:5px;">BINGO!</h1>
+        <div id="winner-info" style="font-size:1.5rem; font-weight:bold; color:white;"></div>
+        <div style="margin-top:10px; font-size:0.9rem; color:#aaa;">ያሸነፈበት የካርተላ ቁጥሮች፦</div>
+        
+        <div id="winning-card-area"></div>
     </div>
 
     <script>
@@ -174,7 +182,7 @@
                     currentCardData = null; announced = false; lastBall = "--";
                     renderTickets(d.sold_tickets);
                 } else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block';
+                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('ball-circle').innerText = d.current_ball;
                     if (d.current_ball !== lastBall && d.current_ball !== "--") { 
                         speak(`${d.current_ball.charAt(0)}... ${d.current_ball.substring(1)}`); 
@@ -189,7 +197,39 @@
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
                     document.getElementById('winner-info').innerText = d.winner + " 🏆";
-                    if(!announced) { if(isVoiceOn) { document.getElementById('win-horn').play(); speak(`Winner is ${d.winner}`); } announced = true; }
+                    
+                    // የአሸናፊውን ካርተላ ለሁሉም ሰው ማሳያ ክፍል
+                    const wArea = document.getElementById('winning-card-area');
+                    if(wArea && wArea.children.length === 0 && d.winning_card) {
+                        wArea.innerHTML = `
+                            <div class="winner-card-title"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
+                            <div class="winner-grid" id="w-grid-cells"></div>
+                        `;
+                        const gridCells = document.getElementById('w-grid-cells');
+                        
+                        // የመጡትን ኳሶች በ Set መልክ መያዝ (የተመቱትን ለመለየት)
+                        let drawnSet = new Set(d.drawn_balls.map(b => parseInt(b.substring(1))));
+                        drawnSet.add(0); // FREE Space መለያ
+
+                        d.winning_card.forEach((n, idx) => {
+                            let cell = document.createElement('div');
+                            if(idx === 12) {
+                                cell.className = "winner-cell free";
+                                cell.innerText = "FREE";
+                            } else {
+                                // ቁጥሩ የወጣ ከሆነ የቢጫ ምልክት (hit) ያደርጋል
+                                cell.className = drawnSet.has(n) ? "winner-cell hit" : "winner-cell";
+                                cell.innerText = n;
+                            }
+                            gridCells.appendChild(cell);
+                        });
+                    }
+
+                    if(!announced) { 
+                        if(isVoiceOn) { document.getElementById('win-horn').play(); } 
+                        speak(`Winner is ${d.winner}`); 
+                        announced = true; 
+                    }
                 }
             }).catch(() => {});
         }
@@ -207,7 +247,6 @@
             }
             for(let i=1; i<=500; i++) {
                 let box = document.getElementById('t-'+i);
-                // በሂደት ላይ ያሉ ሳጥኖችን ክሊክ እንዳይደረጉ መከላከያውን ማንሳት
                 box.style.pointerEvents = "auto"; 
                 if(sold[i]) { 
                     box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold'; 
@@ -221,7 +260,6 @@
             const myCount = document.querySelectorAll('.t-box.mine').length;
             if (myCount >= 2) return alert("በአንድ ጨዋታ ከ 2 ካርተላ በላይ መግዛት አይቻልም!");
             
-            // ክሊክ ከተደረገ በኋላ ደጋግሞ መጫን እንዳይቻል ወዲያውኑ መቆለፍ
             const box = document.getElementById('t-'+n);
             if(box) { box.style.pointerEvents = "none"; box.innerText = "..."; }
             
@@ -234,7 +272,6 @@
 
         function refund(n) { 
             if(confirm("መልሰው 10 ብር ይውሰዱ?")) {
-                // መረጃው ሰርቨር ደርሶ እስኪመለስ ሳጥኑን መቆለፍ
                 const box = document.getElementById('t-'+n);
                 if(box) { box.style.pointerEvents = "none"; box.innerText = "..."; }
                 
@@ -267,7 +304,6 @@
 
         function claim() { 
             const bBtn = document.getElementById('bingo-btn');
-            // የቢንጎ በተኑን ደጋግመው እንዳይጫኑት ወዲያውኑ ማጥፋት
             if(bBtn) bBtn.disabled = true;
 
             fetch('/claim_bingo', {
@@ -277,7 +313,6 @@
             }).then(r=>r.json()).then(d=>{ 
                 if(!d.success) { 
                     alert(d.msg); 
-                    // ቢንጎው የተሳሳተ ከሆነ በተኑን መልሶ ማብራት
                     if(bBtn) bBtn.disabled = false;
                 } 
             }).catch(() => {
