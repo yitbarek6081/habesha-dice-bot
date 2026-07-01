@@ -31,7 +31,8 @@ game_state = {
     "sold_tickets": {},  # ticket_num -> chat_id
     "current_ball": "--", 
     "drawn_balls": [], 
-    "winner": None
+    "winner": None,
+    "winning_card": None  # የአሸናፊው ትኬት ለሁሉም እንዲታይ እዚህ ይቀመጣል
 }
 
 def send_telegram(text):
@@ -132,7 +133,7 @@ def is_winner(card, drawn_numbers):
 def reset_game():
     with state_lock:
         game_state.update({
-            "status": "lobby", "winner": None, "pot": 0, "players": {}, 
+            "status": "lobby", "winner": None, "winning_card": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
         })
 
@@ -175,6 +176,7 @@ def game_loop():
                 if game_state["status"] == "playing":
                     game_state["status"] = "result"
                     game_state["winner"] = "No Winner (House)"
+                    game_state["winning_card"] = None
                     send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
                     threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
 
@@ -286,4 +288,87 @@ def cancel_ticket():
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
 
-@app.
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json or {}
+    ph = str(d.get('phone'))
+    amt = d.get('amount')
+    t_id = d.get('transaction_id', 'N/A')
+    
+    user = wallets.find_one({"phone": ph})
+    
+    if user and "referred_by" in user:
+        agent_phone = user["referred_by"]
+        msg = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
+               f"📝 ስም: `{ph}`\n"
+               f"🆔 Chat ID: `{ph}`\n"
+               f"💵 መጠን: `{amt}` ETB\n"
+               f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**\n\n"
+               f"👇 Approve ለማድረግ:\n`/add {ph} {amt}`")
+    else:
+        msg = (f"💰 *Deposit Request*\n"
+               f"📞 Phone: `{ph}`\n"
+               f"💵 Amount: `{amt}` ETB\n"
+               f"🆔 ID: `{t_id}`\n\n"
+               f"👇 Approve:\n`/add {ph} {amt}`")
+               
+    send_telegram(msg)
+    return jsonify({"success": True})
+
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
+    d = request.json or {}
+    ph, amt = d.get('phone'), float(d.get('amount'))
+    
+    res = wallets.find_one_and_update(
+        {"phone": ph, "balance": {"$gte": amt}},
+        {"$inc": {"balance": -amt}},
+        return_document=True
+    )
+    if res:
+        msg = f"📤 *Withdraw Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
+        send_telegram(msg)
+        return jsonify({"success": True})
+    return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
+
+@app.route('/claim_bingo', methods=['POST'])
+def claim_bingo():
+    d = request.json or {}
+    ph = d.get('phone')
+    
+    with state_lock:
+        if game_state["status"] != "playing":
+            return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም ወይም ሌላ አሸናፊ ተገኝቷል!"})
+            
+        p_data = game_state["players"].get(ph)
+        if not p_data:
+            return jsonify({"success": False, "msg": "ይገባኛል ጥያቄው ውድቅ ተደርጓል!"})
+            
+        cards_to_check = p_data["cards"]
+        
+        for t_num, card in cards_to_check.items():
+            if is_winner(card, game_state["drawn_balls"]):
+                game_state["status"] = "result"
+                game_state["winner"] = p_data["username"]
+                game_state["winning_card"] = card  # ያሸነፈበትን ካርቴላ ለሁሉም ሰው እንዲታይ ማከማቸት
+                
+                win_amt = game_state["pot"] * 0.8
+                wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
+                
+                # ያሸነፈበትን ካርቴላ ለቴሌግራም ሪፖርት በፅሁፍ ማዘጋጀት
+                card_rows = []
+                for r in range(5):
+                    row_vals = [str(card[r*5 + c]) if card[r*5 + c] != 0 else "FREE" for c in range(5)]
+                    card_rows.append(" | ".join(row_vals))
+                card_text = "\n".join(card_rows)
+                
+                send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n📞 Phone: `{ph}` \n🎫 Ticket No: {t_num} \n💰 Prize: {win_amt} ETB\n\n📊 *Winning Card:* \n`{card_text}`")
+                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
+                return jsonify({"success": True})
+            
+    return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+
+if __name__ == '__main__':
+    threading.Timer(5, set_webhook).start() 
+    threading.Thread(target=game_loop, daemon=True).start()
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
