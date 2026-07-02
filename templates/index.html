@@ -180,9 +180,8 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // የተስተካከለው የማሸነፊያ መስመር መለያ (ይህ ሎጂክ አሁን FREE ሴልን ጨምሮ ሁሉንም መስመር ይለያል)
+        // የተስተካከለው ሎጂክ፡ ሁሉንም የአሸናፊነት ሁኔታዎች ለየብቻ ቼክ ያደርጋል
         function getWinningIndices(card, drawnSet) {
-            // ረዳት ፈንክሽን - ሴሉ የመጣ ቁጥር መሆኑን ወይም FREE መሆኑን ያረጋግጣል
             const isHit = (idx) => idx === 12 || card[idx] === "FREE" || drawnSet.has(parseInt(card[idx]));
 
             // 1. ረድፎችን መፈተሽ (Rows)
