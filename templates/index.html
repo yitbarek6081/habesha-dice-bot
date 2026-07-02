@@ -180,31 +180,34 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // ማሸነፊያውን መስመር (Row, Column, Diagonal, ወይንም 4 Corners) ለይቶ ማውጫ
+        // የተስተካከለው የማሸነፊያ መስመር መለያ (ይህ ሎጂክ አሁን FREE ሴልን ጨምሮ ሁሉንም መስመር ይለያል)
         function getWinningIndices(card, drawnSet) {
+            // ረዳት ፈንክሽን - ሴሉ የመጣ ቁጥር መሆኑን ወይም FREE መሆኑን ያረጋግጣል
+            const isHit = (idx) => idx === 12 || card[idx] === "FREE" || drawnSet.has(parseInt(card[idx]));
+
             // 1. ረድፎችን መፈተሽ (Rows)
             for (let i = 0; i < 5; i++) {
                 let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
-                if (rowIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(rowIdxs);
+                if (rowIdxs.every(idx => isHit(idx))) return new Set(rowIdxs);
             }
             
             // 2. አምዶችን መፈተሽ (Columns)
             for (let j = 0; j < 5; j++) {
                 let colIdxs = [j, j+5, j+10, j+15, j+20];
-                if (colIdxs.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(colIdxs);
+                if (colIdxs.every(idx => isHit(idx))) return new Set(colIdxs);
             }
             
             // 3. ዲያጎናል 1 (\)
             let diag1 = [0, 6, 12, 18, 24];
-            if (diag1.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag1);
+            if (diag1.every(idx => isHit(idx))) return new Set(diag1);
             
             // 4. ዲያጎናል 2 (/)
             let diag2 = [4, 8, 12, 16, 20];
-            if (diag2.every(idx => idx === 12 || drawnSet.has(card[idx]))) return new Set(diag2);
+            if (diag2.every(idx => isHit(idx))) return new Set(diag2);
             
             // 5. 4ቱ ማዕዘናት (4 Corners)
             let corners = [0, 4, 20, 24];
-            if (corners.every(idx => drawnSet.has(card[idx]))) return new Set(corners);
+            if (corners.every(idx => isHit(idx))) return new Set(corners);
 
             return new Set();
         }
@@ -258,7 +261,7 @@
 
                         d.winning_card.forEach((n, idx) => {
                             let cell = document.createElement('div');
-                            if(idx === 12) {
+                            if(idx === 12 || n === "FREE") {
                                 cell.className = "winner-cell free"; cell.innerText = "FREE";
                                 if(winIdxs.has(idx)) cell.className += " hit";
                             } else {
