@@ -63,18 +63,18 @@
         #bingo-btn:disabled { background: #555 !important; border-color: #888 !important; color: #aaa !important; cursor: not-allowed; }
         
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
-        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; text-align: left; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 92%; max-width: 360px; text-align: left; max-height: 85vh; overflow-y: auto; }
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; color: #000; }
         #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); text-align: center; }
 
-        /* መመሪያ ዝርዝር ስታይል */
-        .guide-list { padding-left: 20px; margin: 10px 0; font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; }
-        .guide-list li { margin-bottom: 8px; }
+        .guide-list { padding-left: 15px; margin: 10px 0; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1; }
+        .guide-list li { margin-bottom: 12px; }
+        .guide-section-title { font-weight: bold; color: var(--gold); margin-top: 10px; display: block; text-transform: uppercase; font-size: 0.9rem; border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 2px; }
 
         .winner-card-title { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; padding: 5px; font-size: 0.8rem; border-radius: 5px 5px 0 0; max-width: 200px; margin: 15px auto 0 auto; text-align: center; }
         .winner-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 200px; margin: 0 auto; }
         .winner-cell { background: #fff; color: #000; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; text-align: center; }
-        .winner-cell.hit { background: var(--gold) !important; color: #000 !important; font-weight: 900; border: 1px solid white; }
+        .winner-cell.hit { background: var(--gold) !important; color: #000 !important; font-weight: 900; border: 2px solid white; }
         .winner-cell.free { background: var(--red); color: white; font-size: 0.55rem; }
     </style>
 </head>
@@ -114,33 +114,63 @@
         </div>
     </div>
 
-    <!-- የአጫዋወት መመሪያ ሞዳል -->
+    <!-- የተሟላ የአጫዋወት፣ የዲፖዚት እና ዊዝድሮው መመሪያ ሞዳል -->
     <div id="guide-m" class="modal">
         <div class="modal-content">
-            <h2 style="color:var(--gold); text-align:center; margin-top:0;">የጨዋታ መመሪያ</h2>
-            <hr style="border:1px solid rgba(255,255,255,0.1);">
+            <h2 style="color:var(--gold); text-align:center; margin-top:0; font-size: 1.4rem;">📖 የጨዋታ ሙሉ መመሪያ</h2>
+            <hr style="border:1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">
+            
             <ul class="guide-list">
-                <li><b>ካርቴላ መግዛት፦</b> በሎቢው ውስጥ ከ1 እስከ 500 ካሉ ቁጥሮች ውስጥ የፈለጉትን በመንካት እስከ 2 ካርቴላ መግዛት ይችላሉ።</li>
-                <li><b>ቁጥሮችን መምረጥ፦</b> ጨዋታው ሲጀምር በዕጣ የሚወጡት ቁጥሮች በእርስዎ ካርቴላ ላይ ካሉ ቁጥሩን በመንካት ማብራት (Select) ይችላሉ።</li>
-                <li><b>FREE ሴል፦</b> በካርቴላው መሀል ላይ ያለችው የ "FREE" ሴል ሁልጊዜ እንደበራች የምትቆጠር ነፃ ዕድል ናት።</li>
-                <li><b>ማሸነፊያ መንገዶች፦</b>
+                <!-- 1. ዲፖዚት አሰራር -->
+                <li>
+                    <span class="guide-section-title">1. ብር ማሸግ (DEPOSIT)</span>
+                    ጨዋታ ከመጀመርዎ በፊት በቂ ሂሳብ ሊኖርዎት ይገባል።
                     <ul>
-                        <li><b>ረድፍ (Row)፦</b> ማናቸውም 5 አግድም ቁጥሮች ሲሞሉ።</li>
-                        <li><b>አምድ (Column)፦</b> ማናቸውም 5 ቀጥታ ቁጥሮች ሲሞሉ።</li>
-                        <li><b>ዲያጎናል (Diagonal)፦</b> ከማዕዘን እስከ ማዕዘን በሰያፍ 5 ቁጥሮች ሲሞሉ።</li>
-                        <li><b>4 ማዕዘን (4 Corners)፦</b> የካርቴላው 4 ጫፎች ላይ ያሉ ቁጥሮች በሙሉ ሲሞሉ።</li>
+                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ።</li>
+                        <li>የቀረበውን የቴሌብር ስልክ ቁጥር ይቅዱ (Copy ያድርጉ)።</li>
+                        <li>ወደ ቴሌብር መተግበሪያዎ በመግባት በተቀዳው ቁጥር ላይ ብር ይላኩ።</li>
+                        <li>የላኩትን የገንዘብ መጠን እና ከቴሌብር የመጣሎትን <b>የማረጋገጫ ኮድ (Transaction ID)</b> በቦታው ላይ አስገብተው <b>SUBMIT REQUEST</b> ይበሉ። ሂሳብዎ በፍጥነት ይስተካከላል።</li>
                     </ul>
                 </li>
-                <li><b>ማሸነፍ፦</b> የእርስዎ ካርቴላ ከላይ ከተጠቀሱት መንገዶች አንዱን ሲያሟላ ወዲያውኑ <b>"BINGO!"</b> ቁልፍን መጫን አለብዎት። ቀድሞ የተጫነ ብቻ ያሸንፋል።</li>
+
+                <!-- 2. ካርቴላ መግዛት እና ጨዋታ መጀመር -->
+                <li>
+                    <span class="guide-section-title">2. ካርቴላ መግዛት እና ጨዋታ መጀመር</span>
+                    <ul>
+                        <li><b>ካርቴላ መምረጥ፦</b> በሎቢው ውስጥ ከ1 እስከ 500 ከተዘረዘሩት የቁጥር ሳጥኖች ውስጥ የፈለጉትን ይንኩ። የመረጡት ሳጥን ቢጫ ይሆናል። በአንድ ጨዋታ እስከ 2 ካርቴላ መግዛት ይችላሉ።</li>
+                        <li><b>ጨዋታው ሲጀምር፦</b> የሎቢው ሰዓት ቆጣሪ (Timer) <b>0</b> ሲደርስ ጨዋታው ወዲያውኑ በራሱ ይጀምራል እና ወደ መጫወቻው ሰሌዳ ይወስድዎታል።</li>
+                    </ul>
+                </li>
+
+                <!-- 3. አጫዋወት እና ማሸነፍ -->
+                <li>
+                    <span class="guide-section-title">3. አጫዋወት እና ማሸነፍ</span>
+                    <ul>
+                        <li><b>ቁጥር መምረጥ፦</b> በዕጣ የሚወጡት ኳሶች (ቁጥሮች) በእርስዎ ካርቴላ ላይ ካሉ ሳጥኑን በመንካት ያብሩት (Select ያድርጉት)።</li>
+                        <li><b>FREE ሴል፦</b> በካርቴላው መሀል ላይ ያለችው የ "FREE" ሳጥን ሁልጊዜ የበራች የነፃ ዕድል ሳጥን ናት።</li>
+                        <li><b>የማሸነፊያ መንገዶች፦</b> ማናቸውም 5 አግድም ቁጥሮች (Row)፣ 5 ቀጥታ ቁጥሮች (Column)፣ 5 የሰያፍ ቁጥሮች (Diagonal) ወይም 4ቱ የካርቴላው ማዕዘናት (4 Corners) ሲሞሉልዎት በፍጥነት <b>BINGO!</b> የሚለውን ቀይ ቁልፍ ይጫኑ። ቀድሞ የነካ ተጫዋች አሸናፊ ይሆናል።</li>
+                    </ul>
+                </li>
+
+                <!-- 4. ዊዝድሮው አሰራር -->
+                <li>
+                    <span class="guide-section-title">4. ገንዘብ ማውጣት (WITHDRAW)</span>
+                    ያሸነፉትን ገንዘብ በቀጥታ ወደ ቴሌብርዎ ማውጣት ይችላሉ።
+                    <ul>
+                        <li><b>📤 WITHDRAW</b> የሚለውን ቁልፍ ይጫኑ።</li>
+                        <li>ማውጣት የሚፈልጉትን የገንዘብ መጠን (ቢያንስ 20 ብር) ያስገቡ።</li>
+                        <li><b>CONFIRM WITHDRAW</b> የሚለውን ሲጫኑ ጥያቄዎ ወዲያውኑ ይመዘገባል፣ ብሩም ወደ ስልክዎ ይላካል።</li>
+                    </ul>
+                </li>
             </ul>
-            <button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:10px;" onclick="closeM('guide-m')">ተመለስ</button>
+            <button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px; padding: 12px; font-size:0.9rem;" onclick="closeM('guide-m')">እሺ ተረድቻለሁ</button>
         </div>
     </div>
 
     <div id="with-m" class="modal">
         <div class="modal-content" style="text-align:center;">
             <h2 style="color:var(--orange);">WITHDRAW</h2>
-            <p style="font-size: 0.8rem; color: #888;">ቢያንስ 50 ብር ማውጣት ይችላሉ</p>
+            <p style="font-size: 0.8rem; color: #888;">ቢያንስ 20 ብር ማውጣት ይችላሉ</p>
             <input type="number" id="wa" placeholder="Amount (ETB)">
             <button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM WITHDRAW</button>
             <button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px; cursor:pointer;">CLOSE</button>
@@ -256,7 +286,18 @@
                             <div class="winner-grid" id="w-grid-cells"></div>
                         `;
                         const gridCells = document.getElementById('w-grid-cells');
-                        let drawnSet = new Set(d.drawn_balls.map(b => parseInt(b.substring(1))));
+                        
+                        let drawnSet = new Set();
+                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) {
+                            d.drawn_balls.forEach(b => {
+                                if (typeof b === 'string') {
+                                    let numOnly = b.replace(/[^0-9]/g, '');
+                                    if(numOnly) drawnSet.add(parseInt(numOnly));
+                                } else if (typeof b === 'number') {
+                                    drawnSet.add(b);
+                                }
+                            });
+                        }
                         
                         let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
@@ -338,12 +379,18 @@
                     board.appendChild(colDiv);
                 }
             }
-            drawn.forEach(b => { let num = b.substring(1); let el = document.getElementById('b-'+num); if(el) el.classList.add('active'); });
+            drawn.forEach(b => { 
+                if(typeof b === 'string') {
+                    let num = b.replace(/[^0-9]/g, ''); 
+                    let el = document.getElementById('b-'+num); 
+                    if(el) el.classList.add('active'); 
+                }
+            });
         }
 
         function renderCard(card, cardIdx) {
             const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
-            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
+            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${cardIdx}`) || "[]");
