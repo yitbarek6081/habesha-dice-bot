@@ -18,8 +18,7 @@
         .btn-main { flex: 1; padding: 12px 5px; border: none; border-radius: 10px; font-weight: 900; cursor: pointer; text-transform: uppercase; font-size: 0.7rem; transition: 0.3s; }
         .btn-deposit { background: var(--green); color: #000; }
         .btn-withdraw { background: var(--orange); color: white; }
-        .btn-voice-off { background: var(--red); color: white; }
-        .btn-voice-on { background: var(--green); color: #000; box-shadow: 0 0 10px var(--green); }
+        .btn-how-to { background: #3b82f6; color: white; border: 1px solid #60a5fa; }
 
         #ball-circle { 
             width: 75px; height: 75px; 
@@ -64,14 +63,17 @@
         #bingo-btn:disabled { background: #555 !important; border-color: #888 !important; color: #aaa !important; cursor: not-allowed; }
         
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
-        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; }
-        input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; }
-        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 90%; max-width: 350px; text-align: left; }
+        input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; color: #000; }
+        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); text-align: center; }
 
-        /* የአሸናፊው ትኬት ማሳያ ግሪድ ስታይል */
-        .winner-card-title { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; padding: 5px; font-size: 0.8rem; border-radius: 5px 5px 0 0; max-width: 200px; margin: 15px auto 0 auto; }
+        /* መመሪያ ዝርዝር ስታይል */
+        .guide-list { padding-left: 20px; margin: 10px 0; font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; }
+        .guide-list li { margin-bottom: 8px; }
+
+        .winner-card-title { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--orange); font-weight: 900; padding: 5px; font-size: 0.8rem; border-radius: 5px 5px 0 0; max-width: 200px; margin: 15px auto 0 auto; text-align: center; }
         .winner-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 200px; margin: 0 auto; }
-        .winner-cell { background: #fff; color: #000; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; }
+        .winner-cell { background: #fff; color: #000; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; text-align: center; }
         .winner-cell.hit { background: var(--gold) !important; color: #000 !important; font-weight: 900; border: 1px solid white; }
         .winner-cell.free { background: var(--red); color: white; font-size: 0.55rem; }
     </style>
@@ -83,13 +85,13 @@
     <div class="stats">
         <div>BALANCE<b id="balance">0 ETB</b></div>
         <div>PLAYERS<b id="p-count">0</b></div>
-        <div>በሽ-ደራሽ<b id="prize">0 ETB</b></div>
+        <div>JACKPOT<b id="prize">0 ETB</b></div>
     </div>
 
     <div id="lobby-ui">
         <div class="action-bar">
             <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
-            <button id="voice-btn" class="btn-main btn-voice-off" onclick="toggleVoice()">🔇 VOICE OFF</button>
+            <button class="btn-main btn-how-to" onclick="openM('guide-m')">📖 HOW TO PLAY</button>
             <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
         </div>
         <div id="timer">30</div>
@@ -112,8 +114,31 @@
         </div>
     </div>
 
-    <div id="with-m" class="modal">
+    <!-- የአጫዋወት መመሪያ ሞዳል -->
+    <div id="guide-m" class="modal">
         <div class="modal-content">
+            <h2 style="color:var(--gold); text-align:center; margin-top:0;">የጨዋታ መመሪያ</h2>
+            <hr style="border:1px solid rgba(255,255,255,0.1);">
+            <ul class="guide-list">
+                <li><b>ካርቴላ መግዛት፦</b> በሎቢው ውስጥ ከ1 እስከ 500 ካሉ ቁጥሮች ውስጥ የፈለጉትን በመንካት እስከ 2 ካርቴላ መግዛት ይችላሉ።</li>
+                <li><b>ቁጥሮችን መምረጥ፦</b> ጨዋታው ሲጀምር በዕጣ የሚወጡት ቁጥሮች በእርስዎ ካርቴላ ላይ ካሉ ቁጥሩን በመንካት ማብራት (Select) ይችላሉ።</li>
+                <li><b>FREE ሴል፦</b> በካርቴላው መሀል ላይ ያለችው የ "FREE" ሴል ሁልጊዜ እንደበራች የምትቆጠር ነፃ ዕድል ናት።</li>
+                <li><b>ማሸነፊያ መንገዶች፦</b>
+                    <ul>
+                        <li><b>ረድፍ (Row)፦</b> ማናቸውም 5 አግድም ቁጥሮች ሲሞሉ።</li>
+                        <li><b>አምድ (Column)፦</b> ማናቸውም 5 ቀጥታ ቁጥሮች ሲሞሉ።</li>
+                        <li><b>ዲያጎናል (Diagonal)፦</b> ከማዕዘን እስከ ማዕዘን በሰያፍ 5 ቁጥሮች ሲሞሉ።</li>
+                        <li><b>4 ማዕዘን (4 Corners)፦</b> የካርቴላው 4 ጫፎች ላይ ያሉ ቁጥሮች በሙሉ ሲሞሉ።</li>
+                    </ul>
+                </li>
+                <li><b>ማሸነፍ፦</b> የእርስዎ ካርቴላ ከላይ ከተጠቀሱት መንገዶች አንዱን ሲያሟላ ወዲያውኑ <b>"BINGO!"</b> ቁልፍን መጫን አለብዎት። ቀድሞ የተጫነ ብቻ ያሸንፋል።</li>
+            </ul>
+            <button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:10px;" onclick="closeM('guide-m')">ተመለስ</button>
+        </div>
+    </div>
+
+    <div id="with-m" class="modal">
+        <div class="modal-content" style="text-align:center;">
             <h2 style="color:var(--orange);">WITHDRAW</h2>
             <p style="font-size: 0.8rem; color: #888;">ቢያንስ 50 ብር ማውጣት ይችላሉ</p>
             <input type="number" id="wa" placeholder="Amount (ETB)">
@@ -123,9 +148,9 @@
     </div>
 
     <div id="dep-m" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="text-align:center;">
             <h2 style="color:var(--green);">DEPOSIT</h2>
-            <p>Send Telebirr Or CBEBirr to: <br><b style="color:var(--gold); font-size:1.2rem;" onclick="copyNum('0945880474')">0945880474</b></p>
+            <p>Send Telebirr to: <br><b style="color:var(--gold); font-size:1.2rem;" onclick="copyNum('0945880474')">0945880474</b></p>
             <input type="number" id="da" placeholder="Amount (ETB)">
             <input type="text" id="di" placeholder="Transaction ID">
             <button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT REQUEST</button>
@@ -146,27 +171,7 @@
         if(!phone || !username) location.reload();
         localStorage.setItem('phone', phone); localStorage.setItem('username', username);
 
-        let currentCardData = null, announced = false, lastBall = "--", isVoiceOn = false;
-
-        function toggleVoice() {
-            isVoiceOn = !isVoiceOn;
-            const btn = document.getElementById('voice-btn');
-            if(isVoiceOn && window.speechSynthesis) {
-                btn.innerText = "🔊 VOICE ON"; btn.className = "btn-main btn-voice-on";
-                window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
-            } else {
-                btn.innerText = "🔇 VOICE OFF"; btn.className = "btn-main btn-voice-off";
-                window.speechSynthesis.cancel();
-            }
-        }
-
-        function speak(text) {
-            if(!isVoiceOn || !window.speechSynthesis) return;
-            window.speechSynthesis.cancel();
-            const msg = new SpeechSynthesisUtterance(text);
-            msg.lang = 'en-US'; msg.rate = 0.9;
-            window.speechSynthesis.speak(msg);
-        }
+        let currentCardData = null, announced = false, lastBall = "--";
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
@@ -180,33 +185,27 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // ሙሉ በሙሉ የተስተካከለ የአሸናፊነት መስመር ፈላጊ ሎጂክ
         function getWinningIndices(card, drawnSet) {
-            // ሴሉ በዕጣ የወጣ ቁጥር ወይም FREE መሆኑን በትክክል መፈተኛ
             const isHit = (idx) => {
                 if (idx === 12 || card[idx] === "FREE") return true;
                 let val = parseInt(card[idx]);
                 return !isNaN(val) && drawnSet.has(val);
             };
 
-            // 1. መጀመሪያ ዲያጎናሎችን እንፈትሽ (ምክንያቱም ረድፍና አምድ ውስጥ ስለሚደራረቡ ቅድሚያ ይሰጣቸዋል)
             let diag1 = [0, 6, 12, 18, 24];
             if (diag1.every(idx => isHit(idx))) return new Set(diag1);
             
             let diag2 = [4, 8, 12, 16, 20];
             if (diag2.every(idx => isHit(idx))) return new Set(diag2);
 
-            // 2. 4ቱ ማዕዘናትን እንፈትሽ (4 Corners)
             let corners = [0, 4, 20, 24];
             if (corners.every(idx => isHit(idx))) return new Set(corners);
 
-            // 3. አምዶችን መፈተሽ (Columns)
             for (let j = 0; j < 5; j++) {
                 let colIdxs = [j, j+5, j+10, j+15, j+20];
                 if (colIdxs.every(idx => isHit(idx))) return new Set(colIdxs);
             }
 
-            // 4. ረድፎችን መፈተሽ (Rows)
             for (let i = 0; i < 5; i++) {
                 let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
                 if (rowIdxs.every(idx => isHit(idx))) return new Set(rowIdxs);
@@ -238,7 +237,6 @@
                     document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('ball-circle').innerText = d.current_ball;
                     if (d.current_ball !== lastBall && d.current_ball !== "--") { 
-                        speak(`${d.current_ball.charAt(0)}... ${d.current_ball.substring(1)}`); 
                         lastBall = d.current_ball; 
                     }
                     renderMainBoard(d.drawn_balls);
@@ -276,8 +274,7 @@
                     }
 
                     if(!announced) { 
-                        if(isVoiceOn) { document.getElementById('win-horn').play(); } 
-                        speak(`Winner is ${d.winner}`); 
+                        try { document.getElementById('win-horn').play(); } catch(e){}
                         announced = true; 
                     }
                 }
