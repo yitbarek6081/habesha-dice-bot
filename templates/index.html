@@ -180,33 +180,37 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // የተስተካከለው ሎጂክ፡ ሁሉንም የአሸናፊነት ሁኔታዎች ለየብቻ ቼክ ያደርጋል
+        // ሙሉ በሙሉ የተስተካከለ የአሸናፊነት መስመር ፈላጊ ሎጂክ
         function getWinningIndices(card, drawnSet) {
-            const isHit = (idx) => idx === 12 || card[idx] === "FREE" || drawnSet.has(parseInt(card[idx]));
+            // ሴሉ በዕጣ የወጣ ቁጥር ወይም FREE መሆኑን በትክክል መፈተኛ
+            const isHit = (idx) => {
+                if (idx === 12 || card[idx] === "FREE") return true;
+                let val = parseInt(card[idx]);
+                return !isNaN(val) && drawnSet.has(val);
+            };
 
-            // 1. ረድፎችን መፈተሽ (Rows)
-            for (let i = 0; i < 5; i++) {
-                let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
-                if (rowIdxs.every(idx => isHit(idx))) return new Set(rowIdxs);
-            }
+            // 1. መጀመሪያ ዲያጎናሎችን እንፈትሽ (ምክንያቱም ረድፍና አምድ ውስጥ ስለሚደራረቡ ቅድሚያ ይሰጣቸዋል)
+            let diag1 = [0, 6, 12, 18, 24];
+            if (diag1.every(idx => isHit(idx))) return new Set(diag1);
             
-            // 2. አምዶችን መፈተሽ (Columns)
+            let diag2 = [4, 8, 12, 16, 20];
+            if (diag2.every(idx => isHit(idx))) return new Set(diag2);
+
+            // 2. 4ቱ ማዕዘናትን እንፈትሽ (4 Corners)
+            let corners = [0, 4, 20, 24];
+            if (corners.every(idx => isHit(idx))) return new Set(corners);
+
+            // 3. አምዶችን መፈተሽ (Columns)
             for (let j = 0; j < 5; j++) {
                 let colIdxs = [j, j+5, j+10, j+15, j+20];
                 if (colIdxs.every(idx => isHit(idx))) return new Set(colIdxs);
             }
-            
-            // 3. ዲያጎናል 1 (\)
-            let diag1 = [0, 6, 12, 18, 24];
-            if (diag1.every(idx => isHit(idx))) return new Set(diag1);
-            
-            // 4. ዲያጎናል 2 (/)
-            let diag2 = [4, 8, 12, 16, 20];
-            if (diag2.every(idx => isHit(idx))) return new Set(diag2);
-            
-            // 5. 4ቱ ማዕዘናት (4 Corners)
-            let corners = [0, 4, 20, 24];
-            if (corners.every(idx => isHit(idx))) return new Set(corners);
+
+            // 4. ረድፎችን መፈተሽ (Rows)
+            for (let i = 0; i < 5; i++) {
+                let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
+                if (rowIdxs.every(idx => isHit(idx))) return new Set(rowIdxs);
+            }
 
             return new Set();
         }
