@@ -3,12 +3,15 @@ import time
 import random
 import requests
 import threading
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, request
 from pymongo import MongoClient
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
+# SocketIO ን ከ Flask ጋር ማገናኘት (cors_allowed_origins="*" ከየትኛውም ቦታ እንዲገናኝ ያደርገዋል)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # --- CONFIG ---
 ADMIN_ID = "7956330391" 
@@ -20,7 +23,6 @@ client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# Thread lock to prevent race conditions across requests & background loop
 state_lock = threading.Lock()
 
 game_state = {
@@ -32,7 +34,7 @@ game_state = {
     "current_ball": "--", 
     "drawn_balls": [], 
     "winner": None,
-    "winning_card": None  # የአሸናፊው ትኬት ለሁሉም እንዲታይ እዚህ ይቀመጣል
+    "winning_card": None 
 }
 
 def send_telegram(text):
@@ -50,6 +52,22 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
+# ⚡ በሪል-ታይም መረጃን ለሁሉም ተጠቃሚዎች በአንድ ጊዜ መላኪያ ፈንክሽን
+def broadcast_state():
+    with state_lock:
+        state_copy = {
+            "status": game_state["status"],
+            "timer": game_state["timer"],
+            "pot": game_state["pot"],
+            "current_ball": game_state["current_ball"],
+            "drawn_balls": game_state["drawn_balls"],
+            "winner": game_state["winner"],
+            "winning_card": game_state["winning_card"],
+            "active_players": len(game_state["players"])
+        }
+    # ለሁሉም የተገናኙ ስልኮች መረጃውን "በቀጥታ መስመር" ይልካል
+    socketio.emit('game_update', state_copy)
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -60,7 +78,6 @@ def webhook():
         msg = data["message"]["text"]
         chat_id = str(data["message"]["chat"]["id"])
 
-        # --- Referral tracking (New players only) ---
         if msg.startswith("/start"):
             parts = msg.split()
             if len(parts) > 1:
@@ -78,7 +95,6 @@ def webhook():
                         upsert=True
                     )
 
-        # --- Admin controls ---
         if chat_id == ADMIN_ID and msg.startswith("/add"):
             try:
                 parts = msg.split()
@@ -86,6 +102,8 @@ def webhook():
                     target_phone, amount = parts[1], float(parts[2])
                     wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
                     send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
+                    # ባላንስ ሲጨመር ለተጠቃሚው እንዲታይ ማደስ
+                    broadcast_state()
             except:
                 send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
         
@@ -96,6 +114,7 @@ def webhook():
                     target_phone, amount = parts[1], float(parts[2])
                     wallets.update_one({"phone": target_phone}, {"$inc": {"balance": -amount}})
                     send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
+                    broadcast_state()
             except:
                 send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
 
@@ -103,28 +122,21 @@ def webhook():
 
 def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0)  # Free space center mark
+    drawn_set.add(0) 
     
-    # 1. የአግድም (Rows) ማረጋገጫ
     for i in range(5):
         row = [card[i*5 + j] for j in range(5)]
-        if all(num in drawn_set for num in row): 
-            return True 
+        if all(num in drawn_set for num in row): return True 
         
-    # 2. የቁመት (Columns) ማረጋገጫ
     for j in range(5):
         col = [card[i*5 + j] for i in range(5)]
-        if all(num in drawn_set for num in col): 
-            return True 
+        if all(num in drawn_set for num in col): return True 
         
-    # 3. የሰያፍ (Diagonals) ማረጋገጫ 📉 📈
     diag1 = [card[0], card[6], card[12], card[18], card[24]]
     diag2 = [card[4], card[8], card[12], card[16], card[20]]
-    
     if all(num in drawn_set for num in diag1): return True
     if all(num in drawn_set for num in diag2): return True
     
-    # 4. የአራቱ ማዕዘናት (4 Corners) ማረጋገጫ 🔲
     corners = [card[0], card[4], card[20], card[24]]
     if all(num in drawn_set for num in corners): return True
     
@@ -136,6 +148,7 @@ def reset_game():
             "status": "lobby", "winner": None, "winning_card": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30
         })
+    broadcast_state()
 
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
@@ -149,6 +162,7 @@ def game_loop():
                     if game_state["status"] != "lobby": 
                         break
                     game_state["timer"] = i
+                broadcast_state() # የሎቢ ሰዓቱን በየሴኮንዱ ለሁሉም ያሳያል
                 time.sleep(1)
             
             with state_lock:
@@ -160,18 +174,17 @@ def game_loop():
                 else:
                     game_state["timer"] = 30
                     shuffled = []
+            broadcast_state()
 
-            # Ball drawing process
             for b in shuffled:
                 with state_lock:
                     if game_state["status"] != "playing": 
                         break
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
-                
+                broadcast_state() # 🎯 አዲስ ኳስ ሲወጣ ብቻ ለሁሉም ስልክ ይልካል (እጅግ በጣም ፈጣን ነው)
                 time.sleep(5)
             
-            # Handle scenario where 75 balls pass without a winner declaration
             with state_lock:
                 if game_state["status"] == "playing":
                     game_state["status"] = "result"
@@ -179,6 +192,7 @@ def game_loop():
                     game_state["winning_card"] = None
                     send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
                     threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
+            broadcast_state()
 
         time.sleep(1)
 
@@ -186,22 +200,19 @@ def game_loop():
 def index(): 
     return render_template('index.html')
 
-@app.route('/get_status')
-def get_status():
-    phone = request.args.get('phone')
+# ⚡ በ Socket.io የደንበኛውን የግል መረጃ (የራሱን ካርቴላ እና ባላንስ) መላኪያ
+@socketio.on('request_user_data')
+def handle_user_data(data):
+    phone = data.get('phone')
     user = wallets.find_one({"phone": phone}) if phone else None
+    balance = user['balance'] if user else 0
     
     with state_lock:
         p_data = game_state["players"].get(phone, {"cards": {}})
         cards_list = list(p_data["cards"].values())
         
-        status_copy = {
-            **game_state,
-            "balance": user['balance'] if user else 0, 
-            "my_cards": cards_list, 
-            "active_players": len(game_state["players"])
-        }
-    return jsonify(status_copy)
+    # መረጃውን ለጠየቀው ሰው ብቻ በተናጠል መመለስ
+    emit('user_data_response', {"balance": balance, "my_cards": cards_list})
 
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
@@ -219,10 +230,8 @@ def buy_ticket():
         if ph in game_state["players"] and len(game_state["players"][ph]["cards"]) >= 2:
             return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
         
-        # ደጋግሞ ክሊክ ሲያደርግ ቀድሞ በሂደት ላይ መሆኑን ለመመዝገብ
         game_state["sold_tickets"][t_num] = "RESERVED_LOCK"
 
-    # ከዳታቤዝ ብር መቀነስ
     res = wallets.find_one_and_update(
         {"phone": ph, "balance": {"$gte": 10}}, 
         {"$inc": {"balance": -10}},
@@ -230,21 +239,18 @@ def buy_ticket():
     )
     
     if res:
-        # የቢንጎ ቁጥሮችን ማመንጨት (Columns generation)
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             columns.append(random.sample(range(r[0], r[1]+1), 5))
             
-        # ቁጥሮቹን በግሪዱ አቀማመጥ ልክ ማስተካከል (Row-by-Row እንዲቀመጡ)
         flat = []
         for row_idx in range(5):
             for col_idx in range(5):
                 flat.append(columns[col_idx][row_idx])
                 
-        flat[12] = 0  # Free Space
+        flat[12] = 0 
         
         with state_lock:
-            # በሂደቱ መሃል ጨዋታው ተጀምሮ ከሆነ ብሩን መመለስ
             if game_state["status"] != "lobby":
                 if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
                     del game_state["sold_tickets"][t_num]
@@ -258,10 +264,10 @@ def buy_ticket():
                 game_state["players"][ph] = {"cards": {t_num: flat}, "username": uname}
             else:
                 game_state["players"][ph]["cards"][t_num] = flat
-                
+        
+        broadcast_state() # አዲስ ሰው ካርቴላ ሲገዛ ፖት (Pot) እንዲጨምር ወዲያውኑ አድስ
         return jsonify({"success": True})
     
-    # ባላንስ ከሌለው ወይም ችግር ካለ መቆለፊያውን መልሶ ማንሳት
     with state_lock:
         if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
             del game_state["sold_tickets"][t_num]
@@ -284,6 +290,8 @@ def cancel_ticket():
                     del game_state["players"][ph]["cards"][t_num]
                 if not game_state["players"][ph]["cards"]: 
                     del game_state["players"][ph]
+            
+            broadcast_state()
             return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
@@ -326,7 +334,7 @@ def withdraw():
         return_document=True
     )
     if res:
-        msg = f"📤 *Withdraw Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
+        msg = f"📤 *Withdraw Request*\n📞 Phone: `{ph}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም。"
         send_telegram(msg)
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
@@ -350,12 +358,11 @@ def claim_bingo():
             if is_winner(card, game_state["drawn_balls"]):
                 game_state["status"] = "result"
                 game_state["winner"] = p_data["username"]
-                game_state["winning_card"] = card  # ያሸነፈበትን ካርቴላ ለሁሉም ሰው እንዲታይ ማከማቸት
+                game_state["winning_card"] = card 
                 
                 win_amt = game_state["pot"] * 0.8
                 wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
                 
-                # ያሸነፈበትን ካርቴላ ለቴሌግራም ሪፖርት በፅሁፍ ማዘጋጀት
                 card_rows = []
                 for r in range(5):
                     row_vals = [str(card[r*5 + c]) if card[r*5 + c] != 0 else "FREE" for c in range(5)]
@@ -363,6 +370,8 @@ def claim_bingo():
                 card_text = "\n".join(card_rows)
                 
                 send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n📞 Phone: `{ph}` \n🎫 Ticket No: {t_num} \n💰 Prize: {win_amt} ETB\n\n📊 *Winning Card:* \n`{card_text}`")
+                
+                broadcast_state() # አሸናፊው ወዲያውኑ ለሁሉም እንዲታይ
                 threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
             
@@ -371,4 +380,5 @@ def claim_bingo():
 if __name__ == '__main__':
     threading.Timer(5, set_webhook).start() 
     threading.Thread(target=game_loop, daemon=True).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    # ⚡ በ app.run ፈንክሽን ፋንታ በ socketio.run ማስጀመር
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
