@@ -188,6 +188,7 @@
     </div>
 
     <script>
+        // XSS ጥቃትን ለመከላከል የሚረዳ የጽሑፍ ማጽጃ (Sanitizer)
         function sanitizeText(str) {
             if (!str) return '';
             return String(str).replace(/[&<>"']/g, function(m) {
@@ -195,6 +196,7 @@
             }).trim();
         }
 
+        // የስልክ ቁጥር ፎርማት ቼክ
         function validatePhone(p) {
             const clean = p.replace(/[^0-9+]/g, '');
             return (clean.length >= 10 && clean.length <= 13) ? clean : null;
@@ -290,8 +292,7 @@
                     document.getElementById('winning-card-area').innerHTML=""; 
                     
                     if (announced) {
-                        // የቆዩ ማርኮችን በሙሉ ማጽዳት
-                        for(let i=0; i<10; i++) { localStorage.removeItem(`marked_${i}`); }
+                        localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
                         announced = false;
                     }
                     
@@ -476,7 +477,7 @@
                 if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } 
             }).catch(() => {
                 let altUrl = `/claim_bingo?phone=${encodeURIComponent(phone)}`;
-                fetch(altUrl, { method: 'GET', headers:{ 'Accept': 'application/json' } })
+                fetch(altUrl, { method: 'GET' })
                 .then(r => r.json())
                 .then(d => { if(!d.success) { alert(sanitizeText(d.msg)); } if(bBtn) bBtn.disabled = false; })
                 .catch(() => { alert("የቢንጎ ጥያቄ መላክ አልተሳካም!"); if(bBtn) bBtn.disabled = false; });
