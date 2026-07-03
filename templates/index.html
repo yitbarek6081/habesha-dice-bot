@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO - PREMIUM</title>
+    
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
     <style>
         :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; }
@@ -124,13 +127,12 @@
                     <span class="guide-section-title">1. ብር ማስገባት (DEPOSIT)</span>
                     ጨዋታ ከመጀመርዎ በፊት በቂ ሂሳብ ሊኖርዎት ይገባል።
                     <ul>
-                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ።</li>
+                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ Unions.</li>
                         <li>የቀረበውን የቴሌብር ስልክ ቁጥር ይቅዱ (Copy ያድርጉ)።</li>
                         <li>ወደ ቴሌብር መተግበሪያዎ በመግባት በተቀዳው ቁጥር ላይ ብር ይላኩ።</li>
                         <li>የላኩትን የገንዘብ መጠን እና ከቴሌብር የመጣሎትን <b>የማረጋገጫ ኮድ (Transaction ID)</b> በቦታው ላይ አስገብተው <b>SUBMIT REQUEST</b> ይበሉ። ሂሳብዎ በፍጥነት ይስተካከላል።</li>
                     </ul>
                 </li>
-
                 <li>
                     <span class="guide-section-title">2. ካርቴላ መግዛት እና ጨዋታ መጀመር</span>
                     <ul>
@@ -138,7 +140,6 @@
                         <li><b>ጨዋታው ሲጀምር፦</b> የሎቢው ሰዓት ቆጣሪ (Timer) <b>0</b> ሲደርስ ጨዋታው ወዲያውኑ በራሱ ይጀምራል እና ወደ መጫወቻው ሰሌዳ ይወስድዎታል።</li>
                     </ul>
                 </li>
-
                 <li>
                     <span class="guide-section-title">3. አጫዋወት እና ማሸነፍ</span>
                     <ul>
@@ -147,7 +148,6 @@
                         <li><b>የማሸነፊያ መንገዶች፦</b> ማናቸውም 5 አግድም ቁጥሮች (Row)፣ 5 ቀጥታ ቁጥሮች (Column)፣ 5 የሰያፍ ቁጥሮች (Diagonal) ወይም 4ቱ የካርቴላው ማዕዘናት (4 Corners) ሲሞሉልዎት በፍጥነት <b>BINGO!</b> የሚለውን ቀይ ቁልፍ ይጫኑ። ቀድሞ የነካ ተጫዋች አሸናፊ ይሆናል።</li>
                     </ul>
                 </li>
-
                 <li>
                     <span class="guide-section-title">4. ገንዘብ ማውጣት (WITHDRAW)</span>
                     ያሸነፉትን ገንዘብ በቀጥታ ወደ ቴሌብርዎ ማውጣት ይችላሉ።
@@ -198,6 +198,24 @@
 
         let currentCardData = null, announced = false, lastBall = "--";
 
+        // ⚡ የ Socket.io ግንኙነት መፈጠሪያ
+        const socket = io();
+
+        // ⚡ ሰርቨሩ ሲገናኝ የተጫዋቹን የግል መረጃ (Balance, Cards) በዌብሶኬት ይጠይቃል
+        socket.on('connect', () => {
+            socket.emit('request_user_data', { phone: phone });
+        });
+
+        // ⚡ ከሰርቨሩ የሚመጣውን የተጫዋቹን የግል መረጃ መቀበያ
+        socket.on('user_data_response', (userData) => {
+            document.getElementById('balance').innerText = userData.balance.toFixed(0) + " ETB";
+            if(userData.my_cards.length > 0 && !currentCardData) { 
+                currentCardData = userData.my_cards; 
+                document.getElementById('card-area').innerHTML = "";
+                userData.my_cards.forEach((c, i) => renderCard(c, i)); 
+            }
+        });
+
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
@@ -239,86 +257,80 @@
             return new Set();
         }
 
-        function update() {
-            fetch(`/get_status?phone=${phone}`).then(r=>r.json()).then(d=>{
-                document.getElementById('balance').innerText = d.balance.toFixed(0) + " ETB";
-                document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
-                document.getElementById('p-count').innerText = d.active_players;
-                document.getElementById('timer').innerText = d.timer;
-                
-                if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
-                    document.getElementById('winning-card-area').innerHTML=""; 
-                    
-                    localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
-                    
-                    const bBtn = document.getElementById('bingo-btn');
-                    if(bBtn) bBtn.disabled = false;
-                    
-                    currentCardData = null; announced = false; lastBall = "--";
-                    renderTickets(d.sold_tickets);
-                } else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('ball-circle').innerText = d.current_ball;
-                    if (d.current_ball !== lastBall && d.current_ball !== "--") { 
-                        lastBall = d.current_ball; 
-                    }
-                    renderMainBoard(d.drawn_balls);
-                    
-                    // የቀለሙት እንዳይለቁ እና በየሴኮንዱ እንዳይጠፉ የተደረገ ማስተካከያ
-                    if(d.my_cards.length > 0 && !currentCardData) { 
-                        currentCardData = d.my_cards; 
-                        document.getElementById('card-area').innerHTML = "";
-                        d.my_cards.forEach((c, i) => renderCard(c, i)); 
-                    }
-                } else if(d.status === "result") {
-                    document.getElementById('result-ui').style.display='flex';
-                    document.getElementById('winner-info').innerText = d.winner + " 🏆";
-                    
-                    const wArea = document.getElementById('winning-card-area');
-                    if(wArea && wArea.children.length === 0 && d.winning_card) {
-                        wArea.innerHTML = `
-                            <div class="winner-card-title"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
-                            <div class="winner-grid" id="w-grid-cells"></div>
-                        `;
-                        const gridCells = document.getElementById('w-grid-cells');
-                        
-                        let drawnSet = new Set();
-                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) {
-                            d.drawn_balls.forEach(b => {
-                                if (typeof b === 'string') {
-                                    // ከሰርቨር የመጣውን "B12" ወደ 12 ብቻ በመቀየር የዊን መስመር በትክክል እንዲገኝ ያደርጋል
-                                    let numOnly = b.replace(/[^0-9]/g, '');
-                                    if(numOnly) drawnSet.add(parseInt(numOnly));
-                                } else if (typeof b === 'number') {
-                                    drawnSet.add(b);
-                                }
-                            });
-                        }
-                        
-                        let winIdxs = getWinningIndices(d.winning_card, drawnSet);
+        // ⚡ ሰርቨሩ በየሴኮንዱ ለሁሉም ሰው የሚልከውን ሪል-ታይም መረጃ መቀበያ
+        socket.on('game_update', (d) => {
+            // ተጫዋቹ ራሱ ካልሆነ በስተቀር ባላንሱን ከቀጥታ የሶኬት ምላሽ ማደስ
+            // (የሌላ ሰው ባላንስ እዚህ ውስጥ ስለማይካተት ሁልጊዜ የራሱን ዳታ በየመሀሉ ይጠይቃል)
+            socket.emit('request_user_data', { phone: phone });
 
-                        d.winning_card.forEach((n, idx) => {
-                            let cell = document.createElement('div');
-                            if(idx === 12 || n === "FREE") {
-                                cell.className = "winner-cell free"; cell.innerText = "FREE";
-                                if(winIdxs.has(idx)) cell.className += " hit";
-                            } else {
-                                cell.className = winIdxs.has(idx) ? "winner-cell hit" : "winner-cell";
-                                cell.innerText = n;
+            document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
+            document.getElementById('p-count').innerText = d.active_players;
+            document.getElementById('timer').innerText = d.timer;
+            
+            if(d.status === "lobby") {
+                document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
+                document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                document.getElementById('winning-card-area').innerHTML=""; 
+                
+                localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
+                
+                const bBtn = document.getElementById('bingo-btn');
+                if(bBtn) bBtn.disabled = false;
+                
+                currentCardData = null; announced = false; lastBall = "--";
+                renderTickets(d.sold_tickets);
+            } else if(d.status === "playing") {
+                document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
+                document.getElementById('ball-circle').innerText = d.current_ball;
+                if (d.current_ball !== lastBall && d.current_ball !== "--") { 
+                    lastBall = d.current_ball; 
+                }
+                renderMainBoard(d.drawn_balls);
+            } else if(d.status === "result") {
+                document.getElementById('result-ui').style.display='flex';
+                document.getElementById('winner-info').innerText = d.winner + " 🏆";
+                
+                const wArea = document.getElementById('winning-card-area');
+                if(wArea && wArea.children.length === 0 && d.winning_card) {
+                    wArea.innerHTML = `
+                        <div class="winner-card-title"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
+                        <div class="winner-grid" id="w-grid-cells"></div>
+                    `;
+                    const gridCells = document.getElementById('w-grid-cells');
+                    
+                    let drawnSet = new Set();
+                    if (d.drawn_balls && Array.isArray(d.drawn_balls)) {
+                        d.drawn_balls.forEach(b => {
+                            if (typeof b === 'string') {
+                                let numOnly = b.replace(/[^0-9]/g, '');
+                                if(numOnly) drawnSet.add(parseInt(numOnly));
+                            } else if (typeof b === 'number') {
+                                drawnSet.add(b);
                             }
-                            gridCells.appendChild(cell);
                         });
                     }
+                    
+                    let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
-                    if(!announced) { 
-                        try { document.getElementById('win-horn').play(); } catch(e){}
-                        announced = true; 
-                    }
+                    d.winning_card.forEach((n, idx) => {
+                        let cell = document.createElement('div');
+                        if(idx === 12 || n === "FREE") {
+                            cell.className = "winner-cell free"; cell.innerText = "FREE";
+                            if(winIdxs.has(idx)) cell.className += " hit";
+                        } else {
+                            cell.className = winIdxs.has(idx) ? "winner-cell hit" : "winner-cell";
+                            cell.innerText = n;
+                        }
+                        gridCells.appendChild(cell);
+                    });
                 }
-            }).catch(() => {});
-        }
+
+                if(!announced) { 
+                    try { document.getElementById('win-horn').play(); } catch(e){}
+                    announced = true; 
+                }
+            }
+        });
 
         function renderTickets(sold) {
             const area = document.getElementById('ticket-area');
@@ -345,7 +357,7 @@
             if(box) { box.style.pointerEvents = "none"; box.innerText = "..."; }
             fetch('/buy_specific_ticket', {
                 method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n, username})
-            }).then(update).catch(()=>{ update(); }); 
+            }).catch(()=>{}); 
         }
 
         function refund(n) { 
@@ -354,7 +366,7 @@
                 if(box) { box.style.pointerEvents = "none"; box.innerText = "..."; }
                 fetch('/cancel_ticket', {
                     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, ticket_num:n})
-                }).then(update).catch(()=>{ update(); }); 
+                }).catch(()=>{}); 
             }
         }
         
@@ -453,13 +465,10 @@
             fetch('/withdraw', {
                 method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ phone: phone, amount: amt })
             }).then(response => {
-                if(response.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); update(); }
+                if(response.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); }
                 else { balEl.innerText = oldBalText; alert("አልተሳካም!"); }
             }).catch(() => { balEl.innerText = oldBalText; alert("ስህተት!"); });
         }
-
-        setInterval(update, 2000); 
-        update();
     </script>
 </body>
 </html>
