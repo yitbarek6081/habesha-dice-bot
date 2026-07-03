@@ -88,53 +88,101 @@ def webhook():
                 )
 
         # --- Admin controls ---
-        if chat_id == ADMIN_ID and msg.startswith("/add"):
-            try:
-                parts = msg.split()
-                if len(parts) == 3:
-                    target_phone, amount = sanitize_input(parts[1]), float(parts[2])
-                    if amount > 0:
-                        wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
-                        send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-            except:
-                send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
-        
-        elif chat_id == ADMIN_ID and msg.startswith("/sub"):
-            try:
-                parts = msg.split()
-                if len(parts) == 3:
-                    target_phone, amount = sanitize_input(parts[1]), float(parts[2])
-                    if amount > 0:
-                        wallets.update_one({"phone": target_phone}, {"$inc": {"balance": -amount}})
-                        send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
-            except:
-                send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
+        if chat_id == ADMIN_ID:
+            # 1. የሁሉንም ተጠቃሚዎች ባላንስ ዝርዝር በአንድ ላይ ለማየት
+            if msg == "/all_balances" or msg == "/all":
+                try:
+                    all_users = list(wallets.find({}))
+                    if not all_users:
+                        send_telegram("📭 በዳታቤዝ ውስጥ ምንም ተጠቃሚ አልተገኘም።")
+                    else:
+                        report_lines = ["📋 *የሁሉንም ተጠቃሚዎች ባላንስ ዝርዝር:*\n"]
+                        total_system_balance = 0
+                        
+                        for idx, user in enumerate(all_users, 1):
+                            phone = user.get("phone", "N/A")
+                            uname = user.get("username", "የማይታወቅ")
+                            bal = user.get("balance", 0)
+                            total_system_balance += bal
+                            
+                            report_lines.append(f"{idx}. 👤 `{uname}` | 📞 `{phone}` | 💵 *{bal} ETB*")
+                        
+                        report_lines.append(f"\n💰 *በሲስተሙ ላይ ያለ ጠቅላላ የብር ድምር:* `{total_system_balance} ETB`")
+                        
+                        full_report = "\n".join(report_lines)
+                        if len(full_report) > 4000:
+                            for chunk in [full_report[i:i+4000] for i in range(0, len(full_report), 4000)]:
+                                send_telegram(chunk)
+                        else:
+                            send_telegram(full_report)
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት: ሪፖርቱን ማውጣት አልተቻለም! {e}")
+
+            # 2. የአንድን ተጠቃሚ ባላንስ ብቻ ለይቶ ለማየት
+            elif msg.startswith("/balance") or msg.startswith("/check"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 2:
+                        target_phone = sanitize_input(parts[1])
+                        user = wallets.find_one({"phone": target_phone})
+                        if user:
+                            uname = user.get("username", "የማይታወቅ")
+                            bal = user.get("balance", 0)
+                            send_telegram(f"🔍 *የተጠቃሚ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ: `{target_phone}`\n💵 ባላንስ: *{bal} ETB*")
+                        else:
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
+                except:
+                    send_telegram("❌ ስህተት! ፎርማቱ: /balance ስልክ")
+
+            # 3. ብር ለመጨመር
+            elif msg.startswith("/add"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 3:
+                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                        if amount > 0:
+                            wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
+                            send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
+                except:
+                    send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
+            
+            # 4. ብር ለመቀነስ
+            elif msg.startswith("/sub"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 3:
+                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                        if amount > 0:
+                            wallets.update_one({"phone": target_phone}, {"$inc": {"balance": -amount}})
+                            send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
+                except:
+                    send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
 
     return "OK", 200
 
-# ✨ አዲስ የብልህ ፍተሻ ሎጂክ፡ የትኛው መስመር እንዳሸነፈ ኢንዴክስ የሚለይ
+# ✨ የተስተካከለው የብልህ ፍተሻ ሎጂክ (Column-Major አወቃቀርን ያገናዘበ)
 def check_winning_line(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0)  # FREE space
+    drawn_set.add(0)  # FREE space (ከመሃል ያለው ሁልጊዜ የበራ ነው)
 
-    # 1. አግድም መስመሮች (Rows)
+    # 1. አግድም መስመሮች (Rows) -> በየ 5 ልዩነት ያላቸው ማውጫዎች
     for i in range(5):
-        row_indices = [i*5 + j for j in range(5)]
-        if Jess := all(card[idx] in drawn_set for idx in row_indices):
-            return row_indices, "አግድም (Row)"
+        row_indices = [i + j*5 for j in range(5)]
+        if all(card[idx] in drawn_set for idx in row_indices):
+            return row_indices, f"አግድም (Row {i+1})"
 
-    # 2. ቁልቁል መስመሮች (Columns)
+    # 2. ቁልቁል መስመሮች (Columns) -> ተከታታይ የ 5 ስብስቦች
     for i in range(5):
-        col_indices = [j*5 + i for j in range(5)]
+        col_indices = [i*5 + j for j in range(5)]
         if all(card[idx] in drawn_set for idx in col_indices):
-            return col_indices, "ቁልቁል (Column)"
+            return col_indices, f"ቁልቁል (Column {i+1})"
 
-    # 3. ዲያጎናል 📉
+    # 3. ዲያጎናል ከላይ ግራ ወደ ታች ቀኝ 📉
     diag1_indices = [0, 6, 12, 18, 24]
     if all(card[idx] in drawn_set for idx in diag1_indices):
         return diag1_indices, "ዲያጎናል (Diagonal 📉)"
 
-    # 4. ዲያጎናል 📈
+    # 4. ዲያጎናል ከታች ግራ ወደ ላይ ቀኝ 📈
     diag2_indices = [4, 8, 12, 16, 20]
     if all(card[idx] in drawn_set for idx in diag2_indices):
         return diag2_indices, "ዲያጎናል (Diagonal 📈)"
@@ -345,7 +393,7 @@ def withdraw():
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
-# ✨ የተስተካከለው የ claim_bingo ክፍል (ያልበሩትን ሳይነካ የበሩትን መስመሮች በኮከብ የሚለይ)
+# ✨ የተስተካከለው የ claim_bingo ክፍል (5x5 እይታውን በትክክል አስተካክሎ ኮከብ የሚያደርግ)
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     d = request.json or {}
@@ -372,16 +420,15 @@ def claim_bingo():
                 win_amt = game_state["pot"] * 0.8
                 wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
                 
-                # ካርተላውን ያላሸነፉትን ቁጥሮች እንዳሉ ትቶ ያሸነፉበትን ብቻ በኮከብ መስራት
+                # ካርተላውን በትክክለኛው የ Row አቀማመጥ 5x5 አድርጎ ለቴሌግራም ማዘጋጀት
                 card_rows = []
                 for r in range(5):
                     row_vals = []
                     for c in range(5):
-                        idx = r*5 + c
+                        idx = c*5 + r  # ማውጫውን ወደ አግድም እይታ መቀየር
                         val = card[idx]
                         val_str = "FREE" if val == 0 else str(val)
                         
-                        # ቁጥሩ ያሸነፈበት መስመር ውስጥ ካለ በ ⭐ [ ] ⭐ ይከበባል
                         if idx in win_indices:
                             row_vals.append(f"⭐{val_str}⭐")
                         else:
@@ -390,7 +437,6 @@ def claim_bingo():
                     card_rows.append(" | ".join(row_vals))
                 card_text = "\n".join(card_rows)
                 
-                # ዝርዝር የቴሌግራም መልዕክት ማስፈንጠሪያ
                 success_msg = (
                     f"🏆 *WINNER!* \n"
                     f"👤 Name: {p_data['username']} \n"
