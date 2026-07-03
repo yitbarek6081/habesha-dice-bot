@@ -1,8 +1,13 @@
+# MUST BE THE ABSOLUTE FIRST LINES OF THE FILE BEFORE ANY OTHER IMPORTS
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import time
 import random
 import requests
 import threading
+import secrets  # ለበለጠ ሴኪዩሪቲ
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient, ASCENDING
 from flask_cors import CORS
@@ -11,11 +16,18 @@ app = Flask(__name__, template_folder='templates')
 CORS(app)
 
 # --- CONFIG (Loaded securely from Environment Variables) ---
-ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc") 
+# ⚠️ በ Render Dashboard ላይ "Environment Variables" ውስጥ እነዚህን Key እና Value አስገባ
+ADMIN_ID = os.getenv("ADMIN_ID") 
+BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
-RENDER_URL = os.getenv("RENDER_URL", "https://habesha-dice-bot.onrender.com") 
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "super_secret_telegram_token_123x")
+RENDER_URL = os.getenv("RENDER_URL") 
+
+# ዌብሁክን ለመቆለፍ በየጊዜው የሚቀያየር ሴክሬት ኪይ ማመንጨት (ሀከር እንዳይገምተው)
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", secrets.token_hex(32))
+
+# አስገዳጅ መረጃዎች መኖራቸውን ማረጋገጥ
+if not ADMIN_ID or not BOT_TOKEN or not MONGO_URL:
+    raise ValueError("CRITICAL ERROR: ADMIN_ID, BOT_TOKEN, and MONGO_URL must be set in Environment Variables!")
 
 # --- DATABASE SETUP ---
 client = MongoClient(MONGO_URL)
@@ -32,8 +44,8 @@ game_state = {
     "status": "lobby", 
     "timer": 30, 
     "pot": 0, 
-    "players": {},       # chat_id -> {"cards": {ticket_num: flat_card}, "username": uname}
-    "sold_tickets": {},  # ticket_num -> chat_id
+    "players": {},       
+    "sold_tickets": {},  
     "current_ball": "--", 
     "drawn_balls": [], 
     "winner": None,
@@ -49,7 +61,6 @@ def send_telegram(text):
 
 def set_webhook():
     webhook_url = f"{RENDER_URL}/webhook"
-    # Using secret_token forces Telegram to send our token header on every request
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}&secret_token={WEBHOOK_SECRET}"
     try:
         requests.get(url, timeout=5)
@@ -58,10 +69,10 @@ def set_webhook():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # Security Check: Verify request actually comes from Telegram
+    # 🛡️ ሴኪዩሪቲ ቼክ፡ ጥያቄው የመጣው ከቴሌግራም መሆኑን በሴክሬት ቶከን ማረጋገጥ
     telegram_secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
     if telegram_secret != WEBHOOK_SECRET:
-        return "Unauthorized", 403
+        return "Unauthorized Request Blocked", 403
 
     data = request.json
     if not data or "message" not in data or "text" not in data["message"]:
@@ -76,7 +87,6 @@ def webhook():
         if len(parts) > 1:
             agent_phone = parts[1]
             try:
-                # Direct upsert handles duplicate concurrency cleanly via unique index constraints
                 wallets.update_one(
                     {"phone": chat_id},
                     {"$setOnInsert": {
@@ -87,10 +97,10 @@ def webhook():
                     upsert=True
                 )
             except Exception as e:
-                print(f"Referral insertion bypassed due to index constraint: {e}")
+                print(f"Referral insertion bypassed: {e}")
 
-    # --- Admin controls ---
-    if chat_id == ADMIN_ID:
+    # --- Admin controls (የአድሚን ID እና ጥያቄው የመጣበት ID እኩል መሆኑን በጥብቅ ማረጋገጥ) ---
+    if chat_id == str(ADMIN_ID):
         if msg.startswith("/add") or msg.startswith("/sub"):
             try:
                 parts = msg.split()
@@ -98,6 +108,10 @@ def webhook():
                     target_phone, amount_str = parts[1], parts[2]
                     amount = float(amount_str)
                     
+                    if amount <= 0:
+                        send_telegram("❌ ስህተት! መጠን ከ 0 በላይ መሆን አለበት።")
+                        return "OK", 200
+
                     if msg.startswith("/sub"):
                         amount = -amount
 
@@ -111,27 +125,21 @@ def webhook():
 
 def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0)  # Free space center mark
+    drawn_set.add(0)  
     
-    # 1. Rows
     for i in range(5):
         row = [card[i*5 + j] for j in range(5)]
-        if all(num in drawn_set for num in row): 
-            return True 
+        if all(num in drawn_set for num in row): return True 
         
-    # 2. Columns
     for j in range(5):
         col = [card[i*5 + j] for i in range(5)]
-        if all(num in drawn_set for num in col): 
-            return True 
+        if all(num in drawn_set for num in col): return True 
         
-    # 3. Diagonals
     diag1 = [card[0], card[6], card[12], card[18], card[24]]
     diag2 = [card[4], card[8], card[12], card[16], card[20]]
     if all(num in drawn_set for num in diag1): return True
     if all(num in drawn_set for num in diag2): return True
     
-    # 4. 4 Corners
     corners = [card[0], card[4], card[20], card[24]]
     if all(num in drawn_set for num in corners): return True
     
@@ -168,25 +176,20 @@ def game_loop():
                     game_state["timer"] = 30
                     shuffled = []
 
-            # Ball drawing process
             for b in shuffled:
                 with state_lock:
                     if game_state["status"] != "playing": 
                         break
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
-                
                 time.sleep(5)
             
-            # Draw timeout (No winner found within 75 balls)
             with state_lock:
                 if game_state["status"] == "playing":
                     game_state["status"] = "result"
                     game_state["winner"] = "No Winner (House)"
                     game_state["winning_card"] = None
                     send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                    
-                    # Safer state management: clean synchronous trigger out of thread block
                     threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
 
         time.sleep(1)
@@ -232,7 +235,6 @@ def buy_ticket():
         
         game_state["sold_tickets"][t_num] = "RESERVED_LOCK"
 
-    # Atomic decrement verification
     res = wallets.find_one_and_update(
         {"phone": ph, "balance": {"$gte": 10}}, 
         {"$inc": {"balance": -10}},
@@ -249,10 +251,9 @@ def buy_ticket():
             for col_idx in range(5):
                 flat.append(columns[col_idx][row_idx])
                 
-        flat[12] = 0  # Free Space
+        flat[12] = 0  
         
         with state_lock:
-            # If game started during db process, refund money
             if game_state["status"] != "lobby":
                 if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
                     del game_state["sold_tickets"][t_num]
@@ -306,6 +307,7 @@ def request_deposit():
     
     try:
         amt = float(d.get('amount', 0))
+        if amt <= 0: raise ValueError
     except (ValueError, TypeError):
         return jsonify({"success": False, "msg": "የተሳሳተ የገንዘብ መጠን!"})
 
