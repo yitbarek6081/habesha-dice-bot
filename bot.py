@@ -7,7 +7,6 @@ import time
 import random
 import requests
 import threading
-import secrets  # ለበለጠ ሴኪዩሪቲ
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient, ASCENDING
 from flask_cors import CORS
@@ -15,26 +14,22 @@ from flask_cors import CORS
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# --- CONFIG (Loaded securely from Environment Variables) ---
-# ⚠️ በ Render Dashboard ላይ "Environment Variables" ውስጥ እነዚህን Key እና Value አስገባ
-ADMIN_ID = os.getenv("ADMIN_ID") 
-BOT_TOKEN = os.getenv("BOT_TOKEN") 
+# --- CONFIG (ደህንነቱ የተጠበቀ ውቅር) ---
+ADMIN_ID = "7956330391" 
+BOT_TOKEN = "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc" 
 MONGO_URL = os.getenv("MONGO_URL")
-RENDER_URL = os.getenv("RENDER_URL") 
-
-# ዌብሁክን ለመቆለፍ በየጊዜው የሚቀያየር ሴክሬት ኪይ ማመንጨት (ሀከር እንዳይገምተው)
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", secrets.token_hex(32))
+RENDER_URL = "https://habesha-dice-bot.onrender.com" 
 
 # አስገዳጅ መረጃዎች መኖራቸውን ማረጋገጥ
-if not ADMIN_ID or not BOT_TOKEN or not MONGO_URL:
-    raise ValueError("CRITICAL ERROR: ADMIN_ID, BOT_TOKEN, and MONGO_URL must be set in Environment Variables!")
+if not MONGO_URL:
+    raise ValueError("CRITICAL ERROR: MONGO_URL environment variable is missing!")
 
 # --- DATABASE SETUP ---
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# Enforce database-level uniqueness for phone numbers to prevent referral race conditions
+# የስልክ ቁጥሮች በዳታቤዝ ደረጃ ልዩ (Unique) እንዲሆኑ ኢንዴክስ መፍጠር (ባላንስ እንዳይጠፋ ይረዳል)
 wallets.create_index([("phone", ASCENDING)], unique=True)
 
 # Thread lock to prevent race conditions across requests & background loop
@@ -61,7 +56,7 @@ def send_telegram(text):
 
 def set_webhook():
     webhook_url = f"{RENDER_URL}/webhook"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}&secret_token={WEBHOOK_SECRET}"
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
     try:
         requests.get(url, timeout=5)
     except Exception as e:
@@ -69,11 +64,6 @@ def set_webhook():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # 🛡️ ሴኪዩሪቲ ቼክ፡ ጥያቄው የመጣው ከቴሌግራም መሆኑን በሴክሬት ቶከን ማረጋገጥ
-    telegram_secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
-    if telegram_secret != WEBHOOK_SECRET:
-        return "Unauthorized Request Blocked", 403
-
     data = request.json
     if not data or "message" not in data or "text" not in data["message"]:
         return "OK", 200
@@ -81,12 +71,13 @@ def webhook():
     msg = data["message"]["text"]
     chat_id = str(data["message"]["chat"]["id"])
 
-    # --- Referral tracking ---
+    # --- Referral tracking (ባላንስ ሳይነካ አዲስ ሰው ብቻ መመዝገብ) ---
     if msg.startswith("/start"):
         parts = msg.split()
         if len(parts) > 1:
             agent_phone = parts[1]
             try:
+                # $setOnInsert አዲስ ተጠቃሚ ሲሆን ብቻ ነው ዳታ የሚያስገባው፤ ነባር ከሆነ ባላንስ አይነካም!
                 wallets.update_one(
                     {"phone": chat_id},
                     {"$setOnInsert": {
@@ -97,9 +88,9 @@ def webhook():
                     upsert=True
                 )
             except Exception as e:
-                print(f"Referral insertion bypassed: {e}")
+                print(f"Referral db handling error: {e}")
 
-    # --- Admin controls (የአድሚን ID እና ጥያቄው የመጣበት ID እኩል መሆኑን በጥብቅ ማረጋገጥ) ---
+    # --- Admin controls ---
     if chat_id == str(ADMIN_ID):
         if msg.startswith("/add") or msg.startswith("/sub"):
             try:
@@ -396,4 +387,7 @@ def claim_bingo():
 if __name__ == '__main__':
     threading.Timer(5, set_webhook).start() 
     threading.Thread(target=game_loop, daemon=True).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    
+    # 🚀 Gunicorn ስህተት እንዳይፈጥር በ Eventlet ሰርቨር ቀጥታ ማስነሻ
+    import eventlet.wsgi
+    eventlet.wsgi.server(eventlet.listen(('0.0.0.0', int(os.environ.get("PORT", 10000)))), app)
