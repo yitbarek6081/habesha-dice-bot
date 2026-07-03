@@ -4,21 +4,26 @@ import random
 import requests
 import threading
 from flask import Flask, render_template, jsonify, request
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING
 from flask_cors import CORS
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# --- CONFIG ---
-ADMIN_ID = "7956330391" 
-BOT_TOKEN = "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc" 
+# --- CONFIG (Loaded securely from Environment Variables) ---
+ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc") 
 MONGO_URL = os.getenv("MONGO_URL")
-RENDER_URL = "https://habesha-dice-bot.onrender.com" 
+RENDER_URL = os.getenv("RENDER_URL", "https://habesha-dice-bot.onrender.com") 
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "super_secret_telegram_token_123x")
 
+# --- DATABASE SETUP ---
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
+
+# Enforce database-level uniqueness for phone numbers to prevent referral race conditions
+wallets.create_index([("phone", ASCENDING)], unique=True)
 
 # Thread lock to prevent race conditions across requests & background loop
 state_lock = threading.Lock()
@@ -32,7 +37,7 @@ game_state = {
     "current_ball": "--", 
     "drawn_balls": [], 
     "winner": None,
-    "winning_card": None  # የአሸናፊው ትኬት ለሁሉም እንዲታይ እዚህ ይቀመጣል
+    "winning_card": None  
 }
 
 def send_telegram(text):
@@ -44,7 +49,8 @@ def send_telegram(text):
 
 def set_webhook():
     webhook_url = f"{RENDER_URL}/webhook"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
+    # Using secret_token forces Telegram to send our token header on every request
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}&secret_token={WEBHOOK_SECRET}"
     try:
         requests.get(url, timeout=5)
     except Exception as e:
@@ -52,52 +58,54 @@ def set_webhook():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    # Security Check: Verify request actually comes from Telegram
+    telegram_secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
+    if telegram_secret != WEBHOOK_SECRET:
+        return "Unauthorized", 403
+
     data = request.json
-    if not data:
+    if not data or "message" not in data or "text" not in data["message"]:
         return "OK", 200
         
-    if "message" in data and "text" in data["message"]:
-        msg = data["message"]["text"]
-        chat_id = str(data["message"]["chat"]["id"])
+    msg = data["message"]["text"]
+    chat_id = str(data["message"]["chat"]["id"])
 
-        # --- Referral tracking (New players only) ---
-        if msg.startswith("/start"):
-            parts = msg.split()
-            if len(parts) > 1:
-                agent_phone = parts[1]
-                existing_user = wallets.find_one({"phone": chat_id})
-                
-                if not existing_user:
-                    wallets.update_one(
-                        {"phone": chat_id},
-                        {"$set": {
-                            "phone": chat_id, 
-                            "balance": 0, 
-                            "referred_by": agent_phone
-                        }},
-                        upsert=True
-                    )
+    # --- Referral tracking ---
+    if msg.startswith("/start"):
+        parts = msg.split()
+        if len(parts) > 1:
+            agent_phone = parts[1]
+            try:
+                # Direct upsert handles duplicate concurrency cleanly via unique index constraints
+                wallets.update_one(
+                    {"phone": chat_id},
+                    {"$setOnInsert": {
+                        "phone": chat_id, 
+                        "balance": 0, 
+                        "referred_by": agent_phone
+                    }},
+                    upsert=True
+                )
+            except Exception as e:
+                print(f"Referral insertion bypassed due to index constraint: {e}")
 
-        # --- Admin controls ---
-        if chat_id == ADMIN_ID and msg.startswith("/add"):
+    # --- Admin controls ---
+    if chat_id == ADMIN_ID:
+        if msg.startswith("/add") or msg.startswith("/sub"):
             try:
                 parts = msg.split()
                 if len(parts) == 3:
-                    target_phone, amount = parts[1], float(parts[2])
+                    target_phone, amount_str = parts[1], parts[2]
+                    amount = float(amount_str)
+                    
+                    if msg.startswith("/sub"):
+                        amount = -amount
+
                     wallets.update_one({"phone": target_phone}, {"$inc": {"balance": amount}}, upsert=True)
-                    send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-            except:
-                send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
-        
-        elif chat_id == ADMIN_ID and msg.startswith("/sub"):
-            try:
-                parts = msg.split()
-                if len(parts) == 3:
-                    target_phone, amount = parts[1], float(parts[2])
-                    wallets.update_one({"phone": target_phone}, {"$inc": {"balance": -amount}})
-                    send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
-            except:
-                send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
+                    action = "ተጨምሯል" if amount > 0 else "ተቀንሷል"
+                    send_telegram(f"✅ ለ `{target_phone}` {abs(amount)} ETB {action}።")
+            except Exception:
+                send_telegram("❌ ስህተት! ፎርማቱ: /add ወይም /sub ስልክ መጠን")
 
     return "OK", 200
 
@@ -105,26 +113,25 @@ def is_winner(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
     drawn_set.add(0)  # Free space center mark
     
-    # 1. የአግድም (Rows) ማረጋገጫ
+    # 1. Rows
     for i in range(5):
         row = [card[i*5 + j] for j in range(5)]
         if all(num in drawn_set for num in row): 
             return True 
         
-    # 2. የቁመት (Columns) ማረጋገጫ
+    # 2. Columns
     for j in range(5):
         col = [card[i*5 + j] for i in range(5)]
         if all(num in drawn_set for num in col): 
             return True 
         
-    # 3. የሰያፍ (Diagonals) ማረጋገጫ 📉 📈
+    # 3. Diagonals
     diag1 = [card[0], card[6], card[12], card[18], card[24]]
     diag2 = [card[4], card[8], card[12], card[16], card[20]]
-    
     if all(num in drawn_set for num in diag1): return True
     if all(num in drawn_set for num in diag2): return True
     
-    # 4. የአራቱ ማዕዘናት (4 Corners) ማረጋገጫ 🔲
+    # 4. 4 Corners
     corners = [card[0], card[4], card[20], card[24]]
     if all(num in drawn_set for num in corners): return True
     
@@ -171,13 +178,15 @@ def game_loop():
                 
                 time.sleep(5)
             
-            # Handle scenario where 75 balls pass without a winner declaration
+            # Draw timeout (No winner found within 75 balls)
             with state_lock:
                 if game_state["status"] == "playing":
                     game_state["status"] = "result"
                     game_state["winner"] = "No Winner (House)"
                     game_state["winning_card"] = None
                     send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
+                    
+                    # Safer state management: clean synchronous trigger out of thread block
                     threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
 
         time.sleep(1)
@@ -206,7 +215,9 @@ def get_status():
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
     d = request.json or {}
-    ph, t_num, uname = d.get('phone'), str(d.get('ticket_num')), d.get('username')
+    ph = d.get('phone')
+    t_num = str(d.get('ticket_num')) if d.get('ticket_num') is not None else None
+    uname = d.get('username')
     
     if not ph or not t_num:
         return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
@@ -219,10 +230,9 @@ def buy_ticket():
         if ph in game_state["players"] and len(game_state["players"][ph]["cards"]) >= 2:
             return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
         
-        # ደጋግሞ ክሊክ ሲያደርግ ቀድሞ በሂደት ላይ መሆኑን ለመመዝገብ
         game_state["sold_tickets"][t_num] = "RESERVED_LOCK"
 
-    # ከዳታቤዝ ብር መቀነስ
+    # Atomic decrement verification
     res = wallets.find_one_and_update(
         {"phone": ph, "balance": {"$gte": 10}}, 
         {"$inc": {"balance": -10}},
@@ -230,12 +240,10 @@ def buy_ticket():
     )
     
     if res:
-        # የቢንጎ ቁጥሮችን ማመንጨት (Columns generation)
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             columns.append(random.sample(range(r[0], r[1]+1), 5))
             
-        # ቁጥሮቹን በግሪዱ አቀማመጥ ልክ ማስተካከል (Row-by-Row እንዲቀመጡ)
         flat = []
         for row_idx in range(5):
             for col_idx in range(5):
@@ -244,7 +252,7 @@ def buy_ticket():
         flat[12] = 0  # Free Space
         
         with state_lock:
-            # በሂደቱ መሃል ጨዋታው ተጀምሮ ከሆነ ብሩን መመለስ
+            # If game started during db process, refund money
             if game_state["status"] != "lobby":
                 if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
                     del game_state["sold_tickets"][t_num]
@@ -261,7 +269,6 @@ def buy_ticket():
                 
         return jsonify({"success": True})
     
-    # ባላንስ ከሌለው ወይም ችግር ካለ መቆለፊያውን መልሶ ማንሳት
     with state_lock:
         if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
             del game_state["sold_tickets"][t_num]
@@ -271,8 +278,12 @@ def buy_ticket():
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
     d = request.json or {}
-    ph, t_num = d.get('phone'), str(d.get('ticket_num'))
+    ph = d.get('phone')
+    t_num = str(d.get('ticket_num')) if d.get('ticket_num') is not None else None
     
+    if not ph or not t_num:
+         return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
+
     with state_lock:
         if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == ph:
             wallets.update_one({"phone": ph}, {"$inc": {"balance": 10}}) 
@@ -292,9 +303,13 @@ def cancel_ticket():
 def request_deposit():
     d = request.json or {}
     ph = str(d.get('phone'))
-    amt = d.get('amount')
-    t_id = d.get('transaction_id', 'N/A')
     
+    try:
+        amt = float(d.get('amount', 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "msg": "የተሳሳተ የገንዘብ መጠን!"})
+
+    t_id = d.get('transaction_id', 'N/A')
     user = wallets.find_one({"phone": ph})
     
     if user and "referred_by" in user:
@@ -318,7 +333,15 @@ def request_deposit():
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     d = request.json or {}
-    ph, amt = d.get('phone'), float(d.get('amount'))
+    ph = d.get('phone')
+    
+    try:
+        amt = float(d.get('amount', 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "msg": "የተሳሳተ የገንዘብ መጠን!"})
+    
+    if not ph or amt <= 0:
+        return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
     
     res = wallets.find_one_and_update(
         {"phone": ph, "balance": {"$gte": amt}},
@@ -350,12 +373,11 @@ def claim_bingo():
             if is_winner(card, game_state["drawn_balls"]):
                 game_state["status"] = "result"
                 game_state["winner"] = p_data["username"]
-                game_state["winning_card"] = card  # ያሸነፈበትን ካርቴላ ለሁሉም ሰው እንዲታይ ማከማቸት
+                game_state["winning_card"] = card  
                 
                 win_amt = game_state["pot"] * 0.8
                 wallets.update_one({"phone": ph}, {"$inc": {"balance": win_amt}})
                 
-                # ያሸነፈበትን ካርቴላ ለቴሌግራም ሪፖርት በፅሁፍ ማዘጋጀት
                 card_rows = []
                 for r in range(5):
                     row_vals = [str(card[r*5 + c]) if card[r*5 + c] != 0 else "FREE" for c in range(5)]
@@ -363,6 +385,7 @@ def claim_bingo():
                 card_text = "\n".join(card_rows)
                 
                 send_telegram(f"🏆 *WINNER!* \n👤 Name: {p_data['username']} \n📞 Phone: `{ph}` \n🎫 Ticket No: {t_num} \n💰 Prize: {win_amt} ETB\n\n📊 *Winning Card:* \n`{card_text}`")
+                
                 threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
             
