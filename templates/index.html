@@ -124,7 +124,7 @@
                     <span class="guide-section-title">1. ብር ማስገባት (DEPOSIT)</span>
                     ጨዋታ ከመጀመርዎ በፊት በቂ ሂሳብ ሊኖርዎት ይገባል።
                     <ul>
-                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ Unions.</li>
+                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ።</li>
                         <li>የቀረበውን የቴሌብር ስልክ ቁጥር ይቅዱ (Copy ያድርጉ)።</li>
                         <li>ወደ ቴሌብር መተግበሪያዎ በመግባት በተቀዳው ቁጥር ላይ ብር ይላኩ።</li>
                         <li>የላኩትን የገንዘብ መጠን እና ከቴሌብር የመጣሎትን <b>የማረጋገጫ ኮድ (Transaction ID)</b> በቦታው ላይ አስገብተው <b>SUBMIT REQUEST</b> ይበሉ። ሂሳብዎ በፍጥነት ይስተካከላል።</li>
@@ -188,6 +188,7 @@
     </div>
 
     <script>
+        // XSS ጥቃትን ለመከላከል የሚረዳ የጽሑፍ ማጽጃ (Sanitizer)
         function sanitizeText(str) {
             if (!str) return '';
             return String(str).replace(/[&<>"']/g, function(m) {
@@ -195,6 +196,7 @@
             }).trim();
         }
 
+        // የስልክ ቁጥር ፎርማት ቼክ
         function validatePhone(p) {
             const clean = p.replace(/[^0-9+]/g, '');
             return (clean.length >= 10 && clean.length <= 13) ? clean : null;
@@ -223,8 +225,8 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
-        function trackCell(ticketNum, cellVal) {
-            let key = `marked_${ticketNum}`;
+        function trackCell(cardId, cellVal) {
+            let key = `marked_${parseInt(cardId)}`;
             let list = JSON.parse(localStorage.getItem(key) || "[]");
             let val = parseInt(cellVal);
             if (isNaN(val)) return;
@@ -240,25 +242,27 @@
                 return !isNaN(val) && drawnSet.has(val);
             };
 
+            let winIdxs = new Set();
+
             let diag1 = [0, 6, 12, 18, 24];
-            if (diag1.every(isHit)) return new Set(diag1);
+            if (diag1.every(isHit)) diag1.forEach(i => winIdxs.add(i));
             
             let diag2 = [4, 8, 12, 16, 20];
-            if (diag2.every(isHit)) return new Set(diag2);
+            if (diag2.every(isHit)) diag2.forEach(i => winIdxs.add(i));
 
             let corners = [0, 4, 20, 24];
-            if (corners.every(isHit)) return new Set(corners);
+            if (corners.every(isHit)) corners.forEach(i => winIdxs.add(i));
 
             for (let j = 0; j < 5; j++) {
                 let colIdxs = [j, j+5, j+10, j+15, j+20];
-                if (colIdxs.every(isHit)) return new Set(colIdxs);
+                if (colIdxs.every(isHit)) colIdxs.forEach(i => winIdxs.add(i));
             }
 
             for (let i = 0; i < 5; i++) {
                 let rowIdxs = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
-                if (rowIdxs.every(isHit)) return new Set(rowIdxs);
+                if (rowIdxs.every(isHit)) rowIdxs.forEach(i => winIdxs.add(i));
             }
-            return new Set();
+            return winIdxs;
         }
 
         function initTicketsOnce() {
@@ -290,10 +294,7 @@
                     document.getElementById('winning-card-area').innerHTML=""; 
                     
                     if (announced) {
-                        // አዲስ ሎቢ ሲጀምር የቆዩትን ማርኮች በሙሉ ማፅዳት
-                        for (let k in localStorage) {
-                            if (k.startsWith("marked_")) localStorage.removeItem(k);
-                        }
+                        localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
                         announced = false;
                     }
                     
@@ -315,9 +316,7 @@
                     if(d.my_cards && d.my_cards.length > 0 && !currentCardData) { 
                         currentCardData = d.my_cards; 
                         document.getElementById('card-area').innerHTML = "";
-                        d.my_cards.forEach((c) => { 
-                            if(c && c.numbers) renderCard(c.numbers, c.ticket_num); 
-                        }); 
+                        d.my_cards.forEach((c, i) => { if(Array.isArray(c)) renderCard(c, i); }); 
                     }
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
@@ -439,13 +438,13 @@
             }
         }
 
-        function renderCard(card, ticketNum) {
-            const safeTicketNum = sanitizeText(ticketNum);
+        function renderCard(card, cardIdx) {
+            const safeCardIdx = parseInt(cardIdx);
             const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             
-            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeTicketNum}`) || "[]");
+            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
 
             card.forEach((n, i) => {
                 const cell=document.createElement('div');
@@ -458,7 +457,7 @@
                     cell.innerText=cleanVal; 
                     cell.onclick = () => { 
                         cell.classList.toggle('selected'); 
-                        trackCell(safeTicketNum, numVal);
+                        trackCell(safeCardIdx, numVal);
                     } 
                 }
                 grid.appendChild(cell);
@@ -508,7 +507,7 @@
                 method:'POST', headers:{'Content-Type':'application/json'}, 
                 body:JSON.stringify({ phone: phone, amount: amt })
             }).then(response => {
-                if(response.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); update(); }
+                if(response.ok) { closeM('with-m'); alert("የክክያ ጥያቄዎ ተልኳል!"); update(); }
                 else { alert("ገንዘብ ማውጣት አልተሳካም! ሰርቨር ውድቅ አድርጎታል::"); }
             }).catch(() => { alert("የአውታረ መረብ ስህተት አጋጥሟል!"); });
         }
