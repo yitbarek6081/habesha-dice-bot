@@ -124,7 +124,7 @@
                     <span class="guide-section-title">1. ብር ማስገባት (DEPOSIT)</span>
                     ጨዋታ ከመጀመርዎ በፊት በቂ ሂሳብ ሊኖርዎት ይገባል።
                     <ul>
-                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ።</li>
+                        <li><b>📥 DEPOSIT</b> የሚለውን ቁልፍ ይጫኑ Unions.</li>
                         <li>የቀረበውን የቴሌብር ስልክ ቁጥር ይቅዱ (Copy ያድርጉ)።</li>
                         <li>ወደ ቴሌብር መተግበሪያዎ በመግባት በተቀዳው ቁጥር ላይ ብር ይላኩ።</li>
                         <li>የላኩትን የገንዘብ መጠን እና ከቴሌብር የመጣሎትን <b>የማረጋገጫ ኮድ (Transaction ID)</b> በቦታው ላይ አስገብተው <b>SUBMIT REQUEST</b> ይበሉ። ሂሳብዎ በፍጥነት ይስተካከላል።</li>
@@ -188,7 +188,6 @@
     </div>
 
     <script>
-        // XSS ጥቃትን ለመከላከል የሚረዳ የጽሑፍ ማጽጃ (Sanitizer)
         function sanitizeText(str) {
             if (!str) return '';
             return String(str).replace(/[&<>"']/g, function(m) {
@@ -196,7 +195,6 @@
             }).trim();
         }
 
-        // የስልክ ቁጥር ፎርማት ቼክ
         function validatePhone(p) {
             const clean = p.replace(/[^0-9+]/g, '');
             return (clean.length >= 10 && clean.length <= 13) ? clean : null;
@@ -225,8 +223,8 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
-        function trackCell(cardId, cellVal) {
-            let key = `marked_${parseInt(cardId)}`;
+        function trackCell(ticketNum, cellVal) {
+            let key = `marked_${ticketNum}`;
             let list = JSON.parse(localStorage.getItem(key) || "[]");
             let val = parseInt(cellVal);
             if (isNaN(val)) return;
@@ -292,7 +290,10 @@
                     document.getElementById('winning-card-area').innerHTML=""; 
                     
                     if (announced) {
-                        localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
+                        // አዲስ ሎቢ ሲጀምር የቆዩትን ማርኮች በሙሉ ማፅዳት
+                        for (let k in localStorage) {
+                            if (k.startsWith("marked_")) localStorage.removeItem(k);
+                        }
                         announced = false;
                     }
                     
@@ -314,7 +315,9 @@
                     if(d.my_cards && d.my_cards.length > 0 && !currentCardData) { 
                         currentCardData = d.my_cards; 
                         document.getElementById('card-area').innerHTML = "";
-                        d.my_cards.forEach((c, i) => { if(Array.isArray(c)) renderCard(c, i); }); 
+                        d.my_cards.forEach((c) => { 
+                            if(c && c.numbers) renderCard(c.numbers, c.ticket_num); 
+                        }); 
                     }
                 } else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
@@ -436,13 +439,13 @@
             }
         }
 
-        function renderCard(card, cardIdx) {
-            const safeCardIdx = parseInt(cardIdx);
+        function renderCard(card, ticketNum) {
+            const safeTicketNum = sanitizeText(ticketNum);
             const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             
-            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
+            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeTicketNum}`) || "[]");
 
             card.forEach((n, i) => {
                 const cell=document.createElement('div');
@@ -455,7 +458,7 @@
                     cell.innerText=cleanVal; 
                     cell.onclick = () => { 
                         cell.classList.toggle('selected'); 
-                        trackCell(safeCardIdx, numVal);
+                        trackCell(safeTicketNum, numVal);
                     } 
                 }
                 grid.appendChild(cell);
