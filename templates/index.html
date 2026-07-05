@@ -20,28 +20,94 @@
         .btn-withdraw { background: var(--orange); color: white; }
         .btn-how-to { background: #3b82f6; color: white; border: 1px solid #60a5fa; }
 
+        /* የሎቢው ሰዓት እና "ካርቴላ ይግዙ" ጽሑፍ ጎን ለጎን የሚያስቀምጥ ኮንቴይነር */
+        .timer-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin: 15px auto;
+            width: 90%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 8px 15px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); text-align: center; line-height: 1; }
+
+        /* የ"ካርቴላ ይግዙ (10)" ማሳሰቢያ ስታይል */
+        .buy-notice {
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: var(--green);
+            background: rgba(0, 255, 136, 0.1);
+            padding: 10px 15px;
+            border-radius: 10px;
+            border: 2px dashed var(--green);
+            text-align: center;
+            min-width: 160px;
+            box-sizing: border-box;
+            letter-spacing: 0.5px;
+        }
+
+        /* የኳስ፣ የዝግጅት ጽሑፍ እና የሰዓት ቆጣሪው አጠቃላይ መያዣ */
+        .ball-section-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 15px auto;
+            width: 95%;
+            max-width: 420px;
+        }
+
+        /* ኳሱ እና ሰዓቱ ጎን ለጎን የሚቀመጡበት ረድፍ */
+        .ball-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+        }
+
         #ball-circle { 
             width: 75px; height: 75px; 
             background: radial-gradient(circle, #fff, var(--gold)); 
             color: #000; border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; 
             font-size: 1.8rem; font-weight: 900; 
-            margin: 15px auto; border: 4px solid #1e293b;
+            border: 4px solid #1e293b;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
+
+        /* ከኳሱ ጎን ለጎን የሚቀመጠው የ3 ሰከንድ ዝግጅት ቆጠራ ስታይል */
+        #ball-prep-countdown {
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: var(--orange);
+            background: rgba(255, 136, 0, 0.15);
+            padding: 10px 15px;
+            border-radius: 10px;
+            border: 2px dashed var(--orange);
+            text-align: center;
+            min-width: 110px;
             box-sizing: border-box;
         }
 
-        /* አዲሱ የኳስ ዝግጅት ቆጠራ ማሳያ ስታይል */
-        #ball-prep-countdown {
-            font-size: 1.3rem;
-            font-weight: 900;
-            color: var(--orange);
-            background: rgba(255, 62, 62, 0.1);
-            padding: 8px;
-            margin: 10px auto;
-            border-radius: 8px;
-            border: 1px dashed var(--orange);
-            width: 80%;
-            max-width: 300px;
+        /* ጨዋታው ሊጀምር መሆኑን የሚያሳየው አዲስ የጽሑፍ ማሳወቂያ ስታይል */
+        .game-start-alert {
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--gold);
+            background: rgba(255, 204, 0, 0.1);
+            padding: 6px 20px;
+            border-radius: 20px;
+            border: 1px solid var(--gold);
+            letter-spacing: 1px;
             animation: pulse 1s infinite;
         }
 
@@ -80,7 +146,6 @@
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 92%; max-width: 360px; text-align: left; max-height: 85vh; overflow-y: auto; }
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; color: #000; }
-        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); text-align: center; }
 
         .guide-list { padding-left: 15px; margin: 10px 0; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1; }
         .guide-list li { margin-bottom: 12px; }
@@ -109,13 +174,26 @@
             <button class="btn-main btn-how-to" onclick="openM('guide-m')">📖 HOW TO PLAY</button>
             <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
         </div>
-        <div id="timer">30</div>
+        
+        <!-- ሰዓቱ እና "ካርቴላ ይግዙ (10 ETB)" ጎን ለጎን የተቀመጡበት አዲስ መያዣ -->
+        <div class="timer-container">
+            <div id="timer">30</div>
+            <div class="buy-notice">🎟️ ካርቴላ ይግዙ (10 ETB)</div>
+        </div>
+
         <div class="grid-500" id="ticket-area"></div>
     </div>
 
     <div id="game-ui" style="display:none;">
-        <div id="ball-prep-countdown" style="display:none;">ኳስ ለመጀመር፦ 3</div>
-        <div id="ball-circle">--</div>
+        <div class="ball-section-wrapper">
+            <div id="start-alert-msg" class="game-start-alert" style="display:none;">🔴 ጨዋታው ሊጀምር ነው...</div>
+            
+            <div class="ball-row">
+                <div id="ball-circle">--</div>
+                <div id="ball-prep-countdown" style="display:none;">ዝግጅት፦ 3</div>
+            </div>
+        </div>
+
         <div class="game-layout">
             <div class="board-container">
                 <div class="board-header">
@@ -157,7 +235,7 @@
                     <span class="guide-section-title">3. አጫዋወት እና ማሸነፍ</span>
                     <ul>
                         <li><b>ቁጥር መምረጥ፦</b> በዕጣ የሚወጡት ኳሶች (ቁጥሮች) በእርስዎ ካርቴላ ላይ ካሉ ሳጥኑን በመንካት ያብሩት (Select ያድርጉት)።</li>
-                        <li><b>FREE ሴል፦</b> በካርቴላው መሀል ላይ ያለችው የ "FREE" ሳጥን ሁልጊዜ የበራች የነፃ ዕድል ሳጥን ናት።</li>
+                        <li><b>FREE ሴል፦</b> በካርቴላው መሀል ላይ ያለችው የ "FREE" ሳጥን ሁልጊዜ የበራች የነፃ ዕድል ሳጥን奈።</li>
                         <li><b>የማሸነፊያ መንገዶች፦</b> ማናቸውም 5 አግድም ቁጥሮች (Row)፣ 5 ቀጥታ ቁጥሮች (Column)፣ 5 የሰያፍ ቁጥሮች (Diagonal) ወይም 4ቱ የካርቴላው ማዕዘናት (4 Corners) ሲሞሉልዎት በፍጥነት <b>BINGO!</b> የሚለውን ቀይ ቁልፍ ይጫኑ። ቀድሞ የነካ ተጫዋች አሸናፊ ይሆናል።</li>
                     </ul>
                 </li>
@@ -204,7 +282,6 @@
     </div>
 
     <script>
-        // XSS ጥቃትን ለመከላከል የሚረዳ የጽሑፍ ማጽጃ (Sanitizer)
         function sanitizeText(str) {
             if (!str) return '';
             return String(str).replace(/[&<>"']/g, function(m) {
@@ -212,7 +289,6 @@
             }).trim();
         }
 
-        // የስልክ ቁጥር ፎርማት ቼክ
         function validatePhone(p) {
             const clean = p.replace(/[^0-9+]/g, '');
             return (clean.length >= 10 && clean.length <= 13) ? clean : null;
@@ -307,8 +383,8 @@
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('winning-card-area').innerHTML=""; 
                     
-                    // የኳስ ቆጠራ ማሳያውን መደበቅ
                     document.getElementById('ball-prep-countdown').style.display = 'none';
+                    document.getElementById('start-alert-msg').style.display = 'none';
                     
                     if (announced) {
                         localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
@@ -324,19 +400,20 @@
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
                     
-                    // --- አዲሱ የኳስ መጀመሪያ ቆጠራ (ball_timer) መቆጣጠሪያ ---
                     const prepCountdownEl = document.getElementById('ball-prep-countdown');
+                    const startAlertEl = document.getElementById('start-alert-msg');
                     let ballTimerVal = parseInt(d.ball_timer);
                     
                     if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
                         prepCountdownEl.style.display = 'block';
-                        prepCountdownEl.innerText = `⏳ ኳስ ለመጀመር፦ ${ballTimerVal} ሰከንድ`;
-                        document.getElementById('ball-circle').style.opacity = '0.4'; // ኳሱ ገና ስላልጀመረ እንዲደዝዝ ማድረግ
+                        startAlertEl.style.display = 'block'; 
+                        prepCountdownEl.innerText = `⏳ ዝግጅት፦ ${ballTimerVal}`;
+                        document.getElementById('ball-circle').style.opacity = '0.4'; 
                     } else {
-                        prepCountdownEl.style.display = 'none'; // 0 ሲሆን መደበቅ
-                        document.getElementById('ball-circle').style.opacity = '1';  // ኳሱ እንዲበራ ማድረግ
+                        prepCountdownEl.style.display = 'none'; 
+                        startAlertEl.style.display = 'none'; 
+                        document.getElementById('ball-circle').style.opacity = '1';  
                     }
-                    // ----------------------------------------------------
 
                     let secureBall = sanitizeText(d.current_ball);
                     document.getElementById('ball-circle').innerText = secureBall;
