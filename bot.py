@@ -273,6 +273,49 @@ def webhook():
 
     return "OK", 200
 
+# ✨🆕 አዲሱ የምዝገባ እና የሎጊን ኤፒአይ መሥመር (Route)
+@app.route('/register_or_login', methods=['POST'])
+def register_or_login():
+    data = request.json or {}
+    input_phone = sanitize_input(data.get('phone'))
+    input_username = sanitize_input(data.get('username'))
+
+    if not input_phone or not input_username:
+        return jsonify({"success": False, "msg": "እባክዎ ስም እና ስልክ በትክክል ያስገቡ!"}), 400
+
+    clean_phone = input_phone.replace("+", "").replace(" ", "")
+
+    try:
+        # በቴሌግራም መጥቶ የነበረውን ጊዜያዊ አካውንት መፈለግ
+        temp_user = wallets.find_one({"phone": f"TEMP_{clean_phone}"})
+        if not temp_user:
+            temp_user = wallets.find_one({"phone": clean_phone})
+
+        if temp_user:
+            # አካውንቱ ካለ መረጃውን ማስተካከል። የድሮ ባላንሱ አይነካም
+            wallets.update_one(
+                {"_id": temp_user["_id"]},
+                {
+                    "$set": {"phone": clean_phone, "username": input_username},
+                    "$unset": {"reg_status": ""}
+                }
+            )
+            updated_user = wallets.find_one({"_id": temp_user["_id"]})
+            return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": updated_user.get("balance", 0)})
+        else:
+            # ሙሉ በሙሉ አዲስ ከሆነ መመዝገብ
+            new_user = {"phone": clean_phone, "username": input_username, "balance": 0}
+            wallets.insert_one(new_user)
+            send_telegram(f"🌐 *አዲስ ተጫዋች በሊንክ (Web) ተመዘገበ!*\n👤 ስም: `{input_username}`\n📞 ስልክ: `{clean_phone}`")
+            return jsonify({"success": True, "msg": "ምዝገባዎ ተጠናቋል!", "balance": 0})
+
+    except Exception as e:
+        existing = wallets.find_one({"phone": clean_phone})
+        if existing:
+            wallets.update_one({"phone": clean_phone}, {"$set": {"username": input_username}})
+            return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
+        return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
+
 def check_winning_line(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
     drawn_set.add(0)
