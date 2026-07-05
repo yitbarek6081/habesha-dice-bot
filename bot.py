@@ -1,18 +1,18 @@
 import os
 import time
 import random
-import re
+import requests
 import threading
+import re
 from flask import Flask, render_template, jsonify, request
-from flask_socketio import SocketIO, emit
 from pymongo import MongoClient
 from flask_cors import CORS
-import requests
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
+app.config['SECRET_KEY'] = 'habesha_bingo_secret_key'
 CORS(app)
-# SocketIOን ማካተት
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # --- CONFIG ---
 ADMIN_ID = "7956330391" 
@@ -27,39 +27,53 @@ wallets.create_index("phone", unique=True)
 
 state_lock = threading.Lock()
 game_state = {
-    "status": "lobby", "timer": 30, "ball_timer": 3, "pot": 0,
-    "players": {}, "sold_tickets": {}, "current_ball": "--",
-    "drawn_balls": [], "winner": None, "winning_card": None 
+    "status": "lobby", "timer": 30, "ball_timer": 3, "pot": 0, 
+    "players": {}, "sold_tickets": {}, "current_ball": "--", 
+    "drawn_balls": [], "winner": None, "winning_card": None  
 }
 
-def sanitize_input(text):
-    return re.sub(r'[^\w\s\-\+\.@]', '', str(text)).strip()
+def broadcast_state():
+    socketio.emit('game_update', game_state)
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try: requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
     except: pass
 
-# የጨዋታው loop እና መረጃ መላኪያ
+# --- GAME LOOP ---
 def game_loop():
+    balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         with state_lock:
-            # የጨዋታው ሎጂክ እንዳለ ሆኖ መረጃውን ለሁሉም ተጫዋች እንገፋለን
-            socketio.emit('game_update', game_state)
+            if game_state["status"] == "lobby":
+                if game_state["timer"] > 0:
+                    game_state["timer"] -= 1
+                    broadcast_state()
+                elif len(game_state["players"]) >= 2:
+                    game_state["status"] = "playing"
+                    game_state["drawn_balls"] = []
+                else:
+                    game_state["timer"] = 30
+            
+            elif game_state["status"] == "playing":
+                if game_state["ball_timer"] > 0:
+                    game_state["ball_timer"] -= 1
+                else:
+                    if balls:
+                        b = balls.pop(0)
+                        game_state["current_ball"] = b
+                        game_state["drawn_balls"].append(b)
+                broadcast_state()
         time.sleep(1)
 
+# --- ROUTES ---
 @app.route('/')
 def index(): return render_template('index.html')
 
-# (የነበሩት routes እንዳሉ ይቀጥላሉ)
 @app.route('/buy_specific_ticket', methods=['POST'])
-def buy_ticket():
-    # ... (የነበረው ኮድህ እዚህ ይግባ)
-    return jsonify({"success": True})
-
-@app.route('/cancel_ticket', methods=['POST'])
-def cancel_ticket():
-    # ... (የነበረው ኮድህ እዚህ ይግባ)
+def buy():
+    # ቲኬት ሲገዛ state አዘምን
+    broadcast_state()
     return jsonify({"success": True})
 
 if __name__ == '__main__':
