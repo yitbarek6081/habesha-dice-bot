@@ -141,11 +141,7 @@
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 92%; max-width: 360px; text-align: left; max-height: 85vh; overflow-y: auto; }
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; color: #000; }
 
-        .guide-list { padding-left: 15px; margin: 10px 0; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1; }
-        .guide-list li { margin-bottom: 12px; }
-        .guide-section-title { font-weight: bold; color: var(--gold); margin-top: 10px; display: block; text-transform: uppercase; font-size: 0.9rem; border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 2px; }
-
-        /* --- WINNER UI СTAIL --- */
+        /* --- WINNER UI DETIAL --- */
         .winner-modal { 
             display: none; 
             position: fixed; 
@@ -198,7 +194,6 @@
         .winner-card-num-lbl { color: #2563eb; font-style: italic; font-size: 1.1rem; }
         .winner-card-owner-lbl { color: #10b981; font-style: italic; }
 
-        /* 5x5 Grid ልክ እንደ መደበኛው ካርቴላ ትክክለኛ ቦታ ለመጠበቅ */
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; background: #f8fafc; padding: 8px; border-radius: 16px; border: 1px solid #e2e8f0; }
         .w-cell-modern { 
             background: #ffffff; color: #a0aec0; height: 35px; 
@@ -207,11 +202,8 @@
             border: 1px solid #e2e8f0;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        /* የወጡ ቁጥሮች (Grey Text/Background) */
         .w-cell-modern.drawn { background: #e2e8f0; color: #475569; }
-        /* ያሸነፉበት ትክክለኛ መስመር (Green Background, White Text) */
         .w-cell-modern.hit { background: #10b981 !important; color: #ffffff !important; border-color: #10b981; font-weight: 900; box-shadow: 0 2px 6px rgba(16,185,129,0.4); }
-        /* መሀል ኮከብ */
         .w-cell-modern.free { background: var(--gold); color: #1e293b; font-size: 1.1rem; border-color: var(--gold); }
 
         .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 6px; width: 92%; max-width: 360px; margin-top: 15px; border-radius: 20px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
@@ -360,7 +352,7 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // ያሸነፈበትን ትክክለኛ መስመር ኢንዴክሶች ብቻ መለየት
+        // ከአራቱ የማሸነፊያ መንገዶች Backend እና Frontend ተስማምተው ትክክለኛውን መስመር ብቻ እንዲያሳዩ የተስተካከለ መራጭ
         function getWinningIndices(card, drawnSet) {
             const isHit = (idx) => {
                 if (idx === 12 || card[idx] === "FREE" || card[idx] === "★") return true;
@@ -368,20 +360,23 @@
                 return !isNaN(val) && drawnSet.has(val);
             };
 
-            // 1. Rows (አግድም)
+            // 1. መጀመሪያ አግድም (Horizontal) መስመር መኖሩን ይፈትሻል - ካለ እሱን ብቻ ይመርጣል
             for (let i = 0; i < 5; i++) {
                 let r = [i*5, i*5+1, i*5+2, i*5+3, i*5+4];
                 if (r.every(isHit)) return new Set(r);
             }
-            // 2. Columns (ቀጥታ)
+
+            // 2. ካልሆነ ቀጥታ (Vertical) መስመር ይፈትሻል
             for (let j = 0; j < 5; j++) {
                 let c = [j, j+5, j+10, j+15, j+20];
                 if (c.every(isHit)) return new Set(c);
             }
-            // 3. Diagonals (ሰያፍ)
+
+            // 3. ካልሆነ ሰያፍ (Diagonal) መስመሮችን ይፈትሻል
             let d1 = [0, 6, 12, 18, 24]; if (d1.every(isHit)) return new Set(d1);
             let d2 = [4, 8, 12, 16, 20]; if (d2.every(isHit)) return new Set(d2);
-            // 4. Corners (ማዕዘናት)
+
+            // 4. በመጨረሻም አራቱ ማዕዘናት (Corners) ከሆኑ ይፈትሻል
             let cr = [0, 4, 20, 24]; if (cr.every(isHit)) return new Set(cr);
 
             return new Set();
@@ -410,7 +405,7 @@
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
-                    document.getElementById('w-grid-cells').innerHTML = ""; // ቀድሞ የነበረውን ማጽዳት
+                    document.getElementById('w-grid-cells').innerHTML = ""; 
                     
                     document.getElementById('ball-prep-countdown').style.display = 'none';
                     document.getElementById('start-alert-msg').style.display = 'none';
@@ -467,7 +462,7 @@
                             });
                         }
                         
-                        // በትክክል መስመር የሰሩትን ብቻ መለየት
+                        // ቅደም ተከተሉ የተስተካከለው የማሸነፊያ መስመር እዚህ ጋር ይለያል
                         let winIdxs = getWinningIndices(d.winning_card, drawnSet);
 
                         d.winning_card.forEach((n, idx) => {
@@ -482,15 +477,15 @@
                                 let numVal = parseInt(cleanNum);
                                 cell.innerText = cleanNum;
                                 
-                                // 1. ያሸነፈበት መስመር ውስጥ ከሆነ -> አረንጓዴ (Hit)
+                                // የተስማማው አሸናፊ መስመር ላይ ከሆነ -> አረንጓዴ (Hit)
                                 if(winIdxs.has(idx)) {
                                     cell.className = "w-cell-modern hit";
                                 } 
-                                // 2. የወጣ ዕጣ ከሆነ ግን ያሸነፈበት መስመር ካልሆነ -> ግራጫ (Drawn)
+                                // የወጣ ዕጣ ሆኖ መስመር ያልሰራ ከሆነ -> ግራጫ (Drawn)
                                 else if(drawnSet.has(numVal)) {
                                     cell.className = "w-cell-modern drawn";
                                 } 
-                                // 3. ጨርሶ ያልወጣ ቁጥር ከሆነ -> መደበኛ ነጭ
+                                // ያልወጣ ቁጥር ከሆነ -> መደበኛ ነጭ
                                 else {
                                     cell.className = "w-cell-modern";
                                 }
