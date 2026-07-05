@@ -205,7 +205,7 @@ def webhook():
                             invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
                             send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለውም።")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
                 except Exception as e:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
@@ -316,15 +316,8 @@ def register_or_login():
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
 def check_winning_line(card, drawn_numbers):
-    # 'B1', 'I16' ወዘተ ወደ ንፁህ ቁጥር (Integer) መቀየር
-    drawn_set = set()
-    for b in drawn_numbers:
-        if len(b) > 1:
-            try:
-                drawn_set.add(int(b[1:]))
-            except:
-                pass
-    drawn_set.add(0) # መካከለኛዋ ነጻ ክፍል (FREE) በ 0 ተወክላለች
+    drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
+    drawn_set.add(0)
 
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
@@ -430,37 +423,7 @@ def get_status():
         cards_list = list(p_data["cards"].values())
         
         status_copy = {
-            "status": game_state["status"],
-            "timer": game_state["timer"],
-            "ball_timer": game_state["ball_timer"],
-            "pot": game_state["pot"],
-            "sold_tickets": game_state["sold_tickets"],
-            "current_ball": game_state["current_ball"],
-            "drawn_balls": game_state["drawn_balls"],
-            "winner": game_state["winner"],
-            "winning_card": game_state["winning_card"],
+            **game_state,
             "balance": user['balance'] if user else 0, 
             "my_cards": cards_list, 
-            "active_players": len(game_state["players"])
-        }
-    return jsonify(status_copy)
-
-@app.route('/buy_specific_ticket', methods=['POST'])
-def buy_ticket():
-    d = request.json or {}
-    ph, t_num, uname = sanitize_input(d.get('phone')), str(d.get('ticket_num')), sanitize_input(d.get('username'))
-    
-    if not ph or not t_num:
-        return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
-
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
-    if not user:
-        return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
-    db_phone = user["phone"]
-
-    with state_lock:
-        if game_state["status"] != "lobby":
-            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
-        if t_num in game_state["sold_tickets"]:
-            return jsonify({"success": False, "msg": "ይህ ካርተላ ቀድሞ ተይዟል!"})
-        if db_phone in game_state
+            "active_players": len(game_
