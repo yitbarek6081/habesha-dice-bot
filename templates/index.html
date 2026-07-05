@@ -1,26 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="am">
 <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BESH BINGO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; }
+        .game-box { background: white; padding: 20px; border-radius: 10px; display: inline-block; }
+    </style>
 </head>
 <body>
+    <div class="game-box">
+        <h1>BESH BINGO</h1>
+        <h2 id="status">Status: ...</h2>
+        <h3>Timer: <span id="timer">30</span></h3>
+        <div id="balls">የወጡ ኳሶች: <span id="b-list"></span></div>
+    </div>
+
     <script>
-        const socket = io(); 
-
-        // ሰርቨሩ መረጃ ሲገፋልን የሚቀበል ክፍል
-        socket.on('game_update', (d) => {
-            // የድሮውን update() ተግባር በዚህ በመተካት
-            renderMainBoard(d.drawn_balls);
-            updateUIWithData(d);
+        const socket = io();
+        socket.on('game_update', (data) => {
+            document.getElementById('status').innerText = "Status: " + data.status;
+            document.getElementById('timer').innerText = data.timer;
+            document.getElementById('b-list').innerText = data.drawn_balls.join(', ');
         });
-
-        function updateUIWithData(d) {
-            // እዚህ የጨዋታውን ሁኔታዎች (timer, pot, ball) በDOM በኩል አሳይ
-            console.log("ጨዋታው ተዘምኗል");
-        }
-
-        // (የቀሩት functionsህ renderCard, claim, subD, subW እንዳሉ ይቀጥላሉ)
-        // setInterval(update, 2000) የሚለውን ክፍል ከኮድህ አጥፋው
     </script>
 </body>
 </html>
