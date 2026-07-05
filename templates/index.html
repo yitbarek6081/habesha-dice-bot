@@ -30,6 +30,21 @@
             box-sizing: border-box;
         }
 
+        /* አዲሱ የኳስ ዝግጅት ቆጠራ ማሳያ ስታይል */
+        #ball-prep-countdown {
+            font-size: 1.3rem;
+            font-weight: 900;
+            color: var(--orange);
+            background: rgba(255, 62, 62, 0.1);
+            padding: 8px;
+            margin: 10px auto;
+            border-radius: 8px;
+            border: 1px dashed var(--orange);
+            width: 80%;
+            max-width: 300px;
+            animation: pulse 1s infinite;
+        }
+
         .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 160px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
         .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; }
         .t-box.mine { background: var(--gold); border: 2px solid white; animation: pulse 1.5s infinite; }
@@ -99,6 +114,7 @@
     </div>
 
     <div id="game-ui" style="display:none;">
+        <div id="ball-prep-countdown" style="display:none;">ኳስ ለመጀመር፦ 3</div>
         <div id="ball-circle">--</div>
         <div class="game-layout">
             <div class="board-container">
@@ -134,7 +150,7 @@
                     <span class="guide-section-title">2. ካርቴላ መግዛት እና ጨዋታ መጀመር</span>
                     <ul>
                         <li><b>ካርቴላ መምረጥ፦</b> በሎቢው ውስጥ ከ1 እስከ 500 ከተዘረዘሩት የቁጥር ሳጥኖች ውስጥ የፈለጉትን ይንኩ። የመረጡት ሳጥን ቢጫ ይሆናል። በአንድ ጨዋታ እስከ 2 ካርቴላ መግዛት ይችላሉ።</li>
-                        <li><b>ጨዋታው ሲጀምር፦</b> የሎቢው ሰዓት ቆጣሪ (Timer) <b>0</b> ሲደርስ ጨዋታው ወዲያውኑ በራሱ ይጀምራል እና ወደ መጫወቻው ሰሌዳ ይወስድዎታል።</li>
+                        <li><b>ጨዋታው ሲጀምር፦</b> የሎቢው ሰዓት ቆጣሪ (Timer) <b>0</b> ሲደርስ ጨዋታው በራሱ ይጀምራል እና ወደ መጫወቻው ሰሌዳ ይወስድዎታል። ኳስ ከመጣሉ በፊት ለ3 ሰከንድ የዝግጅት ቆጠራ ያደርጋል።</li>
                     </ul>
                 </li>
                 <li>
@@ -291,6 +307,9 @@
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('winning-card-area').innerHTML=""; 
                     
+                    // የኳስ ቆጠራ ማሳያውን መደበቅ
+                    document.getElementById('ball-prep-countdown').style.display = 'none';
+                    
                     if (announced) {
                         localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1');
                         announced = false;
@@ -305,6 +324,20 @@
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
                     
+                    // --- አዲሱ የኳስ መጀመሪያ ቆጠራ (ball_timer) መቆጣጠሪያ ---
+                    const prepCountdownEl = document.getElementById('ball-prep-countdown');
+                    let ballTimerVal = parseInt(d.ball_timer);
+                    
+                    if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
+                        prepCountdownEl.style.display = 'block';
+                        prepCountdownEl.innerText = `⏳ ኳስ ለመጀመር፦ ${ballTimerVal} ሰከንድ`;
+                        document.getElementById('ball-circle').style.opacity = '0.4'; // ኳሱ ገና ስላልጀመረ እንዲደዝዝ ማድረግ
+                    } else {
+                        prepCountdownEl.style.display = 'none'; // 0 ሲሆን መደበቅ
+                        document.getElementById('ball-circle').style.opacity = '1';  // ኳሱ እንዲበራ ማድረግ
+                    }
+                    // ----------------------------------------------------
+
                     let secureBall = sanitizeText(d.current_ball);
                     document.getElementById('ball-circle').innerText = secureBall;
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
