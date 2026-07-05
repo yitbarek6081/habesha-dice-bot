@@ -46,6 +46,20 @@ def sanitize_input(text):
         return ""
     return re.sub(r'[^\w\s\-\+\.@]', '', str(text)).strip()
 
+# የስልክ ቁጥር ፎርማትን ወደ አንድ ወጥ +251 የመቀየሪያ ፈንክሽን
+def normalize_phone(phone_str):
+    if not phone_str:
+        return ""
+    # ከቁጥር እና ከ + ውጭ ያሉትን ማጽዳት
+    clean = re.sub(r'[^0-9+]', '', str(phone_str))
+    if clean.startswith('0'):
+        clean = '+251' + clean[1:]
+    elif clean.startswith('251') and not clean.startswith('+'):
+        clean = '+' + clean
+    elif not clean.startswith('+'):
+        clean = '+251' + clean
+    return clean
+
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
@@ -74,7 +88,7 @@ def webhook():
         # --- 1. የ /start ትዕዛዝ (ሪፈራል ወይም መደበኛ) ሲመጣ ---
         if msg.startswith("/start"):
             parts = msg.split()
-            agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
+            agent_phone = normalize_phone(sanitize_input(parts[1])) if len(parts) > 1 else None
             
             # ተጫዋቹ ቀድሞ ሙሉ በሙሉ መመዝገቡን በ telegram_id ወይም በ phone ቼክ ማድረግ (ባላንስ እንዳይጠፋ)
             already_registered = wallets.find_one({"$or": [{"telegram_id": chat_id}, {"phone": chat_id}]})
@@ -121,10 +135,10 @@ def webhook():
             
             # ደረጃ 1፦ ስልክ ቁጥር ሲያስገቡ
             if current_status == "awaiting_phone":
-                clean_phone = msg.replace("+", "").replace(" ", "")
-                if not clean_phone.isdigit() or len(clean_phone) < 9:
+                clean_phone = normalize_phone(msg)
+                if not clean_phone or len(clean_phone) < 10:
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ እባክዎ ትክክለኛ የስልክ ቁጥር ብቻ በቁጥር ያስገቡ (ምሳሌ: 0912345678)፦"})
+                    requests.post(url, json={"chat_id": chat_id, "text": "❌ እባክዎ ትክክለኛ የስልክ ቁጥር ያስገቡ (ምሳሌ: 0912345678)፦"})
                     return "OK", 200
 
                 # ስልክ ቁጥሩ በሌላ ሰው የተያዘ መሆኑን ማረጋገጥ
@@ -197,7 +211,7 @@ def webhook():
                 try:
                     parts = msg.split()
                     if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
+                        target_phone = normalize_phone(sanitize_input(parts[1]))
                         user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                         if user:
                             uname = user.get("username", "የማይታወቅ")
@@ -240,7 +254,7 @@ def webhook():
                 try:
                     parts = msg.split()
                     if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
+                        target_phone = normalize_phone(sanitize_input(parts[1]))
                         result = wallets.delete_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                         if result.deleted_count > 0:
                             send_telegram(f"🗑️ ተጠቃሚው 📞 `{target_phone}` ከዳታቤዝ ላይ ሙሉ በሙሉ ተሰርዟል።")
@@ -253,7 +267,7 @@ def webhook():
                 try:
                     parts = msg.split()
                     if len(parts) == 3:
-                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                        target_phone, amount = normalize_phone(sanitize_input(parts[1])), float(parts[2])
                         if amount > 0:
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": amount}}, upsert=True)
                             send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
@@ -264,7 +278,7 @@ def webhook():
                 try:
                     parts = msg.split()
                     if len(parts) == 3:
-                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                        target_phone, amount = normalize_phone(sanitize_input(parts[1])), float(parts[2])
                         if amount > 0:
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": -amount}})
                             send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
@@ -282,7 +296,8 @@ def register_or_login():
     if not input_phone or not input_username:
         return jsonify({"success": False, "msg": "እባክዎ ስም እና ስልክ በትክክል ያስገቡ!"}), 400
 
-    clean_phone = input_phone.replace("+", "").replace(" ", "")
+    # የፊት ለፊት ገጽ ግብአትን ወጥ ወደ ሆነው የ +251 ፎርማት መለወጥ
+    clean_phone = normalize_phone(input_phone)
 
     try:
         # በቴሌግራም መጥቶ የነበረውን ጊዜያዊ አካውንት መፈለግ
@@ -295,8 +310,8 @@ def register_or_login():
             wallets.update_one(
                 {"_id": temp_user["_id"]},
                 {
-                    "$set": {"phone": clean_phone, "username": input_username},
-                    "$unset": {"reg_status": ""}
+                    "{"$set"}": {"phone": clean_phone, "username": input_username},
+                    "{"$unset"}": {"reg_status": ""}
                 }
             )
             updated_user = wallets.find_one({"_id": temp_user["_id"]})
@@ -414,7 +429,7 @@ def index():
 
 @app.route('/get_status')
 def get_status():
-    phone = sanitize_input(request.args.get('phone'))
+    phone = normalize_phone(sanitize_input(request.args.get('phone')))
     user = wallets.find_one({"$or": [{"phone": phone}, {"telegram_id": phone}]}) if phone else None
     
     with state_lock:
@@ -433,7 +448,8 @@ def get_status():
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_ticket():
     d = request.json or {}
-    ph, t_num, uname = sanitize_input(d.get('phone')), str(d.get('ticket_num')), sanitize_input(d.get('username'))
+    ph = normalize_phone(sanitize_input(d.get('phone')))
+    t_num, uname = str(d.get('ticket_num')), sanitize_input(d.get('username'))
     
     if not ph or not t_num:
         return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"})
@@ -498,7 +514,7 @@ def buy_ticket():
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
     d = request.json or {}
-    ph, t_num = sanitize_input(d.get('phone')), str(d.get('ticket_num'))
+    ph, t_num = normalize_phone(sanitize_input(d.get('phone'))), str(d.get('ticket_num'))
     
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     if not user:
@@ -523,7 +539,7 @@ def cancel_ticket():
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json or {}
-    ph = sanitize_input(str(d.get('phone')))
+    ph = normalize_phone(sanitize_input(str(d.get('phone'))))
     amt = d.get('amount')
     t_id = sanitize_input(d.get('transaction_id', 'N/A'))
     
@@ -551,7 +567,7 @@ def request_deposit():
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     d = request.json or {}
-    ph, amt = sanitize_input(d.get('phone')), float(d.get('amount'))
+    ph, amt = normalize_phone(sanitize_input(d.get('phone'))), float(d.get('amount'))
     
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     if not user:
@@ -572,7 +588,7 @@ def withdraw():
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     d = request.json or {}
-    ph = sanitize_input(d.get('phone'))
+    ph = normalize_phone(sanitize_input(d.get('phone')))
     
     user_info = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     if not user_info:
