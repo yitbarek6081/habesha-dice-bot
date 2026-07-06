@@ -12,11 +12,11 @@ from flask_cors import CORS
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# --- CONFIG ---
-ADMIN_ID = "7956330391" 
-BOT_TOKEN = "8708969585:AAE-MQTUle1g83tGTmL0pNBm7oJOYw0u5dc" 
+# --- CONFIG (ከRender ሰርቨር ቁልፎች ጋር የተጣጣመ) ---
+ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
+BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
-RENDER_URL = "https://habesha-dice-bot.onrender.com" 
+WEB_APP_URL = os.getenv("WEB_APP_URL", "https://habesha-dice-bot.onrender.com") 
 
 client = MongoClient(MONGO_URL)
 db = client['bingo_db']
@@ -55,7 +55,7 @@ def send_telegram(text):
         print(f"Telegram Error: {e}")
 
 def set_webhook():
-    webhook_url = f"{RENDER_URL}/webhook"
+    webhook_url = f"{WEB_APP_URL}/webhook"
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
     try:
         requests.get(url, timeout=5)
@@ -81,7 +81,7 @@ def webhook():
             
             if already_registered:
                 webapp_keyboard = {
-                    "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ", "web_app": {"url": RENDER_URL}}]]
+                    "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ", "web_app": {"url": WEB_APP_URL}}]]
                 }
                 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                 requests.post(url, json={
@@ -154,7 +154,7 @@ def webhook():
                 agent_phone = final_user.get("referred_by", "የለውም")
 
                 webapp_keyboard = {
-                    "inline_keyboard": [[{"text": "🎮 ጨዋታውን ክፈት (Open Game)", "web_app": {"url": RENDER_URL}}]]
+                    "inline_keyboard": [[{"text": "🎮 ጨዋታውን ክፈት (Open Game)", "web_app": {"url": WEB_APP_URL}}]]
                 }
                 
                 success_text = f"🎉 እንኳን ደስ አለዎት! ምዝገባዎ ሙሉ በሙሉ ተጠናቋል።\n\n👤 ስም: {player_name}\n📱 ስልክ: {final_user['phone']}\n\nአሁን ታች ያለውን ቁልፍ ተጭነው መጫወት ይችላሉ!"
@@ -544,12 +544,11 @@ def withdraw():
         return_document=True
     )
     if res:
-        msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም。"
+        msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
-# ✨🆕 የተስተካከለው የቢንጎ አሸናፊ ማረጋገጫ መስመር (Route)
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     d = request.json or {}
@@ -574,11 +573,10 @@ def claim_bingo():
             win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
             
             if win_indices is not None:
-                # 🎯 አሸናፊው የሞላበትን ትክክለኛ የካርቴላ ቁጥር (t_num) እዚህ በግልጽ እንመዘግባለን
                 game_state["status"] = "result"
                 game_state["winner"] = p_data["username"]
                 game_state["winning_card"] = card  
-                game_state["winning_ticket_num"] = str(t_num) # ✨ ለድረ-ገጹ (Web UI) በትክክል እንዲደርስ ተደረገ
+                game_state["winning_ticket_num"] = str(t_num) 
                 
                 win_amt = game_state["pot"] * 0.8
                 wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
