@@ -11,7 +11,7 @@ from flask_cors import CORS
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# --- CONFIG (Render Environment Variables ን በመጠቀም) ---
+# --- CONFIG (Render Environment Variables) ---
 ADMIN_ID = os.getenv("ADMIN_ID")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URL = os.getenv("MONGO_URL")
@@ -61,6 +61,10 @@ def set_webhook():
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={RENDER_URL}/webhook"
     try: requests.get(url, timeout=4)
     except: pass
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -266,7 +270,10 @@ def claim_bingo():
                 
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
+# --- GUNICORN/PRODUCTION Threads ---
+# እነዚህ Threads ከ app.run ውጪ መሆናቸው በ Gunicorn ላይ ሁልጊዜ እንዲሰሩ ያደርጋቸዋል
+threading.Timer(4, set_webhook).start() 
+threading.Thread(target=game_loop, daemon=True).start()
+
 if __name__ == '__main__':
-    threading.Timer(4, set_webhook).start() 
-    threading.Thread(target=game_loop, daemon=True).start()
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)), threaded=True)
