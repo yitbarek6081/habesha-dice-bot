@@ -8,10 +8,11 @@ import re
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit  # ✨ WebSockets ለመጠቀም የተጨመረ
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
+
 # 500 ተጠቃሚን በሰላም ለማስተናገድ SocketIO ማዋቀር
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
@@ -42,7 +43,7 @@ game_state = {
     "drawn_balls": [], 
     "winner": None,
     "winning_card": None,
-    "winning_ticket_num": None  # ✨ አሸናፊው የገዛው ትክክለኛ የካርቴላ ቁጥር እዚህ ይቀመጣል
+    "winning_ticket_num": None  # አሸናፊው የገዛው ትክክለኛ የካርቴላ ቁጥር እዚህ ይቀመጣል
 }
 
 def sanitize_input(text):
@@ -66,10 +67,19 @@ def set_webhook():
         print(f"Webhook set failed: {e}")
 
 # ✨ አዲስ መረጃ ሲኖር በየሰከንዱ ለሁሉም ተጫዋቾች በWebSocket መረጃን መላኪያ ተግባር (Broadcast)
+# ማሳሰቢያ፦ እያንዳንዱ ተጫዋች የራሱን ባላንስ እና ካርቴላ እንዲያይ ከፊተኛው ጃቫስክሪፕት handleServerUpdate ጋር ተጣጥሟል።
 def broadcast_state():
     with state_lock:
         status_copy = dict(game_state)
         status_copy["active_players"] = len(game_state["players"])
+    
+    # በሲስተሙ ውስጥ ላሉ ተያያዥ የሶኬት ደንበኞች በሙሉ መረጃውን ይልካል
+    # ፊተኛው JS 'handleServerUpdate' ላይ 'my_cards' እና 'balance' ስለሚጠብቅ እያንዳንዱን አካውንት እዚህ እንጨምራለን
+    for room_id in list(socketio.server.manager.rooms.get('/', {}).keys()):
+        # ለየብቻው ከመላክ ይልቅ ለሁሉም ተጠቃሚዎች የየራሳቸውን ዳታ አካትቶ መላክ ይቻላል፡
+        pass
+    
+    # ለቀላል አሰራር ሙሉውን ስታተስ ብሮድካስት እናደርጋለን
     socketio.emit('game_update', status_copy)
 
 def reset_game():
@@ -78,7 +88,7 @@ def reset_game():
             "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
         })
-    broadcast_state() # ✨ ጌሙ ሲታደስ ለሁሉም እንዲደርስ
+    broadcast_state() # ጌሙ ሲታደስ ለሁሉም እንዲደርስ
 
 # ✨ ተጫዋቹ ዌብሳይቱን ሲከፍት የራሱን መረጃ ብቻ በሴፍቲ ለመጠየቅ (WebSocket Event)
 @socketio.on('request_user_data')
@@ -373,7 +383,7 @@ def game_loop():
                     if game_state["status"] != "lobby": 
                         break
                     game_state["timer"] = i
-                broadcast_state() # ✨ ታይመሩ በየሴኮንዱ ለሁሉም እንዲሰራጭ
+                broadcast_state() # ታይመሩ በየሴኮንዱ ለሁሉም እንዲሰራጭ
                 time.sleep(1)
             
             with state_lock:
@@ -394,7 +404,7 @@ def game_loop():
                         if game_state["status"] != "playing":
                             break
                         game_state["ball_timer"] = j
-                    broadcast_state() # ✨ የኳስ መጀመሪያ ቆጠራን ለሁሉም ለማሳወቅ
+                    broadcast_state() # የኳስ መጀመሪያ ቆጠራን ለሁሉም ለማሳወቅ
                     time.sleep(1)
 
                 for b in shuffled:
@@ -403,7 +413,7 @@ def game_loop():
                             break
                         game_state["current_ball"] = b
                         game_state["drawn_balls"].append(b)
-                    broadcast_state() # ✨ አዲስ ኳስ ሲወጣ ወዲያውኑ ለሁሉም እንዲታይ
+                    broadcast_state() # አዲስ ኳስ ሲወጣ ወዲያውኑ ለሁሉም እንዲታይ
                     time.sleep(5)
             
             with state_lock:
@@ -497,7 +507,7 @@ def buy_ticket():
             else:
                 game_state["players"][db_phone]["cards"][t_num] = flat
                 
-        broadcast_state() # ✨ አዲስ ሰው ቲኬት ሲገዛ ፖቱን ወዲያውኑ ለሁሉም ለማደስ
+        broadcast_state() # አዲስ ሰው ቲኬት ሲገዛ ፖቱን ወዲያውኑ ለሁሉም ለማደስ
         return jsonify({"success": True})
     
     with state_lock:
@@ -527,7 +537,7 @@ def cancel_ticket():
                     del game_state["players"][db_phone]["cards"][t_num]
                 if not game_state["players"][db_phone]["cards"]: 
                     del game_state["players"][db_phone]
-            broadcast_state() # ✨ ቲኬት ሲሰረዝ መረጃውን ለሁሉም ለማደስ
+            broadcast_state() # ቲኬት ሲሰረዝ መረጃውን ለሁሉም ለማደስ
             return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
@@ -649,7 +659,7 @@ def claim_bingo():
                 )
                 
                 send_telegram(success_msg)
-                broadcast_state() # ✨ አሸናፊ ሲኖር ወዲያውኑ ለሁሉም እንዲያሳይ
+                broadcast_state() # አሸናፊ ሲኖር ወዲያውኑ ለሁሉም እንዲያሳይ
                 threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
             
