@@ -6,7 +6,6 @@ from flask import Flask, render_template_string, request, jsonify
 app = Flask(__name__)
 
 # --- IN-MEMORY DATASTORE (Lightweight for 512MB RAM) ---
-# ለአነስተኛ ሚሞሪ ሲባል ዳታቤዝ ሳይሆን ሚሞሪ ላይ በፍጥነት እንዲሰራ ተደርጓል
 USERS = {}          # { phone: { "username": str, "balance": int, "cards": [] } }
 TICKETS_SOLD = {}   # { ticket_num: phone }
 DRAWN_BALLS = []    # የአሁኑ ዙር የወጡ ኳሶች
@@ -14,19 +13,15 @@ GAME_STATUS = "lobby" # lobby, playing, result
 WINNER_INFO = {}
 
 # --- GAME CONFIGURATION ---
-LOBBY_DURATION = 30  # የሎቢ ሰዓት (ሰከንድ)
-PREP_DURATION = 3    # የጨዋታ መጀመሪያ ዝግጅት ሰዓት (ሰከንድ)
-BALL_INTERVAL = 4    # ኳስ በየስንት ሰከንዱ ይጣላል
-TOTAL_BALLS = 75     # ጠቅላላ የቢንጎ ኳሶች
-ROUND_CYCLE = 500    # ጠቅላላ የአንድ ዙር ዑደት ሰከንድ (ዳግም ለመጀመርያ ማረጋገጫ)
+LOBBY_DURATION = 30  
+PREP_DURATION = 3    
+BALL_INTERVAL = 4    
+TOTAL_BALLS = 75     
+ROUND_CYCLE = 500    
 
-# የጨዋታውን ሰዓት እና ሁኔታ በጊዜ ማህተም (Timestamp) የሚቆጣጠር መካኒዝም
 GAME_START_TS = time.time()
 
 def get_current_game_state():
-    """
-    ይህ ፋንክሽን በ 0.1 vCPU ላይ ሉፕ ሳይሰራ በሰከንድ ስሌት ብቻ ጨዋታውን ይመራል።
-    """
     global GAME_STATUS, DRAWN_BALLS, TICKETS_SOLD, WINNER_INFO, GAME_START_TS
     
     now = time.time()
@@ -35,7 +30,6 @@ def get_current_game_state():
     # 1. ሎቢ ስቴጅ (ካርቴላ መግዣ ሰዓት)
     if elapsed < LOBBY_DURATION:
         if GAME_STATUS != "lobby":
-            # አዲስ ዙር ሲጀምር ዳታዎችን ማጽጃ
             GAME_STATUS = "lobby"
             TICKETS_SOLD.clear()
             DRAWN_BALLS.clear()
@@ -55,25 +49,21 @@ def get_current_game_state():
     game_elapsed = elapsed - prep_end
     ball_count = (game_elapsed // BALL_INTERVAL) + 1
     
-    # ኳሶችን በቅደም ተከተል በዘፈቀደ ማመንጫ (Deterministic Random Seed per Round)
     random.seed(int(GAME_START_TS))
     all_possible_balls = list(range(1, TOTAL_BALLS + 1))
     random.shuffle(all_possible_balls)
     
-    # እስከአሁን የወጡ ኳሶች ሊስት
     DRAWN_BALLS = all_possible_balls[:min(ball_count, TOTAL_BALLS)]
     
-    # ጌሙ ካለቀ ወይም አሸናፊ አስቀድሞ ከተገኘ
     if WINNER_INFO:
         GAME_STATUS = "result"
         res_elapsed = now - WINNER_INFO.get("time", now)
         rem_result_time = max(0, 10 - int(res_elapsed))
         if rem_result_time <= 0:
-            GAME_START_TS = time.time() # አዲስ ዙር ቀጥታ መጀመርያ
+            GAME_START_TS = time.time() 
         return {"status": "result", "timer": rem_result_time}
         
     if ball_count >= TOTAL_BALLS:
-        # ማንም ሳያሸንፍ ኳስ ካለቀ ዙሩን በ result መዝጋት
         WINNER_INFO = {"winner": "ማንም", "ticket_num": "-", "card": [], "time": time.time()}
         return {"status": "result", "timer": 10}
         
@@ -81,7 +71,6 @@ def get_current_game_state():
     return {"status": "playing", "ball_timer": 0, "current_ball": current_ball, "drawn": DRAWN_BALLS}
 
 def generate_bingo_card(ticket_num):
-    """ለእያንዳንዱ ቲኬት ቁጥር የማይቀያየር ቋሚ የቢንጎ ማትሪክስ ያመነጫል"""
     random.seed(int(ticket_num))
     card = []
     ranges = [(1,15), (16,30), (31,45), (46,60), (61,75)]
@@ -90,7 +79,6 @@ def generate_bingo_card(ticket_num):
         col = random.sample(range(r[0], r[1]+1), 5)
         columns.append(col)
     
-    # ማትሪክሱን ወደ Row መቀየር
     for row in range(5):
         for col in range(5):
             if row == 2 and col == 2:
@@ -101,10 +89,10 @@ def generate_bingo_card(ticket_num):
 
 @app.route('/')
 def index():
-    # HTML ኮዱን ከታች ካለው ሊስት ላይ ያነባል
     return render_template_string(HTML_LAYOUT)
 
-@app.route('/register_or_login', f"methods=['POST']")
+# 🛠️ እዚህ ጋ የነበረው የስህተት መስመር ተስተካክሏል
+@app.route('/register_or_login', methods=['POST'])
 def register_or_login():
     data = request.json or {}
     phone = data.get("phone", "").strip()
@@ -114,7 +102,7 @@ def register_or_login():
         return jsonify({"success": False, "msg": "እባክዎ መረጃ በትክክል ያስገቡ!"})
         
     if phone not in USERS:
-        USERS[phone] = {"username": username, "balance": 100, "cards": []} # ለሙከራ 100 ብር ቦነስ
+        USERS[phone] = {"username": username, "balance": 100, "cards": []}
         
     return jsonify({"success": True})
 
@@ -126,7 +114,6 @@ def get_status():
     user = USERS.get(phone, {"balance": 0, "cards": []})
     my_cards_data = [generate_bingo_card(t) for t in user.get("cards", [])]
     
-    # ጠቅላላ የተሸጡ ካርቴላዎች ብዛት
     pot = len(TICKETS_SOLD) * 10
     
     res = {
@@ -153,6 +140,7 @@ def get_status():
         
     return jsonify(res)
 
+# 🛠️ እዚህ ጋም የነበሩት POST methods በሙሉ ተስተካክለዋል
 @app.route('/buy_specific_ticket', methods=['POST'])
 def buy_specific_ticket():
     global TICKETS_SOLD
@@ -175,7 +163,6 @@ def buy_specific_ticket():
     if user["balance"] < 10:
         return jsonify({"success": False, "msg": "በቂ ባላንስ የለም! እባክዎ ዲፖዚት ያድርጉ።"})
         
-    # Race-Condition መከላከያ (አንድ ካርቴላ ለሁለት ሰው እንዳይሸጥ)
     if ticket_num in TICKETS_SOLD:
         return jsonify({"success": False, "msg": "ይህ ካርቴላ ተሽጧል! ሌላ ይምረጡ።"})
         
@@ -214,30 +201,23 @@ def claim_bingo():
     drawn_set = set(DRAWN_BALLS)
     user = USERS[phone]
     
-    # የተጫዋቹን ካርቴላዎች በሙሉ ቼክ ማድረግ
     for t_num in user["cards"]:
         card = generate_bingo_card(t_num)
         
-        # የቢንጎ ህግ ማረጋገጫ (Rows, Columns, Diagonals, 4 Corners)
         def check_hit(idx):
             if idx == 12 or card[idx] == "FREE": return True
             return card[idx] in drawn_set
             
         is_bingo = False
-        # Rows
         for i in range(5):
             if all(check_hit(i*5 + j) for j in range(5)): is_bingo = True
-        # Columns
         for j in range(5):
             if all(check_hit(i*5 + j) for i in range(5)): is_bingo = True
-        # Diagonals
         if all(check_hit(i*6) for i in range(5)): is_bingo = True
         if all(check_hit(4 + i*4) for i in range(5)): is_bingo = True
-        # 4 Corners
         if all(check_hit(x) for x in [0, 4, 20, 24]): is_bingo = True
         
         if is_bingo:
-            # አሸናፊ ሲገኝ ሂሳብ ማሰራጫ (80% ለአሸናፊው ገቢ ይደረጋል)
             prize = int(len(TICKETS_SOLD) * 10 * 0.8)
             user["balance"] += prize
             WINNER_INFO = {
@@ -248,7 +228,7 @@ def claim_bingo():
             }
             return jsonify({"success": True})
             
-    return jsonify({"success": False, "msg": "ካርቴላዎ ገና አልሞላም! የተሳሳተ ቢንጎ ማስታወቅ ቅጣት ያስቀጣል!"})
+    return jsonify({"success": False, "msg": "ካርቴላዎ ገና አልሞላም!"})
 
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
@@ -256,7 +236,7 @@ def request_deposit():
     phone = data.get("phone", "")
     amount = int(data.get("amount", 0))
     if phone in USERS and amount > 0:
-        USERS[phone]["balance"] += amount # ለቀላል አሰራር ወዲያው አውቶማቲክ ባላንስ ይጨምራል
+        USERS[phone]["balance"] += amount
     return jsonify({"success": True})
 
 @app.route('/request_withdraw', methods=['POST'])
@@ -270,4 +250,329 @@ def request_withdraw():
     return jsonify({"success": False, "msg": "የሂሳብ ስህተት!"})
 
 # --- HTML TEMPLATE INLINE FOR ONE-FILE DEPLOYMENT ---
-HTML_LAYOUT = """...""" # የፍሮንትኤንድ ኮድ እዚህ ውስጥ ይገባል
+HTML_LAYOUT = """
+<!DOCTYPE html>
+<html lang="am">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BESH BINGO - SECURE PREMIUM</title>
+    <style>
+        :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; }
+        
+        #auth-ui { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; background: radial-gradient(circle at center, #1e293b, #050a18); }
+        .auth-card { background: rgba(255, 255, 255, 0.03); border: 2px solid var(--gold); border-radius: 20px; padding: 30px 20px; width: 100%; max-width: 360px; box-sizing: border-box; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .auth-card h2 { color: var(--gold); margin-top: 0; font-size: 1.6rem; letter-spacing: 1px; }
+        .auth-card p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+        .input-group { width: 100%; text-align: left; margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 0.85rem; color: var(--gold); margin-bottom: 5px; font-weight: bold; }
+        .auth-input { padding: 14px; width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; font-size: 1rem; background: #fff; color: #000; font-weight: bold; }
+        
+        .btn-login { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--green), #00cc6a); color: #000; border: none; border-radius: 10px; font-weight: 900; font-size: 1.1rem; cursor: pointer; text-transform: uppercase; }
+        .header-banner { background: linear-gradient(145deg, #1e293b, #050a18); padding: 15px 0; border-bottom: 3px solid var(--gold); position: sticky; top: 0; z-index: 100; }
+        .header-banner h1 { margin: 0; font-size: 1.8rem; color: var(--gold); letter-spacing: 3px; }
+        
+        .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 10px; margin: 10px; border-radius: 12px; }
+        .stats b { display: block; font-size: 1.1rem; color: var(--gold); }
+        
+        .action-bar { display: flex; justify-content: center; gap: 6px; padding: 5px 10px; }
+        .btn-main { flex: 1; padding: 12px 5px; border: none; border-radius: 10px; font-weight: 900; cursor: pointer; text-transform: uppercase; font-size: 0.7rem; }
+        .btn-deposit { background: var(--green); color: #000; }
+        .btn-withdraw { background: var(--orange); color: white; }
+        .btn-how-to { background: #3b82f6; color: white; }
+
+        .timer-container { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 15px auto; width: 90%; max-width: 400px; background: rgba(255, 255, 255, 0.02); padding: 8px 15px; border-radius: 15px; }
+        #timer { font-size: 2.5rem; font-weight: 900; color: var(--gold); }
+        .buy-notice { font-size: 1.1rem; font-weight: 900; color: var(--green); background: rgba(0, 255, 136, 0.1); padding: 10px 15px; border-radius: 10px; border: 2px dashed var(--green); }
+
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-height: 160px; overflow-y: auto; background: #000; padding: 10px; margin: 10px; border-radius: 10px; }
+        .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.1s; }
+        
+        .t-box:active { transform: scale(0.9); background: #ddd; }
+        .t-box.mine { background: var(--gold) !important; color: #000 !important; font-weight: 900; box-shadow: 0 0 8px var(--gold); }
+        .t-box.sold { background: #222 !important; color: #555 !important; opacity: 0.3; filter: blur(0.5px); cursor: not-allowed; pointer-events: none; }
+
+        .game-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 5px; }
+        .board-container { border: 1px solid #333; background: rgba(0,0,0,0.8); border-radius: 10px; padding: 4px; display: flex; flex-direction: column; }
+        .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; padding: 4px 0; border-radius: 5px; }
+        .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; flex: 1; }
+        .ball-dot { font-size: 0.65rem; background: #111; padding: 3px 0; color: #444; border-radius: 2px; font-weight: bold; }
+        .ball-dot.active { background: var(--gold); color: #000; box-shadow: 0 0 3px var(--gold); }
+        
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; }
+        .cell { background: #fff; color: #000; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
+        .cell.selected { background: var(--gold) !important; color: #000; }
+        .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
+        
+        #bingo-btn { width: 90%; padding: 12px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: 2px solid white; margin: 10px auto; cursor: pointer; }
+        #bingo-btn:disabled { background: #555 !important; color: #aaa !important; cursor: not-allowed; }
+        
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 92%; max-width: 360px; }
+
+        .winner-modal { display: none; position: fixed; inset: 0; background: rgba(5,10,24,0.98); z-index: 3000; flex-direction: column; align-items: center; justify-content: center; }
+        .winner-box { background: #ffffff; color: #1e293b; width: 92%; max-width: 360px; border-radius: 28px; padding: 25px 20px; border: 4px solid var(--gold); text-align: center; }
+        .winner-name-text { font-size: 1.8rem; font-weight: 900; color: #10b981; }
+        .prize-pool-card { background: #f1f5f9; padding: 10px; border-radius: 20px; margin: 15px 0; }
+        .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; background: #f8fafc; padding: 8px; border-radius: 16px; }
+        .w-cell-modern { background: #ffffff; color: #a0aec0; height: 35px; display: flex; align-items: center; justify-content: center; font-weight: 800; border-radius: 10px; }
+        .w-cell-modern.drawn { background: #e2e8f0; color: #475569; }
+        .w-cell-modern.hit { background: #10b981 !important; color: #ffffff !important; font-weight: 900; }
+        .w-cell-modern.free { background: var(--gold); color: #1e293b; }
+        .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 8px; width: 90%; max-width: 360px; margin-top: 15px; border-radius: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-ui">
+        <div class="auth-card">
+            <h2>ተመዝገብ</h2>
+            <p>ወደ ጨዋታው ለመግባት መረጃዎን ያስገቡ</p>
+            <div class="input-group">
+                <label>የተጫዋች ስም</label>
+                <input type="text" id="reg-username" class="auth-input" placeholder="ስምዎን ያስገቡ...">
+            </div>
+            <div class="input-group">
+                <label>የስልክ ቁጥር</label>
+                <input type="tel" id="reg-phone" class="auth-input" placeholder="09... ወይም 07...">
+            </div>
+            <button id="auth-submit-btn" class="btn-login" onclick="registerUser()">🚀 ወደ ጨዋታው ግባ</button>
+        </div>
+    </div>
+
+    <div id="main-app-content" style="display: none;">
+        <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
+        <div class="header-banner"><h1>BESH BINGO</h1></div>
+        
+        <div class="stats">
+            <div>BALANCE<b id="balance">0 ETB</b></div>
+            <div>PLAYERS<b id="p-count">0</b></div>
+            <div>በሽ-ደራሽ<b id="prize">0 ETB</b></div>
+        </div>
+
+        <div id="lobby-ui">
+            <div class="action-bar">
+                <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
+                <button class="btn-main btn-how-to" onclick="openM('guide-m')">📖 HOW TO PLAY</button>
+                <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
+            </div>
+            <div class="timer-container">
+                <div id="timer">30</div>
+                <div class="buy-notice">🎟️ ካርቴላ ይግዙ (10 ETB)</div>
+            </div>
+            <div class="grid-500" id="ticket-area"></div>
+        </div>
+
+        <div id="game-ui" style="display:none;">
+            <div style="margin: 15px auto;">
+                <div id="ball-circle" style="width:75px; height:75px; background:radial-gradient(circle, #fff, var(--gold)); color:#000; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:2rem; font-weight:900;">--</div>
+                <div id="ball-prep-countdown" style="color:var(--orange); font-weight:900; margin-top:5px;"></div>
+            </div>
+            <div class="game-layout">
+                <div class="board-container">
+                    <div class="board-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
+                    <div class="main-board" id="main-board"></div>
+                </div>
+                <div>
+                    <div id="card-area"></div>
+                    <button id="bingo-btn" onclick="claim()">BINGO!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="guide-m" class="modal"><div class="modal-content"><h2>📖 መመሪያ</h2><p>1. ካርቴላ ለመግዛት ነጭ ቁጥሮቹን ይጫኑ。<br>2. ቁጥሮች ሲሞሉ ፈጥነው BINGO ይጫኑ!</p><button class="btn-main" style="background:var(--red); color:white; width:100%;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="with-m" class="modal"><div class="modal-content"><h2>WITHDRAW</h2><input type="number" id="wa" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')">CLOSE</button></div></div>
+    <div id="dep-m" class="modal"><div class="modal-content"><h2>DEPOSIT</h2><input type="number" id="da" placeholder="Amount (ETB)"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')">CLOSE</button></div></div>
+
+    <div id="result-ui" class="winner-modal">
+        <div class="winner-box">
+            <div class="winner-name-text" id="w-player-name">Player has won!</div>
+            <div class="prize-pool-card">Total Prize: <b id="w-prize-pool">0 ETB</b></div>
+            <div class="winner-grid-modern" id="w-grid-cells"></div>
+        </div>
+        <div class="next-round-bar">ቀጣይ ዙር በ: <span id="w-next-timer">7s</span></div>
+    </div>
+
+    <script>
+        let phone = localStorage.getItem('phone');
+        let username = localStorage.getItem('username');
+        let currentCardData = null, announced = false, isProcessingBuy = false;
+
+        window.onload = function() {
+            initTicketsOnce();
+            if (phone && username) {
+                showGameUI();
+            }
+        }
+
+        function registerUser() {
+            let inputName = document.getElementById('reg-username').value.trim();
+            let inputPhone = document.getElementById('reg-phone').value.trim();
+            if (inputName.length < 2 || inputPhone.length < 9) return alert("መረጃ በትክክል ያስገቡ!");
+
+            fetch('/register_or_login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: inputPhone, username: inputName })
+            })
+            .then(res => res.json()).then(data => {
+                if (data.success) {
+                    localStorage.setItem('phone', inputPhone);
+                    localStorage.setItem('username', inputName);
+                    phone = inputPhone; username = inputName;
+                    showGameUI();
+                }
+            });
+        }
+
+        function showGameUI() {
+            document.getElementById('auth-ui').style.display = 'none';
+            document.getElementById('main-app-content').style.display = 'block';
+            setInterval(update, 2000);
+            update();
+        }
+
+        function initTicketsOnce() {
+            const area = document.getElementById('ticket-area');
+            if(area && area.children.length === 0) {
+                for(let i=1; i<=500; i++) {
+                    let div = document.createElement('div');
+                    div.className = 't-box'; div.innerText = i; div.id = 't-' + i;
+                    area.appendChild(div);
+                }
+            }
+        }
+
+        function update() {
+            if (!phone) return;
+            fetch(`/get_status?phone=${encodeURIComponent(phone)}`).then(r=>r.json()).then(d=>{
+                document.getElementById('balance').innerText = d.balance + " ETB";
+                document.getElementById('prize').innerText = Math.floor(d.pot * 0.8) + " ETB";
+                document.getElementById('p-count').innerText = d.active_players;
+                
+                if(d.status === "lobby") {
+                    document.getElementById('lobby-ui').style.display='block';
+                    document.getElementById('game-ui').style.display='none';
+                    document.getElementById('result-ui').style.display='none';
+                    document.getElementById('timer').innerText = d.timer;
+                    announced = false; currentCardData = null;
+                    renderTickets(d.sold_tickets || {});
+                } else if(d.status === "playing") {
+                    document.getElementById('lobby-ui').style.display='none';
+                    document.getElementById('game-ui').style.display='block';
+                    document.getElementById('result-ui').style.display='none';
+                    
+                    if(d.ball_timer > 0) {
+                        document.getElementById('ball-prep-countdown').innerText = `⏳ ዝግጅት: ${d.ball_timer}s`;
+                    } else {
+                        document.getElementById('ball-prep-countdown').innerText = "";
+                    }
+                    document.getElementById('ball-circle').innerText = d.current_ball;
+                    renderMainBoard(d.drawn_balls || []);
+                    
+                    if(d.my_cards && d.my_cards.length > 0 && !currentCardData) {
+                        currentCardData = d.my_cards;
+                        document.getElementById('card-area').innerHTML = "";
+                        d.my_cards.forEach((c, i) => renderCard(c, i));
+                    }
+                } else if(d.status === "result") {
+                    document.getElementById('result-ui').style.display='flex';
+                    document.getElementById('w-player-name').innerText = `${d.winner} አሸንፏል!`;
+                    document.getElementById('w-prize-pool').innerText = Math.floor(d.pot * 0.8) + " ETB";
+                    document.getElementById('w-next-timer').innerText = d.timer + "s";
+                    if(!announced) { document.getElementById('win-horn').play(); announced = true; }
+                }
+            });
+        }
+
+        function renderTickets(sold) {
+            for(let i=1; i<=500; i++) {
+                let box = document.getElementById('t-'+i);
+                if(!box) continue;
+                if(sold[i]) {
+                    box.className = (sold[i] === phone) ? 't-box mine' : 't-box sold';
+                    box.onclick = (sold[i] === phone) ? () => refund(i) : null;
+                } else {
+                    box.className = 't-box';
+                    box.onclick = () => buy(i);
+                }
+            }
+        }
+
+        function buy(n) {
+            if(isProcessingBuy) return;
+            isProcessingBuy = true;
+            fetch('/buy_specific_ticket', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({phone: phone, ticket_num: n, username: username})
+            }).then(r=>r.json()).then(res => {
+                if(!res.success) alert(res.msg);
+                isProcessingBuy = false; update();
+            });
+        }
+
+        function refund(n) {
+            if(confirm("ካርቴላውን መመለስ ይፈልጋሉ?")) {
+                fetch('/cancel_ticket', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({phone: phone, ticket_num: n})
+                }).then(update);
+            }
+        }
+
+        function renderMainBoard(drawn) {
+            const board = document.getElementById('main-board');
+            if(board.children.length === 0) {
+                for(let i=1; i<=75; i++) {
+                    let d = document.createElement('div'); d.className='ball-dot'; d.id='b-'+i; d.innerText=i;
+                    board.appendChild(d);
+                }
+            }
+            drawn.forEach(b => {
+                let el = document.getElementById('b-'+b);
+                if(el) el.className = 'ball-dot active';
+            });
+        }
+
+        function renderCard(card, cardIdx) {
+            const grid = document.createElement('div'); grid.className='bingo-card';
+            card.forEach((n, i) => {
+                const cell = document.createElement('div');
+                if(n === "FREE") { cell.className="cell free selected"; cell.innerText="FREE"; }
+                else {
+                    cell.className = "cell"; cell.innerText = n;
+                    cell.onclick = () => cell.classList.toggle('selected');
+                }
+                grid.appendChild(cell);
+            });
+            document.getElementById('card-area').appendChild(grid);
+        }
+
+        function claim() {
+            fetch('/claim_bingo', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone: phone}) })
+            .then(r=>r.json()).then(d => { if(!d.success) alert(d.msg); });
+        }
+
+        function openM(id) { document.getElementById(id).style.display='flex'; }
+        function closeM(id) { document.getElementById(id).style.display='none'; }
+        function subD() {
+            let amt = document.getElementById('da').value;
+            fetch('/request_deposit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone:phone, amount:amt}) })
+            .then(() => { closeM('dep-m'); update(); });
+        }
+        function subW() {
+            let amt = document.getElementById('wa').value;
+            fetch('/request_withdraw', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone:phone, amount:amt}) })
+            .then(() => { closeM('with-m'); update(); });
+        }
+    </script>
+</body>
+</html>
+"""
+
+if __name__ == '__main__':
+    # Render ላይ በፖርት 10000 እንዲነሳ በራስ-ሰር ፖርት ይመርጣል
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
