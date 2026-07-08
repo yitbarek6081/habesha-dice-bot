@@ -5,15 +5,15 @@ import secrets
 import requests
 import threading
 import re
-import json # 📡 ለWebSocket ዳታ መለዋወጫ የተጨመረ
+import json 
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
-from flask_sock import Sock # 📡 ዌብሶኬት ለመጠቀም የተጨመረ
+from flask_sock import Sock 
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
-sock = Sock(app) # 📡 የዌብሶኬት መነሻ
+sock = Sock(app) 
 
 # --- CONFIG (ከRender ሰርቨር ቁልፎች ጋር የተጣጣመ) ---
 ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
@@ -25,27 +25,24 @@ client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-# ስልክ ቁጥር ልዩ (Unique) እንዲሆን በማድረግ የአካውንት መደራረብን መከላከል
 wallets.create_index("phone", unique=True)
 
-# Thread lock across requests & background loop
 state_lock = threading.Lock()
 
 game_state = {
     "status": "lobby", 
     "timer": 30, 
-    "ball_timer": 3,      # አዲሱ የ3 ሰከንድ የኳስ መጀመሪያ ቆጠራ (3->2->1->0)
+    "ball_timer": 3,      
     "pot": 0, 
-    "players": {},       # chat_id -> {"cards": {ticket_num: flat_card}, "username": uname}
-    "sold_tickets": {},  # ticket_num -> chat_id
+    "players": {},       
+    "sold_tickets": {},  
     "current_ball": "--", 
     "drawn_balls": [], 
     "winner": None,
     "winning_card": None,
-    "winning_ticket_num": None  # ✨ አሸናፊው የገዛው ትክክለኛ የካርቴላ ቁጥር እዚህ ይቀመጣል
+    "winning_ticket_num": None  
 }
 
-# 📡 በአሁኑ ሰዓት ኦንላይን ያሉ የዌብሶኬት ግንኙነቶች ማከማቻ (phone -> ws)
 active_connections = {}
 
 def sanitize_input(text):
@@ -68,7 +65,6 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
-# 📡 ለአንድ ተጠቃሚ ብቻ የዌብሶኬት ዳታ መላኪያ ፈንክሽን
 def send_state_to_one(db_phone, ws):
     try:
         user = wallets.find_one({"phone": db_phone})
@@ -85,14 +81,12 @@ def send_state_to_one(db_phone, ws):
     except Exception:
         pass
 
-# 📡 በጨዋታው ውስጥ ላሉ ተጫዋቾች በሙሉ መረጃን በአንድ ጊዜ ማሰራጫ (Broadcast) ፈንክሽን
 def broadcast_state():
     with state_lock:
         connections = list(active_connections.items())
     for db_phone, ws in connections:
         send_state_to_one(db_phone, ws)
 
-# 📡 አዲሱ የዌብሶኬት በር (Route) - የ 404 ስህተቱን የሚፈታው ይህ ነው
 @sock.route('/ws')
 def ws_endpoint(ws):
     phone = sanitize_input(request.args.get('phone'))
@@ -105,12 +99,10 @@ def ws_endpoint(ws):
     with state_lock:
         active_connections[db_phone] = ws
         
-    # እንደተገናኘ የቅርብ ጊዜውን መረጃ ወዲያውኑ እንልክለታለን
     send_state_to_one(db_phone, ws)
     
     try:
         while True:
-            # ግንኙነቱ ክፍት ሆኖ እንዲቆይ መስመሩን ያዳምጣል
             ws.receive()
     except Exception:
         pass
@@ -129,7 +121,6 @@ def webhook():
         msg = data["message"]["text"].strip()
         chat_id = str(data["message"]["chat"]["id"])
 
-        # --- 1. የ /start ትዕዛዝ ---
         if msg.startswith("/start"):
             parts = msg.split()
             agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
@@ -167,7 +158,6 @@ def webhook():
             })
             return "OK", 200
 
-        # --- 2. የምዝገባ ደረጃዎች ---
         session = wallets.find_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
         
         if session:
@@ -225,7 +215,6 @@ def webhook():
                 send_telegram(f"🎉 *አዲስ ተጫዋች በጽሑፍ ተመዘገበ!*\n👤 ስም: `{player_name}`\n📞 ስልክ: `{final_user['phone']}`\n🔗 ኤጀንት: `{agent_phone}`")
                 return "OK", 200
 
-        # --- Admin controls ---
         if chat_id == ADMIN_ID:
             if msg == "/security_check":
                 try:
@@ -253,7 +242,7 @@ def webhook():
                             invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
                             send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም。")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
                 except Exception as e:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
@@ -291,7 +280,7 @@ def webhook():
                         if result.deleted_count > 0:
                             send_telegram(f"🗑️ ተጠቃሚው 📞 `{target_phone}` ከዳታቤዝ ላይ ሙሉ በሙሉ ተሰርዟል።")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` የተባለ ስልክ ቁጥር አልተገኘም።")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` የተባለ ስልክ ቁጥር አልተገኘ。）")
                 except Exception as e:
                     send_telegram(f"❌ ስህተት መረጃ! ፎርማቱ: `/remove ስልክ` ({e})")
 
@@ -303,7 +292,6 @@ def webhook():
                         if amount > 0:
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": amount}}, upsert=True)
                             send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-                            # 📡 ባላንስ ሲጨመር በፍጥነት ለተጫዋቹ መረጃውን ለማድረስ
                             broadcast_state()
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
@@ -316,7 +304,6 @@ def webhook():
                         if amount > 0:
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": -amount}})
                             send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
-                            # 📡 ባላንስ ሲቀነስ በፍጥነት ለተጫዋቹ መረጃውን ለማድረስ
                             broadcast_state()
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
@@ -396,7 +383,6 @@ def reset_game():
             "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
         })
-    # 📡 ሪሴት ሲሆን ለሁሉም ያሰራጫል
     broadcast_state()
 
 def game_loop():
@@ -411,7 +397,6 @@ def game_loop():
                     if game_state["status"] != "lobby": 
                         break
                     game_state["timer"] = i
-                # 📡 በየሰከንዱ የሎቢ ታይመሩን ለሁሉም ያሰራጫል
                 broadcast_state()
                 time.sleep(1)
             
@@ -433,7 +418,6 @@ def game_loop():
                         if game_state["status"] != "playing":
                             break
                         game_state["ball_timer"] = j
-                    # 📡 የኳስ መጀመሪያ ቆጠራውን ያሰራጫል
                     broadcast_state()
                     time.sleep(1)
 
@@ -443,7 +427,6 @@ def game_loop():
                             break
                         game_state["current_ball"] = b
                         game_state["drawn_balls"].append(b)
-                    # 📡 አዲስ ኳስ ሲወጣ ወዲያውኑ ለሁሉም ያሰራጫል
                     broadcast_state()
                     time.sleep(5)
             
@@ -538,7 +521,6 @@ def buy_ticket():
             else:
                 game_state["players"][db_phone]["cards"][t_num] = flat
                 
-        # 📡 ካርቴላ ሲገዛ ለሁሉም ኦንላይን ላለ ሰው ወዲያውኑ ስታተሱን ያድሳል
         broadcast_state()
         return jsonify({"success": True})
     
@@ -570,7 +552,6 @@ def cancel_ticket():
                 if not game_state["players"][db_phone]["cards"]: 
                     del game_state["players"][db_phone]
             
-            # 📡 ካርቴላ ሲሰረዝ ሪል-ታይም አፕዴት ያደርጋል
             threading.Thread(target=broadcast_state).start()
             return jsonify({"success": True})
             
@@ -622,7 +603,6 @@ def withdraw():
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
-        # 📡 ባላንስ ሲቀነስ ሪል-ታይም አፕዴት ለማድረግ
         broadcast_state()
         return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
@@ -695,7 +675,6 @@ def claim_bingo():
                 )
                 
                 send_telegram(success_msg)
-                # 📡 ቢንጎ ሲባል ውጤቱን ወዲያውኑ ለሁሉም ያሰራጫል
                 broadcast_state()
                 threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
