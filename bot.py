@@ -62,6 +62,7 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
+# 🛠️ የዌብሁክ ራውት አወቃቀር እዚህ ጋር በትክክል ተስተካክሏል
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -196,7 +197,7 @@ def webhook():
                             invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
                             send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም。")
                 except Exception as e:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
@@ -307,7 +308,7 @@ def check_winning_line(card, drawn_numbers):
 
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
-        if all(card[idx] in drawn_set for idx in row_indices):
+        if Jess := all(card[idx] in drawn_set for idx in row_indices):
             return row_indices, f"አግድም (Row {i+1})"
 
     for i in range(5):
