@@ -242,7 +242,7 @@ def webhook():
                             invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
                             send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም。")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
                 except Exception as e:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
@@ -438,7 +438,8 @@ def game_loop():
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
                 send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start() # 🔄 በ10 ሰከንድ ውስጥ ወደ ሎቢ ይመለሳል
+                # 🔄 ጨዋታው በኳስ እጥረት ሲያልቅ ለ5 ሰከንድ ቆይቶ ወደ ሎቢ ይመለሳል
+                threading.Thread(target=lambda: (time.sleep(5), reset_game()), daemon=True).start() 
         broadcast_state()
 
         time.sleep(1)
@@ -677,7 +678,8 @@ def claim_bingo():
                 
                 send_telegram(success_msg)
                 broadcast_state()
-                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start() # 🔄 አሸናፊ ሲኖር በ10 ሰከንድ ውስጥ ወደ ሎቢ ይመልሳል
+                # 🔄 አሸናፊ ሲኖር በትክክል ለ5 ሰከንድ ብቻ አሳይቶ ወደ ሎቢ ይመልሳል (daemon=True ታክሎበታል)
+                threading.Thread(target=lambda: (time.sleep(5), reset_game()), daemon=True).start() 
                 return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
