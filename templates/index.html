@@ -252,7 +252,6 @@
             document.getElementById('main-app-content').style.display = 'block';
             
             // ✨ የድሮው setInterval ጠፍቶ በWebSocket Event ተተክቷል
-            // ከሰርቨር አዲስ ዳታ ሲመጣ ገጹን ወዲያውኑ የማዘመን ስራ
             socket.on('game_update', function(data) {
                 handleStateUpdate(data);
             });
@@ -311,7 +310,6 @@
             }
         }
 
-        // ✨ ከአሮጌው update() የተቀየረ የዌብሶኬት ዳታ ማስተናገጃ ማዕከል
         function handleStateUpdate(d) {
             if (!phone) return;
             
@@ -459,7 +457,7 @@
             fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
             .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
         }
-        
+
         function subD() {
             let amt = parseInt(document.getElementById('da').value);
             let tid = sanitizeText(document.getElementById('di').value);
@@ -477,7 +475,6 @@
             });
         }
 
-        // ✨ የነበሩት ግን ኮድ ያልተጻፈላቸው subW() ተግባር እንዳይጎድል ማቆያ
         function subW() {
             let amt = parseInt(document.getElementById('wa').value);
             if(!amt || amt < 20) return alert("ትክክለኛ መጠን ያስገቡ (ሚኒመም 20 ብር)!");
