@@ -176,7 +176,7 @@
         </div>
     </div>
 
-    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ。<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
     <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
     <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
@@ -296,6 +296,25 @@
             }
         }
 
+        function forceReturnToLobby() {
+            document.getElementById('lobby-ui').style.display='block'; 
+            document.getElementById('game-ui').style.display='none'; 
+            document.getElementById('result-ui').style.display='none';
+            document.getElementById('main-board').innerHTML=""; 
+            document.getElementById('card-area').innerHTML="";
+            document.getElementById('w-grid-cells').innerHTML = ""; 
+            document.getElementById('ball-prep-countdown').style.display = 'none';
+            document.getElementById('start-alert-msg').style.display = 'none';
+            localStorage.removeItem('marked_0'); 
+            localStorage.removeItem('marked_1'); 
+            announced = false;
+            const bBtn = document.getElementById('bingo-btn'); 
+            if(bBtn) bBtn.disabled = false;
+            currentCardData = null; 
+            lastBall = "--";
+            initTicketsOnce();
+        }
+
         function update() {
             if (!phone) return;
             fetch(`/get_status?phone=${encodeURIComponent(phone)}`).then(r=>r.json()).then(d=>{
@@ -306,17 +325,11 @@
                 document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
                 document.getElementById('timer').innerText = sanitizeText(d.timer);
                 
-                if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
-                    document.getElementById('w-grid-cells').innerHTML = ""; 
-                    document.getElementById('ball-prep-countdown').style.display = 'none';
-                    document.getElementById('start-alert-msg').style.display = 'none';
-                    if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
-                    const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
-                    currentCardData = null; lastBall = "--";
-                    initTicketsOnce(); 
-                    if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
+                let numericTimer = parseInt(d.timer) || 0;
+
+                if(d.status === "lobby" || (d.status === "result" && numericTimer <= 0)) {
+                    forceReturnToLobby();
+                    if (d.status === "lobby" && !isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
                 } else if(d.status === "playing") {
                     document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
                     const prepCountdownEl = document.getElementById('ball-prep-countdown');
@@ -346,7 +359,7 @@
                     let ticketNum = d.winning_ticket_num ? d.winning_ticket_num : "100";
                     document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
                     document.getElementById('w-card-owner').innerText = winnerName;
-                    document.getElementById('w-next-timer').innerText = sanitizeText(d.timer) + "s";
+                    document.getElementById('w-next-timer').innerText = numericTimer + "s";
                     const gridCells = document.getElementById('w-grid-cells');
                     if(gridCells && gridCells.children.length === 0 && Array.isArray(d.winning_card)) {
                         let drawnSet = new Set();
@@ -457,27 +470,6 @@
                 alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
                 update();
             }).catch(() => {
-                alert("የኔትወርክ ችግር አጋጥሟል!");
-            });
-        }
-
-        function subW() {
-            let amt = parseInt(document.getElementById('wa').value);
-            if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
-            if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
-            
-            fetch('/request_withdrawal', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone: phone, amount: amt })
-            })
-            .then(r => r.json())
-            .then(res => {
-                closeM('with-m');
-                alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
-                update();
-            })
-            .catch(() => {
                 alert("የኔትወርክ ችግር አጋጥሟል!");
             });
         }
