@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO - SECURE PREMIUM</title>
+    <!-- 🔌 Socket.IO ላይብረሪ እዚህ ጋር ተካቷል -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket-io/4.7.5/socket.io.gjs"></script>
     <style>
         :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; }
@@ -101,10 +103,9 @@
         .winner-card-num-lbl { color: #2563eb; font-style: italic; font-size: 1.1rem; }
         .winner-card-owner-lbl { color: #10b981; font-style: italic; }
         
-        /* የውጤት ካርቴላው ግሪድ */
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; background: #f8fafc; padding: 8px; border-radius: 16px; border: 1px solid #e2e8f0; }
         
-        /* እያንዳንዱ ክፍል ክብ እንዲሆን የማሻሻያ ስታይል (ከምስሉ ጋር አንድ አይነት) */
+        /* 🔵 የውጤት ካርቴላው ቁጥሮች ሙሉ ክብ እንዲሆኑ */
         .w-cell-modern { 
             background: #ffffff; 
             color: #475569; 
@@ -115,7 +116,7 @@
             justify-content: center; 
             font-weight: 800; 
             font-size: 0.95rem; 
-            border-radius: 50% !important; /* 👈 ቁጥሮቹ ሙሉ ክብ እንዲሆኑ ያደርጋል */
+            border-radius: 50% !important; 
             border: 1px solid #e2e8f0; 
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             margin: 0 auto;
@@ -124,7 +125,7 @@
         }
         .w-cell-modern.drawn { background: #e2e8f0; color: #94a3b8; }
         
-        /* 🎯 ያሸነፈው መስመር ብቻ አረንጓዴ እንዲሆን ማድመቂያ */
+        /* 🎯 ያሸነፈው መስመር ብቻ አረንጓዴ (#10b981) እንዲሆን ማድመቂያ */
         .w-cell-modern.hit { 
             background: #10b981 !important; 
             color: #ffffff !important; 
@@ -208,6 +209,7 @@
     <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
     <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
+    <!-- 🏆 ዋናው የውጤት ማሳያ ሞዳል -->
     <div id="result-ui" class="winner-modal">
         <div class="winner-box">
             <div class="trophy-icon">🏆</div>
@@ -229,7 +231,9 @@
         let username = localStorage.getItem('username');
         let currentCardData = null, announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
-        let socket = null;
+        
+        // 🔌 Socket.IO ግሎባል ቫሪያብል
+        const socket = io();
 
         window.onload = function() {
             if (phone && username) {
@@ -279,32 +283,22 @@
             });
         }
 
+        // 📡 ልክ እንደ ድሮው በSocket.IO ሩም እንዲቀላቀል ማድረጊያ
         function showGameUI() {
             document.getElementById('auth-ui').style.display = 'none';
             document.getElementById('main-app-content').style.display = 'block';
             initTicketsOnce();
-            connectWebSocket(); // የዌብሶኬት ግንኙነቱን መክፈቻ
-        }
-
-        // 🔌 ከባክኤንድ (flask_sock) ጋር የሚያገናኝ የNative WebSocket ሎጂክ
-        function connectWebSocket() {
-            const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-            const wsUrl = protocol + window.location.host + "/ws?phone=" + encodeURIComponent(phone);
             
-            socket = new WebSocket(wsUrl);
-
-            socket.onmessage = function(event) {
-                const d = JSON.parse(event.data);
-                handleGameUpdate(d);
-            };
-
-            socket.onclose = function() {
-                // ግንኙነቱ ቢቋረጥ ከ5 ሰከንድ በኋላ ራሱ ድጋሚ ይገናኛል
-                setTimeout(connectWebSocket, 5000);
-            };
+            // ሰርቨሩ ላይ ወዳለው የ'join_room' ኤቨንት ስልክ ቁጥሩን ይልካል
+            socket.emit('join_room', { phone: phone });
         }
 
-        // 📡 ከሰርቨሩ በሪያል-ታይም የሚመጣውን መረጃ ማስተናገጃ
+        // 👂 ከሰርቨር በSocket.IO በኩል የ'game_update' መልዕክት ሲመጣ ማዳመጫ
+        socket.on('game_update', function(d) {
+            handleGameUpdate(d);
+        });
+
+        // 🛠️ ዋናው የጨዋታ ስቴት ማስተናገጃ ሎጂክ
         function handleGameUpdate(d) {
             if (!phone) return;
 
@@ -384,7 +378,6 @@
                 
                 const gridCells = document.getElementById('w-grid-cells');
                 
-                // አሸናፊው ካርቴላ ገና ካልተሳለ ብቻ እንዲስለው መከላከያ
                 if(gridCells && gridCells.children.length === 0 && Array.isArray(d.winning_card)) {
                     let drawnSet = new Set();
                     if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
@@ -394,7 +387,7 @@
                         }); 
                     }
                     
-                    // 👈 ከባክኤንድ የመጣውን የwinning_line (ኢንዴክሶች) በSet መልክ እንይዘዋለን
+                    // 🎯 ያሸነፈው መስመር (Winning Line) ኢንዴክሶች
                     let winLineSet = new Set(d.winning_line || []);
 
                     d.winning_card.forEach((n, idx) => {
@@ -404,20 +397,16 @@
                         
                         cell.innerText = (numVal === 0) ? "★" : cleanNum;
 
-                        // 1. መካከለኛው FREE ሴል ከሆነ
                         if(idx === 12 || numVal === 0) {
                             cell.className = "w-cell-modern free";
-                            if(winLineSet.has(idx)) cell.className += " hit"; // መስመሩ ውስጥ ካለ አረንጓዴ ይሆናል
+                            if(winLineSet.has(idx)) cell.className += " hit";
                         } 
-                        // 2. 🎯 ያሸነፈው መስመር (Winning Line) ላይ ያሉ 5 ቁጥሮች ብቻ አረንጓዴ እንዲሆኑ
                         else if(winLineSet.has(idx)) { 
-                            cell.className = "w-cell-modern hit"; 
+                            cell.className = "w-cell-modern hit"; // አሸናፊው መስመር ብቻ አረንጓዴ ይሆናል!
                         } 
-                        // 3. ጨዋታው ላይ የወጡ (ግን ያላሸነፉ) ቁጥሮች ከሆኑ (የበለዙ)
                         else if(drawnSet.has(numVal)) { 
                             cell.className = "w-cell-modern drawn"; 
                         } 
-                        // 4. ጨዋታው ላይ ያልወጡ ተራ ቁጥሮች
                         else { 
                             cell.className = "w-cell-modern"; 
                         }
