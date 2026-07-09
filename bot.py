@@ -40,7 +40,8 @@ game_state = {
     "drawn_balls": [], 
     "winner": None,
     "winning_card": None,
-    "winning_ticket_num": None  
+    "winning_ticket_num": None,
+    "winning_line": None  # 👈 ያሸነፈበትን መስመር ለመያዝ ተጨምሯል
 }
 
 active_connections = {}
@@ -98,7 +99,7 @@ def ws_endpoint(ws):
     
     with state_lock:
         active_connections[db_phone] = ws
-        
+    
     send_state_to_one(db_phone, ws)
     
     try:
@@ -351,7 +352,7 @@ def register_or_login():
 
 def check_winning_line(card, drawn_numbers):
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) 
+    drawn_set.add(0) # FREE ሴል
 
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
@@ -380,10 +381,21 @@ def check_winning_line(card, drawn_numbers):
 def reset_game():
     with state_lock:
         game_state.update({
-            "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "pot": 0, "players": {}, 
+            "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, 
+            "winning_line": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
         })
     broadcast_state()
+
+def start_result_countdown():
+    for i in range(5, -1, -1):
+        with state_lock:
+            if game_state["status"] != "result":
+                break
+            game_state["timer"] = i  
+        broadcast_state()
+        time.sleep(1)
+    reset_game()
 
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
@@ -436,8 +448,9 @@ def game_loop():
                 game_state["winner"] = "No Winner (House)"
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
+                game_state["winning_line"] = None
                 send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
+                threading.Thread(target=start_result_countdown, daemon=True).start() 
         broadcast_state()
 
         time.sleep(1)
@@ -569,28 +582,24 @@ def request_deposit():
     
     if user and "referred_by" in user:
         agent_phone = user["referred_by"]
-        msg = (
-            f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
-            f"📝 ስም: `{user.get('username', 'N/A')}`\n"
-            f"🆔 ስልክ: `{db_phone}`\n"
-            f"💵 መጠን: `{amt}` ETB\n"
-            f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**\n\n"
-            f"👇 Approve ለማድረግ:\n`/add {db_phone} {amt}`"
-        )
+        msg = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
+               f"📝 ስም: `{user.get('username', 'N/A')}`\n"
+               f"🆔 ስልክ: `{db_phone}`\n"
+               f"💵 መጠን: `{amt}` ETB\n"
+               f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**\n\n"
+               f"👇 Approve ለማድረግ:\n`/add {db_phone} {amt}`")
     else:
-        msg = (
-            f"💰 *Deposit Request*\n"
-            f"📞 Phone: `{db_phone}`\n"
-            f"💵 Amount: `{amt}` ETB\n"
-            f"🆔 ID: `{t_id}`\n\n"
-            f"👇 Approve:\n`/add {db_phone} {amt}`"
-        )
+        msg = (f"💰 *Deposit Request*\n"
+               f"📞 Phone: `{db_phone}`\n"
+               f"💵 Amount: `{amt}` ETB\n"
+               f"🆔 ID: `{t_id}`\n\n"
+               f"👇 Approve:\n`/add {db_phone} {amt}`")
                
     send_telegram(msg)
     return jsonify({"success": True})
 
-@app.route('/request_withdrawal', methods=['POST'])
-def request_withdrawal():
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
     d = request.json or {}
     ph, amt = sanitize_input(d.get('phone')), float(d.get('amount'))
     
@@ -608,7 +617,7 @@ def request_withdrawal():
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
         broadcast_state()
-        return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
+        return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
 @app.route('/claim_bingo', methods=['POST'])
@@ -639,6 +648,7 @@ def claim_bingo():
                 game_state["winner"] = p_data["username"]
                 game_state["winning_card"] = card  
                 game_state["winning_ticket_num"] = str(t_num) 
+                game_state["winning_line"] = win_indices  # 👈 ያሸነፈበትን መስመር ኢንዴክስ (Indices) ለይቶ ለፍሮንትኤንድ ያስተላልፋል
                 
                 win_amt = game_state["pot"] * 0.8
                 wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
@@ -680,7 +690,8 @@ def claim_bingo():
                 
                 send_telegram(success_msg)
                 broadcast_state()
-                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start() 
+                
+                threading.Thread(target=start_result_countdown, daemon=True).start() 
                 return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
