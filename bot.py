@@ -5,6 +5,11 @@ import secrets
 import requests
 import threading
 import re
+
+# 🔥 የዲኤንኤስ (DNS) እና የኔትወርክ ስህተቱን ለመፍታት መጀመሪያ ላይ መታከል ያለበት
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
@@ -21,7 +26,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URL = os.getenv("MONGO_URL")
 WEB_APP_URL = os.getenv("WEB_APP_URL", "https://habesha-dice-bot.onrender.com") 
 
-client = MongoClient(MONGO_URL)
+# 🛠️ ማስተካከያ፦ connect=False በመጨመር ሰርቨሩ ገና ሳይነሳ DNS ፈልጎ ክራሽ እንዳያደርግ ይከላከላል
+client = MongoClient(MONGO_URL, connect=False)
 db = client['bingo_db']
 wallets = db['wallets']
 
