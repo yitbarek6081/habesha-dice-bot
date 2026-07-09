@@ -8,7 +8,7 @@
         :root { --gold: #ffcc00; --bg: #050a18; --red: #ff3e3e; --green: #00ff88; --orange: #ff8800; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; margin: 0; padding: 0; overflow-x: hidden; width: 100vw; }
         
-        /* 📝 የምዝገባ ገጽ ስታይል (Registration Section) */
+        /* 📝 የምዝገባ ገጽ ስታይል */
         #auth-ui {
             display: flex;
             flex-direction: column;
@@ -107,6 +107,8 @@
         .w-cell-modern.free { background: var(--gold); color: #1e293b; font-size: 1.1rem; border-color: var(--gold); }
         .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 6px; width: 92%; max-width: 360px; margin-top: 15px; border-radius: 20px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
     </style>
+    
+    <script src="https://cdn.socketio.org/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 
@@ -194,6 +196,9 @@
         let username = localStorage.getItem('username');
         let currentCardData = null, announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
+        
+        // 🔌 የዌብሶኬት ግንኙነት መክፈቻ
+        const socket = io();
 
         window.onload = function() {
             if (phone && username) {
@@ -246,9 +251,94 @@
         function showGameUI() {
             document.getElementById('auth-ui').style.display = 'none';
             document.getElementById('main-app-content').style.display = 'block';
-            setInterval(update, 2000); 
-            update();
+            initTicketsOnce();
+            
+            // ሰርቨሩ ላይ በተጫዋቹ ስም ሩም እንዲይዝ መላክ
+            socket.emit('join_room', { phone: phone });
         }
+
+        // 📡 ከሰርቨሩ በየሰከንዱ በሪያል-ታይም የሚመጣውን መረጃ መቀበያ (Socket Listener)
+        socket.on('game_update', function(d) {
+            if (!phone) return;
+
+            clientBalance = parseFloat(d.balance) || 0;
+            if (d.balances && d.balances[phone] !== undefined) {
+                clientBalance = parseFloat(d.balances[phone]) || 0;
+            }
+            
+            let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
+            document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+            document.getElementById('prize').innerText = finalPrize + " ETB";
+            document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
+            document.getElementById('timer').innerText = sanitizeText(d.timer);
+            
+            if(d.status === "lobby") {
+                document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
+                document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                document.getElementById('w-grid-cells').innerHTML = ""; 
+                document.getElementById('ball-prep-countdown').style.display = 'none';
+                document.getElementById('start-alert-msg').style.display = 'none';
+                if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
+                const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
+                currentCardData = null; lastBall = "--";
+                initTicketsOnce(); 
+                if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
+            } else if(d.status === "playing") {
+                document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
+                const prepCountdownEl = document.getElementById('ball-prep-countdown');
+                const startAlertEl = document.getElementById('start-alert-msg');
+                let ballTimerVal = parseInt(d.ball_timer);
+                if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
+                    prepCountdownEl.style.display = 'block'; startAlertEl.style.display = 'block'; 
+                    prepCountdownEl.innerText = `⏳ ዝግጅት፦ ${ballTimerVal}`;
+                    document.getElementById('ball-circle').style.opacity = '0.4'; 
+                } else {
+                    prepCountdownEl.style.display = 'none'; startAlertEl.style.display = 'none'; 
+                    document.getElementById('ball-circle').style.opacity = '1';  
+                }
+                let secureBall = sanitizeText(d.current_ball);
+                document.getElementById('ball-circle').innerText = secureBall;
+                if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
+                renderMainBoard(d.drawn_balls || []);
+                
+                let myCards = d.my_cards;
+                if ((!myCards || myCards.length === 0) && d.player_cards && d.player_cards[phone]) {
+                    myCards = d.player_cards[phone];
+                }
+                
+                if(myCards && myCards.length > 0 && !currentCardData) { 
+                    currentCardData = myCards; document.getElementById('card-area').innerHTML = "";
+                    myCards.forEach((c, i) => { if(Array.isArray(c)) renderCard(c, i); }); 
+                }
+            } else if(d.status === "result") {
+                document.getElementById('result-ui').style.display='flex';
+                let winnerName = sanitizeText(d.winner || "Player");
+                document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
+                document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
+                let ticketNum = d.winning_ticket_num ? d.winning_ticket_num : "100";
+                document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
+                document.getElementById('w-card-owner').innerText = winnerName;
+                document.getElementById('w-next-timer').innerText = sanitizeText(d.timer) + "s";
+                const gridCells = document.getElementById('w-grid-cells');
+                if(gridCells && gridCells.children.length === 0 && Array.isArray(d.winning_card)) {
+                    let drawnSet = new Set();
+                    if (d.drawn_balls && Array.isArray(d.drawn_balls)) { d.drawn_balls.forEach(b => { let numOnly = String(b).replace(/[^0-9]/g, ''); if(numOnly) drawnSet.add(parseInt(numOnly)); }); }
+                    let winIdxs = getWinningIndices(d.winning_card, drawnSet);
+                    d.winning_card.forEach((n, idx) => {
+                        let cell = document.createElement('div'); let cleanNum = sanitizeText(n);
+                        if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                            cell.className = "w-cell-modern free"; cell.innerText = "★";
+                            if(winIdxs.size > 0 && winIdxs.has(idx)) cell.className += " hit";
+                        } else {
+                            let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
+                            if(winIdxs.has(idx)) { cell.className = "w-cell-modern hit"; } else if(drawnSet.has(numVal)) { cell.className = "w-cell-modern drawn"; } else { cell.className = "w-cell-modern"; }
+                        }
+                        gridCells.appendChild(cell);
+                    });
+                }
+                if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
+            }
+        });
 
         function sanitizeText(str) {
             if (!str) return '';
@@ -296,79 +386,6 @@
             }
         }
 
-        function update() {
-            if (!phone) return;
-            fetch(`/get_status?phone=${encodeURIComponent(phone)}`).then(r=>r.json()).then(d=>{
-                clientBalance = parseFloat(d.balance) || 0;
-                let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
-                document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
-                document.getElementById('prize').innerText = finalPrize + " ETB";
-                document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
-                document.getElementById('timer').innerText = sanitizeText(d.timer);
-                
-                if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
-                    document.getElementById('w-grid-cells').innerHTML = ""; 
-                    document.getElementById('ball-prep-countdown').style.display = 'none';
-                    document.getElementById('start-alert-msg').style.display = 'none';
-                    if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
-                    const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
-                    currentCardData = null; lastBall = "--";
-                    initTicketsOnce(); 
-                    if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
-                } else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='block'; document.getElementById('result-ui').style.display='none';
-                    const prepCountdownEl = document.getElementById('ball-prep-countdown');
-                    const startAlertEl = document.getElementById('start-alert-msg');
-                    let ballTimerVal = parseInt(d.ball_timer);
-                    if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
-                        prepCountdownEl.style.display = 'block'; startAlertEl.style.display = 'block'; 
-                        prepCountdownEl.innerText = `⏳ ዝግጅት፦ ${ballTimerVal}`;
-                        document.getElementById('ball-circle').style.opacity = '0.4'; 
-                    } else {
-                        prepCountdownEl.style.display = 'none'; startAlertEl.style.display = 'none'; 
-                        document.getElementById('ball-circle').style.opacity = '1';  
-                    }
-                    let secureBall = sanitizeText(d.current_ball);
-                    document.getElementById('ball-circle').innerText = secureBall;
-                    if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
-                    renderMainBoard(d.drawn_balls || []);
-                    if(d.my_cards && d.my_cards.length > 0 && !currentCardData) { 
-                        currentCardData = d.my_cards; document.getElementById('card-area').innerHTML = "";
-                        d.my_cards.forEach((c, i) => { if(Array.isArray(c)) renderCard(c, i); }); 
-                    }
-                } else if(d.status === "result") {
-                    document.getElementById('result-ui').style.display='flex';
-                    let winnerName = sanitizeText(d.winner || "Player");
-                    document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
-                    document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
-                    let ticketNum = d.winning_ticket_num ? d.winning_ticket_num : "100";
-                    document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
-                    document.getElementById('w-card-owner').innerText = winnerName;
-                    document.getElementById('w-next-timer').innerText = sanitizeText(d.timer) + "s";
-                    const gridCells = document.getElementById('w-grid-cells');
-                    if(gridCells && gridCells.children.length === 0 && Array.isArray(d.winning_card)) {
-                        let drawnSet = new Set();
-                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) { d.drawn_balls.forEach(b => { let numOnly = String(b).replace(/[^0-9]/g, ''); if(numOnly) drawnSet.add(parseInt(numOnly)); }); }
-                        let winIdxs = getWinningIndices(d.winning_card, drawnSet);
-                        d.winning_card.forEach((n, idx) => {
-                            let cell = document.createElement('div'); let cleanNum = sanitizeText(n);
-                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
-                                cell.className = "w-cell-modern free"; cell.innerText = "★";
-                                if(winIdxs.size > 0 && winIdxs.has(idx)) cell.className += " hit";
-                            } else {
-                                let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
-                                if(winIdxs.has(idx)) { cell.className = "w-cell-modern hit"; } else if(drawnSet.has(numVal)) { cell.className = "w-cell-modern drawn"; } else { cell.className = "w-cell-modern"; }
-                            }
-                            gridCells.appendChild(cell);
-                        });
-                    }
-                    if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
-                }
-            }).catch(() => {});
-        }
-
         function renderTickets(sold) {
             const cleanPhone = String(phone);
             for(let i=1; i<=500; i++) {
@@ -394,13 +411,13 @@
             fetch('/buy_specific_ticket', {
                 method:'POST', headers:{'Content-Type':'application/json'}, 
                 body:JSON.stringify({phone: phone, ticket_num: target, username: username})
-            }).then(() => { isProcessingBuy = false; update(); }).catch(() => { isProcessingBuy = false; update(); }); 
+            }).then(() => { isProcessingBuy = false; }).catch(() => { isProcessingBuy = false; }); 
         }
 
         function refund(n) { 
             const target = parseInt(n); if(isNaN(target)) return;
             if(confirm("መልሰው 10 ብር ይውሰዱ?")) {
-                fetch('/cancel_ticket', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone: phone, ticket_num: target}) }).then(update); 
+                fetch('/cancel_ticket', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone: phone, ticket_num: target}) }); 
             }
         }
         
@@ -455,12 +472,12 @@
             }).then(() => {
                 closeM('dep-m'); 
                 alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
-                update();
             }).catch(() => {
                 alert("የኔትወርክ ችግር አጋጥሟል!");
             });
         }
-
+        
+        // 📤 የአንተ አዲሱ እና የተሻሻለው የዊዝድሮው ፎርም ፈንክሽን
         function subW() {
             let amt = parseInt(document.getElementById('wa').value);
             if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
@@ -475,7 +492,6 @@
             .then(res => {
                 closeM('with-m');
                 alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
-                update();
             })
             .catch(() => {
                 alert("የኔትወርክ ችግር አጋጥሟል!");
