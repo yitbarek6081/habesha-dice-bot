@@ -98,7 +98,7 @@ def ws_endpoint(ws):
     
     with state_lock:
         active_connections[db_phone] = ws
-        
+    
     send_state_to_one(db_phone, ws)
     
     try:
@@ -350,9 +350,8 @@ def register_or_login():
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
 def check_winning_line(card, drawn_numbers):
-    # 🔍 እዚህ ጋር የፓይተን ኳሶች ('B12', 'I30' ወዘተ) ሲመጡ ፊደሉን ቀንሶ ቁጥሩን ብቻ በ Set ይይዛል
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) # FREE ሴል (0) ሁልጊዜ የበራች ናት
+    drawn_set.add(0) # FREE ሴል
 
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
@@ -385,6 +384,17 @@ def reset_game():
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
         })
     broadcast_state()
+
+# 🔥 አሸናፊውን ወይም ያለ አሸናፊ መጠናቀቁን ለ5 ሰከንድ ቆጥሮ ወደ ሎቢ የሚመልስ የተለየ ፈንክሽን
+def start_result_countdown():
+    for i in range(5, -1, -1):
+        with state_lock:
+            if game_state["status"] != "result":
+                break
+            game_state["timer"] = i  # የካርቴላ መመለሻ ሰዓቱን እዚህ ያስቀምጠዋል
+        broadcast_state()
+        time.sleep(1)
+    reset_game()
 
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
@@ -438,8 +448,7 @@ def game_loop():
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
                 send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                # 🔄 ጨዋታው በኳስ እጥረት ሲያልቅ ለ5 ሰከንድ ቆይቶ ወደ ሎቢ ይመለሳል
-                threading.Thread(target=lambda: (time.sleep(5), reset_game()), daemon=True).start() 
+                threading.Thread(target=start_result_countdown, daemon=True).start() 
         broadcast_state()
 
         time.sleep(1)
@@ -678,8 +687,9 @@ def claim_bingo():
                 
                 send_telegram(success_msg)
                 broadcast_state()
-                # 🔄 አሸናፊ ሲኖር በትክክል ለ5 ሰከንድ ብቻ አሳይቶ ወደ ሎቢ ይመልሳል (daemon=True ታክሎበታል)
-                threading.Thread(target=lambda: (time.sleep(5), reset_game()), daemon=True).start() 
+                
+                # 🔥 እዚህ ጋር አዲሱን የ5 ሰከንድ ቆጣሪ ፈንክሽን ይጠራዋል
+                threading.Thread(target=start_result_countdown, daemon=True).start() 
                 return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
