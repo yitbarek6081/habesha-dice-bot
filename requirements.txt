@@ -3,5 +3,6 @@ Flask-Cors==4.0.0
 Flask-SocketIO==5.3.6
 pymongo==4.6.2
 requests==2.31.0
-eventlet==0.33.3
+dnspython==2.0.0
+eventlet==0.35.1
 gunicorn==21.2.0
