@@ -538,6 +538,7 @@ def cancel_ticket():
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
 
+# ✨ የተስተካከለው እና የተጨመረው የዲፖዚት ጥያቄ መቀበያ ኤንድፖይንት
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json or {}
@@ -545,4 +546,26 @@ def request_deposit():
     amt = d.get('amount')
     t_id = sanitize_input(d.get('transaction_id', 'N/A'))
     
-    user = wallets.find_one({"$or":
+    if not ph or not amt:
+        return jsonify({"success": False, "msg": "የተሳሳተ መረጃ!"}), 400
+
+    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    username = user.get("username", "የማይታወቅ") if user else "ያልተመዘገበ"
+    
+    # በአድሚን ቴሌግራም ላይ ማሳወቂያ መላክ
+    send_telegram(
+        f"💰 *አዲስ የዲፖዚት (የገንዘብ ማስገቢያ) ጥያቄ!*\n\n"
+        f"👤 ተጫዋች: `{username}`\n"
+        f"📞 ስልክ: `{ph}`\n"
+        f"💵 መጠን: `{amt} ETB`\n"
+        f"🆔 የትራንዛክሽን ID: `{t_id}`\n\n"
+        f"ማረጋገጫ: ብሩ መግባቱን አረጋግጠው በቦቱ ላይ `/add {ph} {amt}` በማለት ያጽድቁ።"
+    )
+    
+    return jsonify({"success": True, "msg": "የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
+
+if __name__ == '__main__':
+    # Background game loop thread ማስጀመር
+    threading.Thread(target=game_loop, daemon=True).start()
+    set_webhook()
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
