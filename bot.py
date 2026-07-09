@@ -15,7 +15,7 @@ app = Flask(__name__, template_folder='templates')
 CORS(app)
 sock = Sock(app) 
 
-# --- CONFIG ---
+# --- CONFIG (ከRender ሰርቨር ቁልፎች ጋር የተጣጣመ) ---
 ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
@@ -242,7 +242,7 @@ def webhook():
                             invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
                             send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም。")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
                 except Exception as e:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
@@ -280,9 +280,9 @@ def webhook():
                         if result.deleted_count > 0:
                             send_telegram(f"🗑️ ተጠቃሚው 📞 `{target_phone}` ከዳታቤዝ ላይ ሙሉ በሙሉ ተሰርዟል።")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` የተባለ ስልክ ቁጥር አልተገኘም።")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` የተባለ ስልክ ቁጥር አልተገኘ。）")
                 except Exception as e:
-                    send_telegram(f"❌ ስህተት መረጃ! ፎርማቱ: `/remove ስልክ`")
+                    send_telegram(f"❌ ስህተት መረጃ! ፎርማቱ: `/remove ስልክ` ({e})")
 
             elif msg.startswith("/add"):
                 try:
@@ -350,9 +350,8 @@ def register_or_login():
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
 def check_winning_line(card, drawn_numbers):
-    # 🔍 እዚህ ጋር የፓይተን ኳሶች ('B12', 'I30' ወዘተ) ሲመጡ ፊደሉን ቀንሶ ቁጥሩን ብቻ በ Set ይይዛል
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0) # FREE ሴል (0) ሁልጊዜ የበራች ናት
+    drawn_set.add(0)
 
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
@@ -438,7 +437,7 @@ def game_loop():
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
                 send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start() # 🔄 በ10 ሰከንድ ውስጥ ወደ ሎቢ ይመለሳል
+                threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
         broadcast_state()
 
         time.sleep(1)
@@ -677,7 +676,7 @@ def claim_bingo():
                 
                 send_telegram(success_msg)
                 broadcast_state()
-                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start() # 🔄 አሸናፊ ሲኖር በ10 ሰከንድ ውስጥ ወደ ሎቢ ይመልሳል
+                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
