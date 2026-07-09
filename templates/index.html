@@ -422,7 +422,7 @@
 
         function renderCard(card, cardIdx) {
             const safeCardIdx = parseInt(cardIdx);
-            const wrap = document.createElement('div'); wrap.style.setMarginBottom="15px";
+            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
