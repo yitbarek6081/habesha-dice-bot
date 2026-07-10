@@ -112,7 +112,7 @@
 
     <div id="auth-ui">
         <div class="auth-card">
-            <h2>编 ተመዝገብ</h2>
+            <h2>ተመዝገብ</h2>
             <p>ወደ ጨዋታው ለመግባት መረጃዎን ያስገቡ</p>
             
             <div class="input-group">
@@ -177,8 +177,8 @@
     </div>
 
     <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
-    <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="30" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
-    <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
+    <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
+    <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
     <div id="result-ui" class="winner-modal">
         <div class="winner-box">
@@ -195,7 +195,6 @@
         let currentCardData = null, announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
 
-        // 🚀 ገጹ ሲከፈት ቼክ ያደርጋል፡ ዳታ ካለ ቀጥታ ያስገባዋል፤ ከሌለ መመዝገቢያ ገጹን ያሳያል
         window.onload = function() {
             if (phone && username) {
                 showGameUI();
@@ -205,7 +204,6 @@
             }
         }
 
-        // 💾 "ወደ ጨዋታው ግባ" ሲጫኑ
         function registerUser() {
             let inputName = document.getElementById('reg-username').value.trim();
             let inputPhone = document.getElementById('reg-phone').value.trim();
@@ -218,7 +216,6 @@
 
             if(submitBtn) submitBtn.disabled = true;
 
-            // 1. ሰርቨር (Backend) ላይ ወደ ማንጎዲቢ እንዲመዘግብ ወይም ሎጊን እንዲያደርግ ጥያቄ ይልካል
             fetch('/register_or_login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -227,19 +224,17 @@
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    // 2. በባክኤንድ ከተረጋገጠ በኋላ መረጃውን በብሮውዘር ላይ ያስቀምጣል
                     localStorage.setItem('phone', cleanPhone);
                     localStorage.setItem('username', inputName);
                     phone = cleanPhone;
                     username = inputName;
-                    showGameUI(); // ቀጥታ ወደ ካርቴላ መግዣው ገጽ ያስገባዋል
+                    showGameUI();
                 } else {
                     alert(data.msg || "የምዝገባ ስህተት አጋጥሟል!");
                     if(submitBtn) submitBtn.disabled = false;
                 }
             })
             .catch(() => {
-                // ኔትወርክ ቢቆራረጥም ተጫዋቹን ላለማስተጓጎል በጊዜያዊነት ያስገባዋል
                 localStorage.setItem('phone', cleanPhone);
                 localStorage.setItem('username', inputName);
                 phone = cleanPhone;
@@ -427,7 +422,7 @@
 
         function renderCard(card, cardIdx) {
             const safeCardIdx = parseInt(cardIdx);
-            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
+            const wrap = document.createElement('div'); wrap.style.setMarginBottom="15px";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
@@ -450,16 +445,41 @@
         }
         
         function subD() {
-            let amt = parseInt(document.getElementById('da').value), tid = sanitizeText(document.getElementById('di').value);
+            let amt = parseInt(document.getElementById('da').value);
+            let tid = sanitizeText(document.getElementById('di').value);
             if(!amt || amt < 10 || !tid || tid.length < 4) return alert("ትክክለኛ መረጃ ያስገቡ!");
-            fetch('/request_deposit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone: phone, amount: amt, transaction_id: tid}) });
-            closeM('dep-m'); alert("ጥያቄዎ ተልኳል!");
+            fetch('/request_deposit', { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone: phone, amount: amt, transaction_id: tid}) 
+            }).then(() => {
+                closeM('dep-m'); 
+                alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                update();
+            }).catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
+            });
         }
 
         function subW() {
             let amt = parseInt(document.getElementById('wa').value);
-            if(isNaN(amt) || amt < 20 || amt > clientBalance) return alert("ሂሳብዎ በቂ አይደለም ወይም የተሳሳተ መጠን!");
-            fetch('/withdraw', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ phone: phone, amount: amt }) }).then(res => { if(res.ok) { closeM('with-m'); alert("የክፍያ ጥያቄዎ ተልኳል!"); update(); } });
+            if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
+            if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
+            
+            fetch('/request_withdrawal', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ phone: phone, amount: amt })
+            })
+            .then(r => r.json())
+            .then(res => {
+                closeM('with-m');
+                alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                update();
+            })
+            .catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
+            });
         }
     </script>
 </body>
