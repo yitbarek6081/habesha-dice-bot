@@ -194,7 +194,7 @@
         let username = localStorage.getItem('username');
         let currentCardData = null, announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
-        let socket = null; // WebSocket ተለዋዋጭ
+        let socket = null;
 
         window.onload = function() {
             if (phone && username) {
@@ -249,10 +249,9 @@
             document.getElementById('main-app-content').style.display = 'block';
             setInterval(update, 2000); 
             update();
-            connectWebSocket(); // ዌብሶኬት ግንኙነት መጀመርያ
+            connectWebSocket();
         }
 
-        // 🌐 የዌብሶኬት ተግባር ማገናኛ
         function connectWebSocket() {
             if (!phone) return;
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -263,14 +262,13 @@
             socket.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
-                    renderStatus(data); // ከሰርቨር ፑሽ የተደረገውን ዳታ በቀጥታ UI ላይ መጫን
+                    renderStatus(data);
                 } catch (e) {
                     console.error("WebSocket data parsing error:", e);
                 }
             };
 
             socket.onclose = function() {
-                // ግንኙነት ቢቋረጥ ከ 3 ሰከንድ በኋላ በራሱ ድጋሚ ይገናኛል
                 setTimeout(connectWebSocket, 3000);
             };
 
@@ -325,7 +323,6 @@
             }
         }
 
-        // ለሁለቱም (Fetch እና WebSocket) የጋራ የUI ማደሻ ፈንክሽን
         function renderStatus(d) {
             clientBalance = parseFloat(d.balance) || 0;
             let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
@@ -492,6 +489,27 @@
                 alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
                 update();
             }).catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
+            });
+        }
+
+        function subW() {
+            let amt = parseInt(document.getElementById('wa').value);
+            if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
+            if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
+            
+            fetch('/request_withdrawal', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ phone: phone, amount: amt })
+            })
+            .then(r => r.json())
+            .then(res => {
+                closeM('with-m');
+                alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                update();
+            })
+            .catch(() => {
                 alert("የኔትወርክ ችግር አጋጥሟል!");
             });
         }
