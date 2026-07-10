@@ -17,7 +17,6 @@ from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
-# የረጅም ጊዜ ግንኙነት (Ping Timeout) ለማስተካከል SocketIO ውቅር ተሻሽሏል
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
 # --- CONFIG ---
@@ -26,7 +25,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URL = os.getenv("MONGO_URL")
 WEB_APP_URL = os.getenv("WEB_APP_URL", "https://habesha-dice-bot.onrender.com") 
 
-# 🛠️ ማስተካከያ፦ connect=False በመጨመር ሰርቨሩ ገና ሳይነሳ DNS ፈልጎ ክራሽ እንዳያደርግ ይከላከላል
 client = MongoClient(MONGO_URL, connect=False)
 db = client['bingo_db']
 wallets = db['wallets']
@@ -68,39 +66,23 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
-# ⚡ ለእያንዳንዱ ተጫዋች የየራሱን የግል ባላንስ አክሎ ስቴቱን የሚያሰራጭ ፈንክሽን
 def broadcast_game_state():
     with state_lock:
         status_copy = {**game_state, "active_players": len(game_state["players"])}
-    
-    # በግንኙነት ላይ ላሉ ተጠቃሚዎች በሙሉ የየራሳቸውን ባላንስ አካቶ መላክ
-    for sid, user_info in list(socketio.server.manager.rooms.get('/', {}).items()):
-        try:
-            # ከሲግናል ጀርባ ያለውን ስልክ ቁጥር በመለየት ባላንሱን ማከል
-            # (ይህ ካልተቻለ ሰርቨሩ አጠቃላይ ስቴቱን ብቻ ይልካል)
-            socketio.emit('game_update', status_copy, to=sid)
-        except Exception:
-            pass
-    
-    # አጠቃላይ ብሮድካስት ( fallback )
     try:
         socketio.emit('game_update', status_copy)
     except Exception:
         pass
 
-# ✨ በፍሮንት-ኤንድ በኩል የሚመጣውን የ'request_user_data' ጥያቄ ማስተናገጃ
 @socketio.on('request_user_data')
 def handle_user_data_request(json_data):
     ph = sanitize_input(json_data.get('phone'))
     if not ph: return
-    
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     db_phone = user['phone'] if user else ph
-    
     with state_lock:
         p_data = game_state["players"].get(db_phone, {"cards": {}})
         cards_list = list(p_data["cards"].values())
-        
         status_copy = {
             **game_state,
             "balance": user['balance'] if user else 0, 
@@ -113,40 +95,25 @@ def handle_user_data_request(json_data):
 def webhook():
     data = request.json
     if not data: return "OK", 200
-        
     if "message" in data and "text" in data["message"]:
         msg = data["message"]["text"].strip()
         chat_id = str(data["message"]["chat"]["id"])
-
         if msg.startswith("/start"):
             parts = msg.split()
             agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
-            
             already_registered = wallets.find_one({"$or": [{"telegram_id": chat_id}, {"phone": chat_id}]})
-            
             if already_registered:
                 webapp_keyboard = {"inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ", "web_app": {"url": WEB_APP_URL}}]]}
                 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                requests.post(url, json={
-                    "chat_id": chat_id, 
-                    "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው።", 
-                    "reply_markup": webapp_keyboard
-                })
+                requests.post(url, json={"chat_id": chat_id, "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው።", "reply_markup": webapp_keyboard})
                 return "OK", 200
-
             reg_session = {"phone": f"TEMP_{chat_id}", "telegram_id": chat_id, "reg_status": "awaiting_phone", "balance": 0}
             if agent_phone: reg_session["referred_by"] = agent_phone
-            
             wallets.delete_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
             wallets.insert_one(reg_session)
-
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-            requests.post(url, json={
-                "chat_id": chat_id, 
-                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nእባክዎ **የቴሌብር (Telebirr) ወይም ሲቢኢ ብር (CBE Birr)** ስልክ ቁጥርዎን ያስገቡ፦"
-            })
+            requests.post(url, json={"chat_id": chat_id, "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nእባክዎ **የቴሌብር (Telebirr) ወይም ሲቢኢ ብር (CBE Birr)** ስልክ ቁጥርዎን ያስገቡ፦"})
             return "OK", 200
-
         session = wallets.find_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
         if session:
             current_status = session.get("reg_status")
@@ -156,39 +123,28 @@ def webhook():
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     requests.post(url, json={"chat_id": chat_id, "text": "❌ እባክዎ ትክክለኛ የስልክ ቁጥር ብቻ ያስገቡ፦"})
                     return "OK", 200
-
                 duplicate_phone = wallets.find_one({"phone": clean_phone})
                 if duplicate_phone:
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     requests.post(url, json={"chat_id": chat_id, "text": "❌ ይህ ስልክ ቁጥር ቀድሞ ተመዝግቧል። ሌላ ያስገቡ፦"})
                     return "OK", 200
-
                 wallets.update_one({"telegram_id": chat_id}, {"$set": {"phone": clean_phone, "reg_status": "awaiting_name"}})
                 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                 requests.post(url, json={"chat_id": chat_id, "text": "✅ ስምዎን (የመጫወቻ ስም) ያስገቡ፦"})
                 return "OK", 200
-
             elif current_status == "awaiting_name":
                 player_name = sanitize_input(msg)
                 if len(player_name) < 2:
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     requests.post(url, json={"chat_id": chat_id, "text": "❌ ስምዎ በጣም አጭር ነው። ድጋሚ ያስገቡ፦"})
                     return "OK", 200
-
                 wallets.update_one({"telegram_id": chat_id}, {"$set": {"username": player_name}, "$unset": {"reg_status": ""}})
                 final_user = wallets.find_one({"telegram_id": chat_id})
-                
                 webapp_keyboard = {"inline_keyboard": [[{"text": "🎮 ጨዋታውን ክፈት", "web_app": {"url": WEB_APP_URL}}]]}
                 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                requests.post(url, json={
-                    "chat_id": chat_id, 
-                    "text": f"🎉 ምዝገባዎ ተጠናቋል!\n👤 ስም: {player_name}\n📱 ስልክ: {final_user['phone']}", 
-                    "reply_markup": webapp_keyboard
-                })
+                requests.post(url, json={"chat_id": chat_id, "text": f"🎉 ምዝገባዎ ተጠናቋል!\n👤 ስም: {player_name}\n📱 ስልክ: {final_user['phone']}", "reply_markup": webapp_keyboard})
                 send_telegram(f"🎉 *አዲስ ተጫዋች:* `{player_name}` | `{final_user['phone']}`")
                 return "OK", 200
-
-        # Admin Controls
         if chat_id == ADMIN_ID:
             if msg == "/security_check":
                 high = list(wallets.find({"balance": {"$gt": 5000}}))
@@ -209,7 +165,6 @@ def webhook():
                 if len(parts) == 3:
                     wallets.update_one({"$or": [{"phone": sanitize_input(parts[1])}, {"telegram_id": sanitize_input(parts[1])}]}, {"$inc": {"balance": -float(parts[2])}})
                     send_telegram("⚠️ ተቀንሷል")
-
     return "OK", 200
 
 @app.route('/register_or_login', methods=['POST'])
@@ -218,12 +173,10 @@ def register_or_login():
     ph, uname = sanitize_input(data.get('phone')), sanitize_input(data.get('username'))
     if not ph or not uname: return jsonify({"success": False, "msg": "ቅጹን ያሟሉ!"}), 400
     clean_phone = ph.replace("+", "").replace(" ", "")
-    
     existing = wallets.find_one({"phone": clean_phone})
     if existing:
         wallets.update_one({"phone": clean_phone}, {"$set": {"username": uname}})
         return jsonify({"success": True, "balance": existing.get("balance", 0)})
-    
     wallets.insert_one({"phone": clean_phone, "username": uname, "balance": 0})
     return jsonify({"success": True, "balance": 0})
 
@@ -239,7 +192,6 @@ def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         with state_lock: current_status = game_state["status"]
-
         if current_status == "lobby":
             for i in range(30, -1, -1):
                 with state_lock:
@@ -247,9 +199,7 @@ def game_loop():
                     game_state["timer"] = i
                 broadcast_game_state()
                 time.sleep(1)
-            
             with state_lock:
-                # ⏱️ ማስተካከያ፦ ሰዓቱ አልቆ ተጫዋች ከሌለ ሰዓቱን ወደ 30 መለስ አድርጎ እንደገና ማስቆጠር
                 if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                     game_state["status"] = "playing"
                     game_state["drawn_balls"] = []
@@ -259,13 +209,11 @@ def game_loop():
                     game_state["timer"] = 30
                     shuffled = []
             broadcast_game_state()
-
             if shuffled:
                 for j in range(3, -1, -1):
                     with state_lock: game_state["ball_timer"] = j
                     broadcast_game_state()
                     time.sleep(1)
-
                 for b in shuffled:
                     with state_lock:
                         if game_state["status"] != "playing": break
@@ -273,7 +221,6 @@ def game_loop():
                         game_state["drawn_balls"].append(b)
                     broadcast_game_state()
                     time.sleep(4) 
-            
             with state_lock:
                 if game_state["status"] == "playing":
                     game_state["status"] = "result"
@@ -289,12 +236,10 @@ def index(): return render_template('index.html')
 def get_status():
     phone = sanitize_input(request.args.get('phone'))
     user = wallets.find_one({"$or": [{"phone": phone}, {"telegram_id": phone}]}) if phone else None
-    
     with state_lock:
         db_phone = user['phone'] if user else phone
         p_data = game_state["players"].get(db_phone, {"cards": {}})
         cards_list = list(p_data["cards"].values())
-        
         status_copy = {
             **game_state,
             "balance": user['balance'] if user else 0, 
@@ -321,7 +266,6 @@ def buy_ticket():
         columns = [random.sample(range(r[0], r[1]+1), 5) for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]]
         flat = [columns[c][r] for r in range(5) for c in range(5)]
         flat[12] = 0  
-        
         with state_lock:
             game_state["sold_tickets"][t_num] = db_phone
             game_state["pot"] += 10
@@ -336,7 +280,7 @@ def buy_ticket():
         if game_state["sold_tickets"].get(t_num) == "LOCK": del game_state["sold_tickets"][t_num]
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
-# 🎟️ ፍሮንት-ኤንድ ላይ የነበረው የሪፈንድ/የመሰረዣ ተግባር መስሪያ አዲስ ኤንድፖይንት
+# 🔄 ካርቴላውን መልሶ ለመሰረዝ እና ብሩን ለመመለስ (Refund)
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
     d = request.json or {}
@@ -364,11 +308,9 @@ def request_deposit():
     ph, amt = sanitize_input(str(d.get('phone'))), d.get('amount')
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     username = user.get("username", "የማይታወቅ") if user else "ያልተመዘገበ"
-    
     send_telegram(f"💰 *የዲፖዚት ጥያቄ!*\n👤 ስም: `{username}`\n📞 ስልክ: `{ph}`\n💵 መጠን: `{amt} ETB`\nማጽደቂያ: `/add {ph} {amt}`")
     return jsonify({"success": True})
 
-# 🏆 ቢንጎ ለማለት እና አሸናፊውን ለመለየት
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     d = request.json or {}
@@ -378,9 +320,7 @@ def claim_bingo():
     db_phone = user["phone"]
 
     with state_lock:
-        if game_state["status"] != "playing":
-            return jsonify({"success": False, "msg": "ጨዋታው ላይ አይደሉም!"})
-        
+        if game_state["status"] != "playing": return jsonify({"success": False, "msg": "ጨዋታው ላይ አይደሉም!"})
         p_data = game_state["players"].get(db_phone)
         if not p_data: return jsonify({"success": False, "msg": "ካርቴላ የሎትም!"})
 
@@ -393,7 +333,6 @@ def claim_bingo():
             def is_hit(idx):
                 if idx == 12 or card[idx] == 0: return True
                 return int(card[idx]) in drawn_nums
-            
             for i in range(5):
                 if all(is_hit(i*5 + c) for c in range(5)): return True
                 if all(is_hit(c*5 + i) for c in range(5)): return True
@@ -409,13 +348,13 @@ def claim_bingo():
                 game_state["winning_card"] = card
                 game_state["winning_ticket_num"] = t_num
                 
-                win_amt = Math.floor(game_state["pot"] * 0.8)
+                # 🛠️ ማስተካከያ፦ በፓይተን ውስጥ 'Math.floor' ስለሌለ ወደ 'int' ተቀይሯል (ክራሽ እንዳያደርግ)
+                win_amt = int(game_state["pot"] * 0.8)
                 wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
                 
                 threading.Thread(target=lambda: (time.sleep(8), reset_game())).start()
                 broadcast_game_state()
                 return jsonify({"success": True})
-                
     return jsonify({"success": False, "msg": "ቢንጎዎ አልተሟላም!"})
 
 @app.route('/withdraw', methods=['POST'])
@@ -423,9 +362,7 @@ def withdraw():
     d = request.json or {}
     ph, amt = sanitize_input(str(d.get('phone'))), float(d.get('amount', 0))
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
-    if not user or user.get("balance", 0) < amt:
-        return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
-        
+    if not user or user.get("balance", 0) < amt: return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
     wallets.update_one({"phone": user["phone"]}, {"$inc": {"balance": -amt}})
     send_telegram(f"📤 *የውዝድሮው ጥያቄ!*\n👤 ስም: `{user.get('username')}`\n📞 ስልክ: `{user['phone']}`\n💵 መጠን: `{amt} ETB`")
     return jsonify({"success": True})
@@ -433,5 +370,4 @@ def withdraw():
 if __name__ == '__main__':
     threading.Thread(target=game_loop, daemon=True).start()
     set_webhook()
-    # ማሳሰቢያ፦ allow_unsafe_werkzeug=True መታከሉ በሊኑክስ ሰርቨር ላይ ክራሽ እንዳያደርግ ይከላከላል
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), allow_unsafe_werkzeug=True)
