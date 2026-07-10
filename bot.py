@@ -17,7 +17,8 @@ from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
+# allow_unsafe_werkzeug ን እዚህ ላይ በመጫን አስተማማኝ እንዲሆን እናደርጋለን
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25, async_mode='eventlet')
 
 # --- CONFIG ---
 ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
@@ -66,30 +67,84 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
+# 🔄 ከተሻሻለው ፍሮንትኤንድ የ'ws.onmessage' ማዳመጫ ጋር እንዲስማማ የተደረገ ብሮድካስት
 def broadcast_game_state():
     with state_lock:
-        status_copy = {**game_state, "active_players": len(game_state["players"])}
+        status_copy = {
+            "status": game_state["status"],
+            "timer": game_state["timer"],
+            "ball_timer": game_state["ball_timer"],
+            "pot": game_state["pot"],
+            "current_ball": game_state["current_ball"],
+            "drawn_balls": game_state["drawn_balls"],
+            "sold_tickets": game_state["sold_tickets"],
+            "active_players": len(game_state["players"]),
+            "winner": game_state["winner"],
+            "winning_card": game_state["winning_card"],
+            "winning_ticket_num": game_state["winning_ticket_num"]
+        }
     try:
-        socketio.emit('game_update', status_copy)
-    except Exception:
-        pass
+        # 💡 ማስተካከያ፦ በፍሮንትኤንድ ላይ 'JSON.parse(event.data)' በቀጥታ እንዲያነበው በ 'message' ቻናል ይላካል
+        socketio.emit('message', status_copy)
+    except Exception as e:
+        print(f"Broadcast Error: {e}")
 
+# 📱 ተጫዋቹ ሎቢ ሲገባ ወይም ገጹን ሲያድስ የግል መረጃውን (ባላንስና የገዛቸውን ካርቴላዎች) ለመጠየቅ
 @socketio.on('request_user_data')
 def handle_user_data_request(json_data):
+    if not json_data: return
     ph = sanitize_input(json_data.get('phone'))
     if not ph: return
+    
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     db_phone = user['phone'] if user else ph
+    
     with state_lock:
         p_data = game_state["players"].get(db_phone, {"cards": {}})
         cards_list = list(p_data["cards"].values())
         status_copy = {
-            **game_state,
+            "status": game_state["status"],
+            "timer": game_state["timer"],
+            "ball_timer": game_state["ball_timer"],
+            "pot": game_state["pot"],
+            "current_ball": game_state["current_ball"],
+            "drawn_balls": game_state["drawn_balls"],
+            "sold_tickets": game_state["sold_tickets"],
             "balance": user['balance'] if user else 0, 
             "my_cards": cards_list, 
-            "active_players": len(game_state["players"])
+            "active_players": len(game_state["players"]),
+            "winner": game_state["winner"]
         }
-    emit('user_data_response', status_copy)
+    # ለጠየቀው ተጫዋች ብቻ በ 'message' ቻናል ይመልስለታል
+    emit('message', status_copy)
+
+# 🚀 ተጫዋቹ የፊት ገጹ ላይ እንደገባ ራሱን Register/Connect ሲያደርግ የሚቀበልበት
+@socketio.on('register')
+def handle_ws_registration(json_data):
+    if not json_data: return
+    ph = sanitize_input(json_data.get('phone'))
+    if not ph: return
+    
+    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    db_phone = user['phone'] if user else ph
+    
+    with state_lock:
+        p_data = game_state["players"].get(db_phone, {"cards": {}})
+        cards_list = list(p_data["cards"].values())
+        status_copy = {
+            "status": game_state["status"],
+            "timer": game_state["timer"],
+            "ball_timer": game_state["ball_timer"],
+            "pot": game_state["pot"],
+            "current_ball": game_state["current_ball"],
+            "drawn_balls": game_state["drawn_balls"],
+            "sold_tickets": game_state["sold_tickets"],
+            "balance": user['balance'] if user else 0, 
+            "my_cards": cards_list, 
+            "active_players": len(game_state["players"]),
+            "winner": game_state["winner"]
+        }
+    emit('message', status_copy)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -241,10 +296,17 @@ def get_status():
         p_data = game_state["players"].get(db_phone, {"cards": {}})
         cards_list = list(p_data["cards"].values())
         status_copy = {
-            **game_state,
+            "status": game_state["status"],
+            "timer": game_state["timer"],
+            "ball_timer": game_state["ball_timer"],
+            "pot": game_state["pot"],
+            "current_ball": game_state["current_ball"],
+            "drawn_balls": game_state["drawn_balls"],
+            "sold_tickets": game_state["sold_tickets"],
             "balance": user['balance'] if user else 0, 
             "my_cards": cards_list, 
-            "active_players": len(game_state["players"])
+            "active_players": len(game_state["players"]),
+            "winner": game_state["winner"]
         }
     return jsonify(status_copy)
 
@@ -280,7 +342,6 @@ def buy_ticket():
         if game_state["sold_tickets"].get(t_num) == "LOCK": del game_state["sold_tickets"][t_num]
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
-# 🔄 ካርቴላውን መልሶ ለመሰረዝ እና ብሩን ለመመለስ (Refund)
 @app.route('/cancel_ticket', methods=['POST'])
 def cancel_ticket():
     d = request.json or {}
@@ -348,7 +409,6 @@ def claim_bingo():
                 game_state["winning_card"] = card
                 game_state["winning_ticket_num"] = t_num
                 
-                # 🛠️ ማስተካከያ፦ በፓይተን ውስጥ 'Math.floor' ስለሌለ ወደ 'int' ተቀይሯል (ክራሽ እንዳያደርግ)
                 win_amt = int(game_state["pot"] * 0.8)
                 wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
                 
@@ -370,4 +430,5 @@ def withdraw():
 if __name__ == '__main__':
     threading.Thread(target=game_loop, daemon=True).start()
     set_webhook()
+    # 💡 allow_unsafe_werkzeug ን ወደ socketio.run አምጥተነዋል
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), allow_unsafe_werkzeug=True)
