@@ -251,73 +251,35 @@
         }
 
         function connectWebSocket() {
-            const loc = window.location;
-            const wsProtocol = loc.protocol === "https:" ? "wss:" : "ws:";
-            const wsUrl = `${wsProtocol}//${loc.host}/ws?phone=${encodeURIComponent(phone)}`;
+            if (!phone) return;
+            if (ws) {
+                try { ws.close(); } catch(e) {}
+            }
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${protocol}${window.location.host}/ws?phone=${encodeURIComponent(phone)}`;
             
             ws = new WebSocket(wsUrl);
 
             ws.onmessage = function(event) {
                 try {
-                    const d = JSON.parse(event.data);
-                    handleUpdate(d);
-                } catch(e) {
-                    console.error("Error parsing WS data", e);
+                    let data = JSON.parse(event.data);
+                    handleStatusUpdate(data);
+                } catch (e) {
+                    console.error("Error handling server update:", e);
                 }
             };
 
             ws.onclose = function() {
-                setTimeout(connectWebSocket, 2000); // ዲስኮኔክት ቢሆን መልሶ እንዲገናኝ
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = function(err) {
+                console.error("WebSocket error observed:", err);
             };
         }
 
-        function sanitizeText(str) {
-            if (!str) return '';
-            return String(str).replace(/[&<>"']/g, function(m) {
-                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[m];
-            }).trim();
-        }
-
-        function openM(id) { document.getElementById(id).style.display='flex'; }
-        function closeM(id) { document.getElementById(id).style.display='none'; }
-        function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
-
-        function trackCell(cardId, cellVal) {
-            let key = `marked_${parseInt(cardId)}`;
-            let list = JSON.parse(localStorage.getItem(key) || "[]");
-            let val = parseInt(cellVal);
-            if (isNaN(val)) return;
-            let idx = list.indexOf(val);
-            if(idx > -1) { list.splice(idx, 1); } else { list.push(val); }
-            localStorage.setItem(key, JSON.stringify(list));
-        }
-
-        function getWinningIndices(card, drawnSet) {
-            const isHit = (idx) => {
-                if (idx === 12 || card[idx] === "FREE" || card[idx] === "★" || card[idx] === 0) return true;
-                let val = parseInt(card[idx]);
-                return !isNaN(val) && drawnSet.has(val);
-            };
-            for (let i = 0; i < 5; i++) { let r = [i*5, i*5+1, i*5+2, i*5+3, i*5+4]; if (r.every(isHit)) return new Set(r); }
-            for (let j = 0; j < 5; j++) { let c = [j, j+5, j+10, j+15, j+20]; if (c.every(isHit)) return new Set(c); }
-            let d1 = [0, 6, 12, 18, 24]; if (d1.every(isHit)) return new Set(d1);
-            let d2 = [4, 8, 12, 16, 20]; if (d2.every(isHit)) return new Set(d2);
-            let cr = [0, 4, 20, 24]; if (cr.every(isHit)) return new Set(cr);
-            return new Set();
-        }
-
-        function initTicketsOnce() {
-            const area = document.getElementById('ticket-area');
-            if(area && area.children.length === 0) { 
-                const fragment = document.createDocumentFragment();
-                for(let i=1; i<=500; i++) { 
-                    let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i; fragment.appendChild(div); 
-                } 
-                area.appendChild(fragment);
-            }
-        }
-
-        function handleUpdate(d) {
+        function handleStatusUpdate(d) {
             clientBalance = parseFloat(d.balance) || 0;
             let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
             document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
@@ -387,6 +349,52 @@
             }
         }
 
+        function sanitizeText(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[m];
+            }).trim();
+        }
+
+        function openM(id) { document.getElementById(id).style.display='flex'; }
+        function closeM(id) { document.getElementById(id).style.display='none'; }
+        function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
+
+        function trackCell(cardId, cellVal) {
+            let key = `marked_${parseInt(cardId)}`;
+            let list = JSON.parse(localStorage.getItem(key) || "[]");
+            let val = parseInt(cellVal);
+            if (isNaN(val)) return;
+            let idx = list.indexOf(val);
+            if(idx > -1) { list.splice(idx, 1); } else { list.push(val); }
+            localStorage.setItem(key, JSON.stringify(list));
+        }
+
+        function getWinningIndices(card, drawnSet) {
+            const isHit = (idx) => {
+                if (idx === 12 || card[idx] === "FREE" || card[idx] === "★" || card[idx] === 0) return true;
+                let val = parseInt(card[idx]);
+                return !isNaN(val) && drawnSet.has(val);
+            };
+            for (let i = 0; i < 5; i++) { let r = [i*5, i*5+1, i*5+2, i*5+3, i*5+4]; if (r.every(isHit)) return new Set(r); }
+            for (let j = 0; j < 5; j++) { let c = [j, j+5, j+10, j+15, j+20]; if (c.every(isHit)) return new Set(c); }
+            let d1 = [0, 6, 12, 18, 24]; if (d1.every(isHit)) return new Set(d1);
+            let d2 = [4, 8, 12, 16, 20]; if (d2.every(isHit)) return new Set(d2);
+            let cr = [0, 4, 20, 24]; if (cr.every(isHit)) return new Set(cr);
+            return new Set();
+        }
+
+        function initTicketsOnce() {
+            const area = document.getElementById('ticket-area');
+            if(area && area.children.length === 0) { 
+                const fragment = document.createDocumentFragment();
+                for(let i=1; i<=500; i++) { 
+                    let div=document.createElement('div'); div.className='t-box'; div.innerText=i; div.id='t-'+i; fragment.appendChild(div); 
+                } 
+                area.appendChild(fragment);
+            }
+        }
+
         function renderTickets(sold) {
             const cleanPhone = String(phone);
             for(let i=1; i<=500; i++) {
@@ -409,8 +417,6 @@
             isProcessingBuy = true;
             let box = document.getElementById('t-'+target);
             if (box) { box.className = 't-box mine'; box.style.pointerEvents = 'none'; }
-            
-            // በዌብሶኬት ወይም በፊች መግዛት ይቻላል፤ ፊቹ የበለጠ ሴኪውር ስለሆነ እንዳለ ቆይቷል
             fetch('/buy_specific_ticket', {
                 method:'POST', headers:{'Content-Type':'application/json'}, 
                 body:JSON.stringify({phone: phone, ticket_num: target, username: username})
@@ -476,6 +482,26 @@
                 closeM('dep-m'); 
                 alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
             }).catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
+            });
+        }
+
+        function subW() {
+            let amt = parseInt(document.getElementById('wa').value);
+            if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
+            if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
+            
+            fetch('/request_withdrawal', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ phone: phone, amount: amt })
+            })
+            .then(r => r.json())
+            .then(res => {
+                closeM('with-m');
+                alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+            })
+            .catch(() => {
                 alert("የኔትወርክ ችግር አጋጥሟል!");
             });
         }
