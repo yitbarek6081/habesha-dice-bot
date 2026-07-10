@@ -8,9 +8,13 @@ import re
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
+# --- አዲስ የዌብሶኬት ፓኬጆች ---
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
+# የዌብሶኬት ማስተካከያ (CORS ተኳሃኝ እንዲሆን እና ከRender ጋር እንዲሰራ)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # --- CONFIG (ከRender ሰርቨር ቁልፎች ጋር የተጣጣመ) ---
 ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
@@ -62,6 +66,26 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
+# 🔄 አዲስ፡ የጨዋታውን ሁኔታ በዌብሶኬት ለሁሉም ተጠቃሚዎች በህይወት ሰዓት (Real-time) መላኪያ ፈንክሽን
+def broadcast_game_state():
+    with state_lock:
+        # ለሁሉም ተጠቃሚ የየራሱን ባላንስ ለመላክ ዌብሶኬት ሩም መጠቀም ይቻላል፣ 
+        # ነገር ግን ይሄኛው ፈንክሽን አጠቃላይ የጨዋታ ሁኔታዎችን ብቻ ብሮድካስት ያደርጋል።
+        status_copy = {
+            "status": game_state["status"],
+            "timer": game_state["timer"],
+            "ball_timer": game_state["ball_timer"],
+            "pot": game_state["pot"],
+            "sold_tickets": game_state["sold_tickets"],
+            "current_ball": game_state["current_ball"],
+            "drawn_balls": game_state["drawn_balls"],
+            "winner": game_state["winner"],
+            "winning_card": game_state["winning_card"],
+            "winning_ticket_num": game_state["winning_ticket_num"],
+            "active_players": len(game_state["players"])
+        }
+    socketio.emit('game_update', status_copy, broadcast=True)
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -106,7 +130,7 @@ def webhook():
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             requests.post(url, json={
                 "chat_id": chat_id, 
-                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክፍያ ሂደቱን ለማቅለል፤ እባክዎ **የቴሌብር (Telebirr) ወይም ሲቢኢ ብር (CBE Birr)** ስልክ ቁጥርዎን ያስገቡ፦"
+                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክክያ ሂደቱን ለማቅለል፤ እባክዎ **የቴሌብር (Telebirr) ወይም ሲቢኢ ብር (CBE Birr)** ስልክ ቁጥርዎን ያስገቡ፦"
             })
             return "OK", 200
 
@@ -335,6 +359,7 @@ def reset_game():
             "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
         })
+    broadcast_game_state() # 🔄 ዳግም ሲጀመር በዌብሶኬት ያሳውቅ
 
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
@@ -348,6 +373,7 @@ def game_loop():
                     if game_state["status"] != "lobby": 
                         break
                     game_state["timer"] = i
+                broadcast_game_state() # 🔄 በየሰከንዱ ቆጠራውን በዌብሶኬት ይላክ
                 time.sleep(1)
             
             with state_lock:
@@ -360,6 +386,7 @@ def game_loop():
                 else:
                     game_state["timer"] = 30
                     shuffled = []
+            broadcast_game_state()
 
             if shuffled:
                 for j in range(3, -1, -1):
@@ -367,6 +394,7 @@ def game_loop():
                         if game_state["status"] != "playing":
                             break
                         game_state["ball_timer"] = j
+                    broadcast_game_state() # 🔄 የኳስ መጀመሪያ ቆጠራን በዌብሶኬት ይላክ
                     time.sleep(1)
 
                 for b in shuffled:
@@ -375,6 +403,7 @@ def game_loop():
                             break
                         game_state["current_ball"] = b
                         game_state["drawn_balls"].append(b)
+                    broadcast_game_state() # 🔄 አዲስ ኳስ ሲወጣ በዌብሶኬት ይላክ
                     time.sleep(5)
             
             with state_lock:
@@ -384,6 +413,7 @@ def game_loop():
                     game_state["winning_card"] = None
                     game_state["winning_ticket_num"] = None
                     send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
+                    broadcast_game_state()
                     threading.Thread(target=lambda: (time.sleep(5), reset_game())).start()
 
         time.sleep(1)
@@ -456,6 +486,7 @@ def buy_ticket():
                 if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
                     del game_state["sold_tickets"][t_num]
                 wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}})
+                broadcast_game_state()
                 return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
                 
             game_state["sold_tickets"][t_num] = db_phone
@@ -467,6 +498,7 @@ def buy_ticket():
             else:
                 game_state["players"][db_phone]["cards"][t_num] = flat
                 
+        broadcast_game_state() # 🔄 ቲኬት በተሳካ ሁኔታ ሲገዛ በዌብሶኬት ያሳውቅ
         return jsonify({"success": True})
     
     with state_lock:
@@ -496,6 +528,7 @@ def cancel_ticket():
                     del game_state["players"][db_phone]["cards"][t_num]
                 if not game_state["players"][db_phone]["cards"]: 
                     del game_state["players"][db_phone]
+            broadcast_game_state() # 🔄 ቲኬት ሲሰረዝ በዌብሶኬት ያሳውቅ
             return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
@@ -617,12 +650,20 @@ def claim_bingo():
                 )
                 
                 send_telegram(success_msg)
+                broadcast_game_state() # 🔄 አሸናፊ ሲኖር ወዲያውኑ በዌብሶኬት ብሮድካስት ያድርግ
                 threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
+# --- 🔄 አዲስ፡ የዌብሶኬት ተጠቃሚ ሲገናኝ የሚቀሰቀስ (Event Handle) ---
+@socketio.on('connect')
+def handle_connect():
+    # አንድ ሰው ገጹን ሲከፍት የነበረውን ወቅታዊ መረጃ ወዲያውኑ ይልክለታል
+    emit('game_update', game_state)
+
 if __name__ == '__main__':
     threading.Timer(5, set_webhook).start() 
     threading.Thread(target=game_loop, daemon=True).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    # ሰርቨሩን በ socketio.run አማካኝነት ማስነሳት (app.run በዌብሶኬት አይሰራም!)
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
