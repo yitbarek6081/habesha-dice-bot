@@ -195,60 +195,57 @@
         let currentCardData = null, announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
 
-        window.onload = function() {
-            if (phone && username) {
-                showGameUI();
-            } else {
-                document.getElementById('auth-ui').style.display = 'flex';
-                document.getElementById('main-app-content').style.display = 'none';
-            }
-        }
+       // Socket.io initialization
+const socket = io();
 
-        function registerUser() {
-            let inputName = document.getElementById('reg-username').value.trim();
-            let inputPhone = document.getElementById('reg-phone').value.trim();
-            let submitBtn = document.getElementById('auth-submit-btn');
+// 1. መጀመሪያ ወደ ጨዋታው ሲገባ የሚደረግ ግንኙነት
+function initSocket() {
+    socket.emit('join_game', { phone: phone, username: username });
+}
 
-            if (inputName.length < 2) return alert("እባክዎ ትክክለኛ ስም ያስገቡ!");
-            
-            const cleanPhone = inputPhone.replace(/[^0-9+]/g, '');
-            if (cleanPhone.length < 9 || cleanPhone.length > 13) return alert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ!");
+// 2. ሰርቨር መረጃ ሲልክ የሚቀበልበት (ከዚህ በፊት የነበረውን update() በሙሉ ይተካል)
+socket.on('game_update', (d) => {
+    clientBalance = parseFloat(d.balance) || 0;
+    let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
+    
+    document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+    document.getElementById('prize').innerText = finalPrize + " ETB";
+    document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
+    document.getElementById('timer').innerText = sanitizeText(d.timer);
+    
+    // የጨዋታው ሁኔታዎች (Lobby, Playing, Result)
+    if(d.status === "lobby") {
+        document.getElementById('lobby-ui').style.display='block'; 
+        document.getElementById('game-ui').style.display='none'; 
+        document.getElementById('result-ui').style.display='none';
+        // ... (ቀሪው የ lobby ሎጂክ እንደነበረው ይቀጥላል)
+        initTicketsOnce(); 
+        if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
+    } else if(d.status === "playing") {
+        document.getElementById('lobby-ui').style.display='none'; 
+        document.getElementById('game-ui').style.display='block';
+        // ... (ቀሪው የ playing ሎጂክ እንደነበረው ይቀጥላል)
+        renderMainBoard(d.drawn_balls || []);
+        // ...
+    } else if(d.status === "result") {
+        document.getElementById('result-ui').style.display='flex';
+        // ... (ቀሪው የ result ሎጂክ እንደነበረው ይቀጥላል)
+    }
+});
 
-            if(submitBtn) submitBtn.disabled = true;
+// በመመዝገብ ጊዜ የሚጠራ
+function registerUser() {
+    // ... (የድሮው የ validation ኮድህ እዚህ ይቀጥላል)
+    // ምዝገባው ከተሳካ በኋላ socket ን እናገናኘዋለን
+    socket.emit('join_game', { phone: cleanPhone, username: inputName });
+    showGameUI();
+}
 
-            fetch('/register_or_login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: cleanPhone, username: inputName })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    localStorage.setItem('phone', cleanPhone);
-                    localStorage.setItem('username', inputName);
-                    phone = cleanPhone;
-                    username = inputName;
-                    showGameUI();
-                } else {
-                    alert(data.msg || "የምዝገባ ስህተት አጋጥሟል!");
-                    if(submitBtn) submitBtn.disabled = false;
-                }
-            })
-            .catch(() => {
-                localStorage.setItem('phone', cleanPhone);
-                localStorage.setItem('username', inputName);
-                phone = cleanPhone;
-                username = inputName;
-                showGameUI();
-            });
-        }
-
-        function showGameUI() {
-            document.getElementById('auth-ui').style.display = 'none';
-            document.getElementById('main-app-content').style.display = 'block';
-            setInterval(update, 2000); 
-            update();
-        }
+function showGameUI() {
+    document.getElementById('auth-ui').style.display = 'none';
+    document.getElementById('main-app-content').style.display = 'block';
+    // setInterval(update, 2000); // ይሄንን መስመር ሰርዝ (Delete)
+}
 
         function sanitizeText(str) {
             if (!str) return '';
