@@ -1,13 +1,14 @@
 import os
 import time
 import random
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 
-# 512MB RAM ላይ ቀልጣፋ እንዲሆን eventlet እንጠቀማለን
-import eventlet
-eventlet.monkey_patch()
+# 🔴 EVENTLET ተነስቶ በ GEVENT ተተክቷል (የ SSL Recursion Error ያስቀራል)
+import gevent
+from gevent import monkey
+monkey.patch_all()
 
 app = Flask(__name__)
 CORS(app)
@@ -19,7 +20,7 @@ MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/bingo_db")
 WEB_APP_URL = os.getenv("WEB_APP_URL", "https://habesha-dice-bot.onrender.com")
 
 # --- DATABASE CONNECTION ---
-# MONGO_URL ን በመጠቀም ዴታቤዝ ግንኙነቱን መፍጠር (Memory ለመቆጠብ PoolSize ተገድቧል)
+# Memory ለመቆጠብ PoolSize ተገድቧል
 client = MongoClient(MONGO_URL, maxPoolSize=10, minPoolSize=1)
 db = client.get_database()
 
@@ -244,7 +245,7 @@ def game_background_loop():
             all_balls.append(f"{l}{n}")
 
     while True:
-        eventlet.sleep(1)
+        gevent.sleep(1) # CPU 0% ለማድረግ gevent.sleep እንጠቀማለን
         if game_state["status"] == "lobby":
             if len(game_state["tickets"]) > 0: 
                 game_state["timer"] -= 1
@@ -286,7 +287,9 @@ def game_background_loop():
                 game_state["winning_card"] = None
                 game_state["winning_line"] = []
 
-eventlet.spawn(game_background_loop)
+# የጀርባ ሉፑን በ gevent ስፓውን ማድረግ
+gevent.spawn(game_background_loop)
 
 if __name__ == '__main__':
+    # ለRender ሰርቨር ተስማሚ በሆነ መንገድ Gunicorn/Gevent ላይ ይነሳል
     app.run(host='0.0.0.0', port=5000, debug=False)
