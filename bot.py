@@ -33,7 +33,7 @@ game_state = {
     "timer": 30, 
     "ball_timer": 3,      # አዲሱ የ3 ሰከንድ የኳስ መጀመሪያ ቆጠራ (3->2->1->0)
     "pot": 0, 
-    "players": {},       # chat_id -> {"cards": {ticket_num: flat_card}, "username": uname, "balance": bal}
+    "players": {},       # chat_id -> {"cards": {ticket_num: flat_card}, "username": uname}
     "sold_tickets": {},  # ticket_num -> chat_id
     "current_ball": "--", 
     "drawn_balls": [], 
@@ -392,25 +392,19 @@ def game_loop():
 def index(): 
     return render_template('index.html')
 
-# 🚀 እዚህ ጋ 500 ሰው በአንዴ ሲጠይቅ ዳታቤዝ እንዳይጨናነቅ wallets.find_one የሚለውን መስመር ቀንሰናል!
 @app.route('/get_status')
 def get_status():
     phone = sanitize_input(request.args.get('phone'))
+    user = wallets.find_one({"$or": [{"phone": phone}, {"telegram_id": phone}]}) if phone else None
     
     with state_lock:
-        p_data = game_state["players"].get(phone, {"cards": {}, "balance": 0})
+        db_phone = user['phone'] if user else phone
+        p_data = game_state["players"].get(db_phone, {"cards": {}})
         cards_list = list(p_data["cards"].values())
-        user_balance = p_data.get("balance", 0)
-        
-        # ተጫዋቹ ጌም ውስጥ ገና ካልገባ (ካርቴላ ካልገዛ) ከዳታቤዝ አንድ ጊዜ ብቻ እናነባለን
-        if phone and phone not in game_state["players"]:
-            user = wallets.find_one({"$or": [{"phone": phone}, {"telegram_id": phone}]})
-            if user:
-                user_balance = user.get("balance", 0)
         
         status_copy = {
             **game_state,
-            "balance": user_balance, 
+            "balance": user['balance'] if user else 0, 
             "my_cards": cards_list, 
             "active_players": len(game_state["players"])
         }
@@ -468,13 +462,10 @@ def buy_ticket():
             game_state["pot"] += 10
             
             p_uname = uname if uname else res.get("username", f"User_{db_phone[-4:]}")
-            new_bal = res.get("balance", 0)
-            
             if db_phone not in game_state["players"]:
-                game_state["players"][db_phone] = {"cards": {t_num: flat}, "username": p_uname, "balance": new_bal}
+                game_state["players"][db_phone] = {"cards": {t_num: flat}, "username": p_uname}
             else:
                 game_state["players"][db_phone]["cards"][t_num] = flat
-                game_state["players"][db_phone]["balance"] = new_bal
                 
         return jsonify({"success": True})
     
@@ -505,8 +496,6 @@ def cancel_ticket():
                     del game_state["players"][db_phone]["cards"][t_num]
                 if not game_state["players"][db_phone]["cards"]: 
                     del game_state["players"][db_phone]
-                else:
-                    game_state["players"][db_phone]["balance"] += 10
             return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
@@ -539,8 +528,8 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
-@app.route('/request_withdrawal', methods=['POST'])
-def request_withdrawal():
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
     d = request.json or {}
     ph, amt = sanitize_input(d.get('phone')), float(d.get('amount'))
     
@@ -557,10 +546,7 @@ def request_withdrawal():
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
-        with state_lock:
-            if db_phone in game_state["players"]:
-                game_state["players"][db_phone]["balance"] = res.get("balance", 0)
-        return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
+        return jsonify({"success": True})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
 @app.route('/claim_bingo', methods=['POST'])
