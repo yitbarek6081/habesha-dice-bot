@@ -1,4 +1,4 @@
-# 🔴 እጅግ በጣም ወሳኝ፡ የ Gevent ማስተካከያ ከማንኛውም Import በፊት 1ኛ መስመር ላይ መሆን አለበት!
+# 🔴 የ Gevent ማስተካከያ ከማንኛውም Import በፊት 1ኛ መስመር ላይ መሆን አለበት!
 from gevent import monkey
 monkey.patch_all()
 
@@ -20,7 +20,6 @@ MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/bingo_db")
 WEB_APP_URL = os.getenv("WEB_APP_URL", "https://habesha-dice-bot.onrender.com")
 
 # --- DATABASE CONNECTION ---
-# Memory ለመቆጠብ PoolSize ተገድቧል
 client = MongoClient(MONGO_URL, maxPoolSize=10, minPoolSize=1)
 db = client.get_database()
 
@@ -40,6 +39,11 @@ game_state = {
     "winning_card": None,
     "winning_line": []       
 }
+
+# 🔴 Render ሰርቨር በተሳካ ሁኔታ እንዲያልፍ (Health Check) ዋናውን መንገድ ሪተርን እናደርጋለን
+@app.route('/', methods=['GET', 'HEAD'])
+def home():
+    return jsonify({"status": "running", "game": "bingo"}), 200
 
 def generate_bingo_card():
     col_ranges = [(1,15), (16,30), (31,45), (46,60), (61,75)]
@@ -287,8 +291,9 @@ def game_background_loop():
                 game_state["winning_card"] = None
                 game_state["winning_line"] = []
 
-# የጀርባ ሉፑን በ gevent ስፓውን ማድረግ
 gevent.spawn(game_background_loop)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Render የሚሰጠውን የፖርት ቁጥር በራስ-ሰር እንዲያነብ ማድረግ
+    port = int(os.getenv("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
