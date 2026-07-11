@@ -1,14 +1,14 @@
+# 🔴 እጅግ በጣም ወሳኝ፡ የ Gevent ማስተካከያ ከማንኛውም Import በፊት 1ኛ መስመር ላይ መሆን አለበት!
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import time
 import random
+import gevent
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
-
-# 🔴 EVENTLET ተነስቶ በ GEVENT ተተክቷል (የ SSL Recursion Error ያስቀራል)
-import gevent
-from gevent import monkey
-monkey.patch_all()
 
 app = Flask(__name__)
 CORS(app)
@@ -245,7 +245,7 @@ def game_background_loop():
             all_balls.append(f"{l}{n}")
 
     while True:
-        gevent.sleep(1) # CPU 0% ለማድረግ gevent.sleep እንጠቀማለን
+        gevent.sleep(1) 
         if game_state["status"] == "lobby":
             if len(game_state["tickets"]) > 0: 
                 game_state["timer"] -= 1
@@ -291,5 +291,4 @@ def game_background_loop():
 gevent.spawn(game_background_loop)
 
 if __name__ == '__main__':
-    # ለRender ሰርቨር ተስማሚ በሆነ መንገድ Gunicorn/Gevent ላይ ይነሳል
     app.run(host='0.0.0.0', port=5000, debug=False)
