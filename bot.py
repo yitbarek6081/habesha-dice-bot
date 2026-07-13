@@ -198,7 +198,7 @@ def webhook():
                         else:
                             send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
                 except Exception as e:
-                    send_telegram(f"❌ ስህተት! ፎርማቱ: `/check_balance ስልክ` ({e})")
+                    send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
             elif msg in ["/all_balances", "/all"]:
                 try:
@@ -528,8 +528,8 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
-@app.route('/request_withdrawal', methods=['POST'])
-def request_withdrawal():
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
     d = request.json or {}
     ph, amt = sanitize_input(d.get('phone')), float(d.get('amount'))
     
@@ -546,8 +546,8 @@ def request_withdrawal():
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
-        return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
-    return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
+        return jsonify({"success": True})
+    return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
@@ -592,4 +592,37 @@ def claim_bingo():
                 for r in range(5):
                     row_vals = []
                     for c in range(5):
-                        idx = r * 5 +
+                        idx = r * 5 + c  
+                        val = card[idx]
+                        val_str = "FREE" if val == 0 else str(val)
+                        
+                        if idx in win_indices:
+                            row_vals.append(f"⭐{val_str}⭐")
+                        else:
+                            row_vals.append(val_str)
+                            
+                    card_rows.append(" | ".join(row_vals))
+                card_text = "\n".join(card_rows)
+                
+                success_msg = (
+                    f"🏆 *WINNER!* \n"
+                    f"👤 Name: {p_data['username']} \n"
+                    f"📞 Phone: `{db_phone}` \n"
+                    f"🎫 Ticket No: {t_num} \n"
+                    f"🎯 ያሸነፈበት መስመር: *{line_type}*\n"
+                    f"💰 Prize: {win_amt} ETB\n"
+                    f"{agent_msg}\n\n"
+                    f"📊 *Winning Card:* \n"
+                    f"`{card_text}`"
+                )
+                
+                send_telegram(success_msg)
+                threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
+                return jsonify({"success": True})
+            
+    return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+
+if __name__ == '__main__':
+    threading.Timer(5, set_webhook).start() 
+    threading.Thread(target=game_loop, daemon=True).start()
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
