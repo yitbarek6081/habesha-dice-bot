@@ -69,7 +69,8 @@
         .t-box.mine { background: var(--gold) !important; color: #000 !important; box-shadow: inset 0 0 0 2px #ffffff; }
         .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
 
-        .game-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 5px; box-sizing: border-box; }
+        /* 📱 ጌም ላይ አቀማመጡ እንዳይዛባ ቪውፖርቱን ያስተካከለ Layout */
+        .game-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; padding: 8px; box-sizing: border-box; align-items: start; }
         .board-container { border: 1px solid #333; background: rgba(0,0,0,0.8); border-radius: 10px; padding: 4px; display: flex; flex-direction: column; }
         .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; font-size: 0.85rem; padding: 4px 0; border-radius: 5px; margin-bottom: 4px; }
         .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; flex: 1; }
@@ -77,13 +78,17 @@
         .ball-dot { font-size: 0.65rem; background: #111; padding: 3px 0; color: #444; border-radius: 2px; text-align: center; font-weight: bold; }
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; box-shadow: 0 0 3px var(--gold); }
         
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 300px; margin: 0 auto 10px auto; }
-        .cell { background: #fff; color: #000; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
-        .cell.selected { background: var(--gold) !important; }
-        .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
+        /* የቀኝ በኩል አቀማመጥ (ካርቴላ እና የቢንጎ ቁልፍ) */
+        .player-side-area { display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
+        #card-area { width: 100%; display: flex; flex-direction: column; gap: 10px; }
         
-        #bingo-btn { width: 90%; padding: 12px; background: var(--red); color: white; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: 2px solid white; margin: 10px auto; display: block; cursor: pointer; transition: 0.2s; }
-        #bingo-btn:disabled { background: #555 !important; border-color: #888 !important; color: #aaa !important; cursor: not-allowed; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; width: 100%; box-sizing: border-box; }
+        .cell { background: #fff; color: #000; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; cursor: pointer; border-radius: 2px; }
+        .cell.selected { background: var(--gold) !important; font-weight: 900; }
+        .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; font-weight: 900; }
+        
+        #bingo-btn { width: 100%; padding: 14px 10px; background: var(--red); color: white; font-size: 1.1rem; font-weight: 900; border-radius: 12px; border: 2px solid white; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 12px rgba(255, 62, 62, 0.4); }
+        #bingo-btn:disabled { background: #555 !important; border-color: #888 !important; color: #aaa !important; cursor: not-allowed; box-shadow: none; }
         
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2000; flex-direction:column; align-items:center; justify-content:center; padding: 20px; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 15px; width: 92%; max-width: 360px; text-align: left; max-height: 85vh; overflow-y: auto; }
@@ -170,7 +175,7 @@
                     <div class="board-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
                     <div class="main-board" id="main-board"></div>
                 </div>
-                <div>
+                <div class="player-side-area">
                     <div id="card-area"></div>
                     <button id="bingo-btn" onclick="claim()">BINGO!</button>
                 </div>
@@ -196,8 +201,6 @@
         let username = localStorage.getItem('username');
         let currentCardData = null, announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
-        
-        // 🔄 WebSocket Connection 
         let socket = null;
 
         window.onload = function() {
@@ -248,7 +251,6 @@
             });
         }
 
-        // 🌟 የጌም UI እና WebSocket ግንኙነት ማስጀመርያ
         function showGameUI() {
             document.getElementById('auth-ui').style.display = 'none';
             document.getElementById('main-app-content').style.display = 'block';
@@ -456,10 +458,9 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
-        // 📊 ያሻሻልከው አዲሱ renderCard ፈንክሽን እዚህ ተተክቷል
         function renderCard(card, cardIdx) {
             const safeCardIdx = parseInt(cardIdx);
-            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
+            const wrap = document.createElement('div'); wrap.style.marginBottom="5px"; wrap.style.width="100%";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
@@ -474,6 +475,7 @@
             });
             wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
+
         function claim() { 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
             fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
@@ -511,7 +513,7 @@
             .then(res => {
                 closeM('with-m');
                 alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
-                fetchBalanceOnly(); 
+                fetchBalanceOnly();
             })
             .catch(() => {
                 alert("የኔትወርክ ችግር አጋጥሟል!");
