@@ -182,7 +182,11 @@
 
     <div id="result-ui" class="winner-modal">
         <div class="winner-box">
-            <div class="trophy-icon">🏆</div><div class="winner-name-text" id="w-player-name">Mengesha <span>has won!</span></div>
+            <div class="trophy-icon">🏆</div>
+            <div class="winner-name-text" id="w-player-name">Mengesha <span>has won!</span></div>
+            
+            <div id="w-line-type" style="font-weight: 800; color: #f59e0b; margin: 8px 0; font-size: 1.05rem; letter-spacing: 0.5px; background: rgba(245, 158, 11, 0.1); padding: 6px 12px; border-radius: 12px; display: none;"></div>
+            
             <div class="prize-pool-card"><span>Total Prize Pool</span><b id="w-prize-pool">0 ETB</b></div>
             <div class="winner-card-section"><div class="winner-card-info-row"><div class="winner-card-num-lbl" id="w-card-number">CARD #0</div><div class="winner-card-owner-lbl" id="w-card-owner">Player</div></div><div class="winner-grid-modern" id="w-grid-cells"></div></div>
         </div>
@@ -310,6 +314,10 @@
                     document.getElementById('lobby-ui').style.display='block'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('w-grid-cells').innerHTML = ""; 
+                    
+                    const wLineTypeEl = document.getElementById('w-line-type');
+                    if(wLineTypeEl) { wLineTypeEl.innerText = ""; wLineTypeEl.style.display = "none"; }
+
                     document.getElementById('ball-prep-countdown').style.display = 'none';
                     document.getElementById('start-alert-msg').style.display = 'none';
                     if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
@@ -342,6 +350,18 @@
                     document.getElementById('result-ui').style.display='flex';
                     let winnerName = sanitizeText(d.winner || "Player");
                     document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
+                    
+                    const wLineTypeEl = document.getElementById('w-line-type');
+                    if(wLineTypeEl) {
+                        if (d.winning_line_type) {
+                            wLineTypeEl.innerText = `🎯 ያሸነፈበት መስመር፦ ${sanitizeText(d.winning_line_type)}`;
+                            wLineTypeEl.style.display = "inline-block";
+                        } else {
+                            wLineTypeEl.innerText = "🎯 ቢንጎ!";
+                            wLineTypeEl.style.display = "inline-block";
+                        }
+                    }
+
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                     let ticketNum = d.winning_ticket_num ? d.winning_ticket_num : "100";
                     document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
@@ -422,7 +442,7 @@
 
         function renderCard(card, cardIdx) {
             const safeCardIdx = parseInt(cardIdx);
-            const wrap = document.createElement('div'); wrap.style.setMarginBottom="15px";
+            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
