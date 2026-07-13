@@ -3,19 +3,17 @@ from gevent import monkey
 monkey.patch_all()
 
 import random
-import secrets
 import requests
 import re
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
-# 🚀 የ WebSocket ላይብረሪዎች
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# 💡 async_mode='gevent' ከ Gunicorn ጋር በትክክል እንዲሰራ
+# 💡 async_mode='gevent' ከ Render እና Gunicorn ጋር ፍጹም ተስማሚ ነው
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # --- CONFIG ---
@@ -44,6 +42,9 @@ game_state = {
     "winning_ticket_num": None  
 }
 
+# 💡 ታይመሩ ከአንድ ጊዜ በላይ እንዳይጀምር መቆጣጠሪያ
+loop_started = False
+
 def sanitize_input(text):
     if not text:
         return ""
@@ -64,7 +65,6 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
-# 📣 የጌም ስቴት በየሴኮንዱ በዌብሶኬት መላኪያ
 def broadcast_game_state():
     all_balances = {}
     try:
@@ -368,21 +368,22 @@ def reset_game():
     })
     broadcast_game_state() 
 
-# 🚀 ማስተካከያ 1፦ time.sleep ን ወደ socketio.sleep ቀይረነዋል (ጌቨንት እንዳይቆም)
+# 🔄 ዋናው የጌም ታይመር እና የኳስ ሉፕ
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
         current_status = game_state["status"]
 
         if current_status == "lobby":
+            # ከ 30 ወደ 0 ይቆጥራል
             for i in range(30, -1, -1):
                 if game_state["status"] != "lobby": 
                     break
                 game_state["timer"] = i
                 broadcast_game_state() 
-                socketio.sleep(1) # 💡 gevent safe sleep
+                socketio.sleep(1) 
             
-            # 💡 ቢያንስ 2 ሰው ሲኖር ጨዋታው ይጀምራል
+            # ቢያንስ 2 ተጫዋች ሲኖር መጫወት ይጀምራል
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -390,6 +391,7 @@ def game_loop():
                 shuffled = balls.copy()
                 random.shuffle(shuffled)
             else:
+                # ሰው ከሌለ መልሶ 30 ላይ ያቆመዋል
                 game_state["timer"] = 30
                 shuffled = []
             broadcast_game_state()
@@ -408,7 +410,7 @@ def game_loop():
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
                     broadcast_game_state() 
-                    socketio.sleep(4) # 💡 ለእያንዳንዱ ኳስ 4 ሰከንድ
+                    socketio.sleep(4) 
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
@@ -438,7 +440,7 @@ def get_status():
         **game_state,
         "balance": user['balance'] if user else 0, 
         "my_cards": cards_list, 
-                "active_players": len(game_state["players"])
+        "active_players": len(game_state["players"])
     }
     return jsonify(status_copy)
 
@@ -654,16 +656,16 @@ def claim_bingo():
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
+# 🛡️ ሉፑን በአስተማማኝ ሁኔታ መጀመሪያ ተጠቃሚ ሲገናኝ ብቻ ማስጀመሪያ ስልት
 @socketio.on('connect')
 def handle_connect():
+    global loop_started
+    if not loop_started:
+        loop_started = True
+        set_webhook()
+        # 🚀 ታይመሩን በሴፍ ባክግራውንድ ታስክ እዚህ ላይ ያስጀምረዋል
+        socketio.start_background_task(game_loop)
     broadcast_game_state()
 
-# 🚀 ማስተካከያ 2፦ threading.Thread ን ወደ socketio.start_background_task ቀይረነዋል
-# ይህ ጌቨንት ሳይስተጓጎል በጀርባ ታይመሩ እንዲቆጥር ያደርገዋል።
-def start_loops():
-    set_webhook()
-    socketio.start_background_task(game_loop)
-
 if __name__ == '__main__':
-    socketio.start_background_task(start_loops)
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
