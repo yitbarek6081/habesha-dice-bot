@@ -252,11 +252,7 @@
         function showGameUI() {
             document.getElementById('auth-ui').style.display = 'none';
             document.getElementById('main-app-content').style.display = 'block';
-            
-            // 1. መጀመሪያ የግል ባላንስን ብቻ በ fetch አንድ ጊዜ ማምጣት
             fetchBalanceOnly();
-            
-            // 2. ከ WebSocket ሰርቨር ጋር መገናኘት
             initWebSocket();
         }
 
@@ -273,14 +269,12 @@
         function initWebSocket() {
             socket = io("https://habesha-dice-bot.onrender.com");
 
-            // 📣 ሰርቨሩ በራሱ ጊዜ የጨዋታውን ሁኔታ (State) ሲቀይር የሚመጣ መረጃ መቀበያ
             socket.on('game_update', function(d) {
                 let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
                 document.getElementById('prize').innerText = finalPrize + " ETB";
                 document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
                 document.getElementById('timer').innerText = sanitizeText(d.timer);
                 
-                // ለተጠቃሚው ብቻ የሚላክ ባላንስ በዌብ ሶኬቱ ላይ ካለ ማደሻ
                 if (d.balances && d.balances[phone] !== undefined) {
                     clientBalance = parseFloat(d.balances[phone]) || 0;
                     document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
@@ -462,97 +456,66 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
-        // 🟢 አዲስ የተጨመሩ እና የተሟሉ ፈንክሽኖች (ከዚህ በታች)
-
-        function renderCard(card, cardId) {
-            const cardArea = document.getElementById('card-area');
-            if (!cardArea) return;
-
-            let cardContainer = document.createElement('div');
-            cardContainer.className = 'bingo-card';
-            cardContainer.id = 'card-' + cardId;
-
-            let markedList = JSON.parse(localStorage.getItem(`marked_${cardId}`) || "[]");
-
-            card.forEach((num, idx) => {
-                let cell = document.createElement('div');
-                let cleanNum = sanitizeText(num);
-
-                if (idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
-                    cell.className = "cell free";
-                    cell.innerText = "★";
-                } else {
-                    cell.className = "cell";
-                    cell.innerText = cleanNum;
-                    
-                    if (markedList.includes(parseInt(cleanNum))) {
-                        cell.classList.add('selected');
-                    }
-
-                    cell.onclick = function() {
-                        cell.classList.toggle('selected');
-                        trackCell(cardId, cleanNum);
-                    };
+        // 📊 ያሻሻልከው አዲሱ renderCard ፈንክሽን እዚህ ተተክቷል
+        function renderCard(card, cardIdx) {
+            const safeCardIdx = parseInt(cardIdx);
+            const wrap = document.createElement('div'); wrap.style.marginBottom="15px";
+            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
+            const grid = document.createElement('div'); grid.className='bingo-card';
+            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
+            card.forEach((n, i) => {
+                const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
+                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
+                else { 
+                    let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
+                    cell.onclick = () => { cell.classList.toggle('selected'); trackCell(safeCardIdx, numVal); } 
                 }
-                cardContainer.appendChild(cell);
+                grid.appendChild(cell);
             });
-            cardArea.appendChild(cardContainer);
+            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
 
-        function claim() {
-            if (!socket || !phone) return;
-            const bBtn = document.getElementById('bingo-btn');
-            if (bBtn) bBtn.disabled = true;
-
-            socket.emit('claim_bingo', { phone: phone, username: username });
-            
-            setTimeout(() => {
-                if (bBtn && document.getElementById('result-ui').style.display !== 'flex') {
-                    bBtn.disabled = false;
-                }
-            }, 3000);
+        function claim() { 
+            const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
+            fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
+            .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
+        }
+        
+        function subD() {
+            let amt = parseInt(document.getElementById('da').value);
+            let tid = sanitizeText(document.getElementById('di').value);
+            if(!amt || amt < 10 || !tid || tid.length < 4) return alert("ትክክለኛ መረጃ ያስገቡ!");
+            fetch('/request_deposit', { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone: phone, amount: amt, transaction_id: tid}) 
+            }).then(() => {
+                closeM('dep-m'); 
+                alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                fetchBalanceOnly();
+            }).catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
+            });
         }
 
         function subW() {
-            let amount = document.getElementById('wa').value.trim();
-            if (!amount || parseFloat(amount) < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ሚኒመም 20 ብር)!");
-
-            fetch('/withdraw', {
+            let amt = parseInt(document.getElementById('wa').value);
+            if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
+            if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
+            
+            fetch('/request_withdrawal', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phone, amount: parseFloat(amount) })
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ phone: phone, amount: amt })
             })
-            .then(res => res.json())
-            .then(data => {
-                alert(data.msg || "የማውጣት ጥያቄዎ ተልኳል!");
+            .then(r => r.json())
+            .then(res => {
                 closeM('with-m');
-                fetchBalanceOnly();
+                alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                fetchBalanceOnly(); 
             })
             .catch(() => {
-                alert("ስህተት አጋጥሟል! እባክዎ እንደገና ይሞክሩ።");
-            });
-        }
-
-        function subD() {
-            let amount = document.getElementById('da').value.trim();
-            let txId = document.getElementById('di').value.trim();
-
-            if (!amount || parseFloat(amount) < 10) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ሚኒመም 10 ብር)!");
-            if (!txId) return alert("እባክዎ የትራንዛክሽን ID (Transaction ID) ያስገቡ!");
-
-            fetch('/deposit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phone, amount: parseFloat(amount), transaction_id: txId, username: username })
-            })
-            .then(res => res.json())
-            .then(data => {
-                alert(data.msg || "የማስገቢያ ጥያቄዎ ለቬሪፊኬሽን ተልኳል!");
-                closeM('dep-m');
-                fetchBalanceOnly();
-            })
-            .catch(() => {
-                alert("ስህተት አጋጥሟል! እባክዎ እንደገና ይሞክሩ።");
+                alert("የኔትወርክ ችግር አጋጥሟል!");
             });
         }
     </script>
