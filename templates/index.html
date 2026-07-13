@@ -474,7 +474,6 @@
             });
             wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
-
         function claim() { 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
             fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
