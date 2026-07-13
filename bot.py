@@ -1,4 +1,8 @@
 import os
+# 🚀 ጌቨንት ከሌሎች ላይብረሪዎች ጋር እንዳይጋጭ መጀመሪያ ላይ መስፋት (Patch) አለበት
+from gevent import monkey
+monkey.patch_all()
+
 import time
 import random
 import secrets
@@ -8,13 +12,14 @@ import re
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
-# 🚀 የ WebSocket ላይብረሪዎች እዚህ ተጨምረዋል
+# 🚀 የ WebSocket ላይብረሪዎች
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
-# SocketIO በ async_mode='gevent' ወይም 'threading' እንዲሰራ መፍቀድ
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+# 💡 ከ Gunicorn geventwebsocket ጋር እንዲስማማ async_mode='gevent' ተደርጓል
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # --- CONFIG ---
 ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
@@ -67,7 +72,6 @@ def set_webhook():
 # 📣 ለሁሉም ተጫዋቾች የጌም ስቴት በየሴኮንዱ በዌብሶኬት መላኪያ ፈንክሽን
 def broadcast_game_state():
     with state_lock:
-        # ሁሉንም የግል ባላንሶች ማዘጋጀት
         all_balances = {}
         try:
             for u in wallets.find({}, {"phone": 1, "balance": 1}):
@@ -88,7 +92,7 @@ def broadcast_game_state():
             "winning_card": game_state["winning_card"],
             "winning_ticket_num": game_state["winning_ticket_num"],
             "active_players": len(game_state["players"]),
-            "balances": all_balances  # የየግል ባላንሳቸው በሶኬት በኩል እንዲደርሳቸው
+            "balances": all_balances  
         }
     socketio.emit('game_update', state_payload)
 
@@ -194,7 +198,7 @@ def webhook():
                 })
                 
                 send_telegram(f"🎉 *አዲስ ተጫዋች በጽሑፍ ተመዘገበ!*\n👤 ስም: `{player_name}`\n📞 ስልክ: `{final_user['phone']}`\n🔗 ኤጀንት: `{agent_phone}`")
-                broadcast_game_state() # 🔄 ዌብሶኬት አድስ
+                broadcast_game_state() 
                 return "OK", 200
 
         if chat_id == ADMIN_ID:
@@ -275,7 +279,7 @@ def webhook():
                         if amount > 0:
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": amount}}, upsert=True)
                             send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-                            broadcast_game_state() # 🔄 ዌብሶኬት ባላንስ አድስ
+                            broadcast_game_state() 
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
             
@@ -287,7 +291,7 @@ def webhook():
                         if amount > 0:
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": -amount}})
                             send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
-                            broadcast_game_state() # 🔄 ዌብሶኬት ባላንስ አድስ
+                            broadcast_game_state() 
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
 
@@ -351,7 +355,7 @@ def check_winning_line(card, drawn_numbers):
 
     diag1_indices = [0, 6, 12, 18, 24]
     if all(card[idx] in drawn_set for idx in diag1_indices):
-        return diag1_indices, "ዲያጎናል (Diagonal 📉)"
+        return diag1_indices, "디ያጎናል (Diagonal 📉)"
 
     diag2_indices = [4, 8, 12, 16, 20]
     if all(card[idx] in drawn_set for idx in diag2_indices):
@@ -369,7 +373,7 @@ def reset_game():
             "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "pot": 0, "players": {}, 
             "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
         })
-    broadcast_game_state() # 🔄 ከተቀየረ በኋላ ለሁሉም አብስር
+    broadcast_game_state() 
 
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
@@ -383,7 +387,7 @@ def game_loop():
                     if game_state["status"] != "lobby": 
                         break
                     game_state["timer"] = i
-                broadcast_game_state() # 🔄 የሎቢ ቆጠራን በየሴኮንዱ ላክ
+                broadcast_game_state() 
                 time.sleep(1)
             
             with state_lock:
@@ -404,7 +408,7 @@ def game_loop():
                         if game_state["status"] != "playing":
                             break
                         game_state["ball_timer"] = j
-                    broadcast_game_state() # 🔄 የ3 ሴኮንድ ዝግጅት ቆጠራን ላክ
+                    broadcast_game_state() 
                     time.sleep(1)
 
                 for b in shuffled:
@@ -413,7 +417,7 @@ def game_loop():
                             break
                         game_state["current_ball"] = b
                         game_state["drawn_balls"].append(b)
-                    broadcast_game_state() # 🔄 አዲስ ኳስ ሲወጣ ወዲያውኑ ለሁሉም አብስር
+                    broadcast_game_state() 
                     time.sleep(5)
             
             with state_lock:
@@ -508,7 +512,7 @@ def buy_ticket():
             else:
                 game_state["players"][db_phone]["cards"][t_num] = flat
                 
-        broadcast_game_state() # 🔄 ካርቴላ ሲገዛ ወዲያውኑ ለሁሉም አሳይ
+        broadcast_game_state() 
         return jsonify({"success": True})
     
     with state_lock:
@@ -538,7 +542,7 @@ def cancel_ticket():
                     del game_state["players"][db_phone]["cards"][t_num]
                 if not game_state["players"][db_phone]["cards"]: 
                     del game_state["players"][db_phone]
-            broadcast_game_state() # 🔄 ካርቴላ ሲሰረዝ ዌብሶኬት አድስ
+            broadcast_game_state() 
             return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
@@ -571,7 +575,7 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
-@app.route('/request_withdrawal', methods=['POST'])  # 💡 ከቅድሙ የፊት ገጽ ስም (Route) ጋር ተስተካክሏል
+@app.route('/request_withdrawal', methods=['POST']) 
 def withdraw():
     d = request.json or {}
     ph, amt = sanitize_input(d.get('phone')), float(d.get('amount'))
@@ -589,7 +593,7 @@ def withdraw():
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
         send_telegram(msg)
-        broadcast_game_state() # 🔄 ባላንሱ ስለቀነሰ ለተጫዋቹ እንዲታደስ
+        broadcast_game_state() 
         return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
 
@@ -661,20 +665,18 @@ def claim_bingo():
                 )
                 
                 send_telegram(success_msg)
-                broadcast_game_state() # 🔄 አሸናፊ ሲገኝ ወዲያውኑ ሪዛልት ገጽ እንዲከፈት
+                broadcast_game_state() 
                 threading.Thread(target=lambda: (time.sleep(10), reset_game())).start()
                 return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
-# ⚡ የዌብሶኬት ክላይንት ግንኙነት መቆጣጠሪያ
 @socketio.on('connect')
 def handle_connect():
-    # ተጠቃሚው ገና እንደተገናኘ አዲሱን የጨዋታ ሁኔታ እንዲያገኝ ማድረግ
     broadcast_game_state()
 
 if __name__ == '__main__':
     threading.Timer(5, set_webhook).start() 
     threading.Thread(target=game_loop, daemon=True).start()
-    # 🚀 ሰርቨሩ በሶኬትዮ አማካኝነት እንዲነሳ ተደርጓል
+    # 🚀 Render ላይ Gunicorn ይህንን ፋይል በቀጥታ ስለሚጠራው እዚህ ጋር መቀየር አያስፈልግም
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
