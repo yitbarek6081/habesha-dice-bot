@@ -82,7 +82,8 @@
         .player-side-area { display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
         #card-area { width: 100%; display: flex; flex-direction: column; gap: 10px; }
         
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; width: 100%; box-sizing: border-box; }
+        /* 🎫 የካርቴላ Grid ስታይሎች */
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; width: 100%; box-sizing: border-box; }
         .cell { background: #fff; color: #000; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; cursor: pointer; border-radius: 2px; }
         .cell.selected { background: var(--gold) !important; font-weight: 900; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; font-weight: 900; }
@@ -317,8 +318,14 @@
                         myCards = d.my_cards_dict[phone];
                     }
                     if(myCards && myCards.length > 0 && !currentCardData) { 
-                        currentCardData = myCards; document.getElementById('card-area').innerHTML = "";
-                        myCards.forEach((c, i) => { if(Array.isArray(c)) renderCard(c, i); }); 
+                        currentCardData = myCards; 
+                        document.getElementById('card-area').innerHTML = "";
+                        
+                        myCards.forEach((c, i) => { 
+                            if(Array.isArray(c)) {
+                                renderCard(c, i); 
+                            }
+                        }); 
                     }
                 } 
                 else if(d.status === "result") {
@@ -458,6 +465,7 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
+        // 🔧 አንተ የላክኸው አዲሱ renderCard() ፈንክሽን
         function renderCard(card, cardIdx) {
             const safeCardIdx = parseInt(cardIdx);
             const wrap = document.createElement('div'); wrap.style.marginBottom="5px"; wrap.style.width="100%";
@@ -476,12 +484,14 @@
             wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
 
+        // 🔧 አንተ የላክኸው አዲሱ claim() ፈንክሽን
         function claim() { 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
             fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
             .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
         }
         
+        // 🔧 አንተ የላክኸው አዲሱ subD() ፈንክሽን
         function subD() {
             let amt = parseInt(document.getElementById('da').value);
             let tid = sanitizeText(document.getElementById('di').value);
@@ -499,6 +509,7 @@
             });
         }
 
+        // 🔧 አንተ የላክኸው አዲሱ subW() ፈንክሽን
         function subW() {
             let amt = parseInt(document.getElementById('wa').value);
             if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
