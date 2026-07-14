@@ -1,379 +1,63 @@
-<!DOCTYPE html>
-<html lang="am">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BESH BINGO - habesha Live Game</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: radial-gradient(circle, #1a1a2e 0%, #0f0f1b 100%);
-        }
-        .bingo-ball {
-            animation: bounce 0.5s ease-in-out infinite alternate;
-        }
-        @keyframes bounce {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-8px); }
-        }
-    </style>
-</head>
-<body class="text-white min-h-screen pb-10">
-
-    <nav class="bg-[#16162a] border-b border-indigo-900/50 p-4 sticky top-0 z-50 shadow-lg">
-        <div class="max-w-4xl mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500 tracking-wider">
-                <i class="fa-solid fa-dice mr-2"></i>BESH BINGO
-            </h1>
-            <div id="user-badge" class="hidden flex items-center gap-3 bg-[#1f1f3e] px-4 py-2 rounded-full border border-indigo-500/30">
-                <span id="display-name" class="font-semibold text-yellow-300"></span>
-                <span class="text-gray-400">|</span>
-                <span id="display-balance" class="font-bold text-emerald-400">0.00 ETB</span>
-            </div>
-        </div>
-    </nav>
-
-    <div class="max-w-4xl mx-auto px-4 mt-6">
-        <div id="auth-panel" class="bg-[#16162a] p-6 rounded-3xl border border-indigo-500/20 shadow-2xl">
-            <h2 class="text-xl font-bold text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">🎮 ለመጀመር ይመዝገቡ ወይም ይግቡ</h2>
-            <div class="space-y-4">
-                <input type="text" id="phone-input" placeholder="ስልክ ቁጥር (ምሳሌ፡ 09...)" class="w-full bg-[#0f0f1b] border border-indigo-500/30 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition">
-                <input type="text" id="username-input" placeholder="የመጫወቻ ስም" class="w-full bg-[#0f0f1b] border border-indigo-500/30 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition">
-                <button onclick="handleLogin()" class="w-full bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 py-3 rounded-xl font-bold transition transform active:scale-95 shadow-lg">
-                    ግባ / ይመዝገብ
-                </button>
-            </div>
-        </div>
-
-        <div id="game-dashboard" class="hidden space-y-6">
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-gradient-to-br from-indigo-900/60 to-purple-900/40 p-4 rounded-2xl border border-indigo-500/20 text-center">
-                    <span class="text-gray-400 text-sm block uppercase tracking-wider font-semibold">💰 ጠቅላላ ፖት (POT)</span>
-                    <span id="game-pot" class="text-3xl font-extrabold text-yellow-300">0 ETB</span>
-                </div>
-                <div class="bg-gradient-to-br from-[#16162a] to-[#111122] p-4 rounded-2xl border border-indigo-500/10 text-center flex flex-col justify-center">
-                    <span id="game-status-title" class="text-gray-400 text-xs block uppercase">የጨዋታው ሁኔታ</span>
-                    <span id="game-status-text" class="text-xl font-bold text-indigo-400">Lobby Waiting...</span>
-                </div>
-                <div class="bg-gradient-to-br from-red-900/50 to-pink-900/30 p-4 rounded-2xl border border-red-500/20 text-center">
-                    <span class="text-gray-400 text-sm block uppercase tracking-wider font-semibold">⏱️ ቀሪ ሰዓት</span>
-                    <span id="game-timer" class="text-3xl font-extrabold text-red-400">--</span>
-                </div>
-            </div>
-
-            <div class="bg-[#16162a] p-6 rounded-3xl border border-indigo-500/15 flex flex-col items-center justify-center relative overflow-hidden">
-                <div class="absolute inset-0 bg-indigo-500/5 blur-xl pointer-events-none"></div>
-                <span class="text-gray-400 text-sm uppercase tracking-widest font-semibold mb-3 z-10">የአሁኑ የቢንጎ ኳስ</span>
-                <div id="ball-display" class="w-28 h-28 rounded-full bg-gradient-to-r from-yellow-400 via-pink-500 to-indigo-500 flex items-center justify-center text-white text-4xl font-extrabold shadow-2xl border-4 border-white/20 bingo-ball z-10">
-                    --
-                </div>
-                <span id="ball-timer-label" class="text-xs text-gray-400 mt-2 z-10">ቀጣይ ኳስ በ 3 ሰከንድ ውስጥ</span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <button onclick="toggleModal('deposit-modal')" class="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-wallet"></i> ብር አስገባ (Deposit)
-                </button>
-                <button onclick="toggleModal('withdraw-modal')" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-money-bill-transfer"></i> ብር አውጣ (Withdraw)
-                </button>
-            </div>
-
-            <div class="bg-[#16162a] p-6 rounded-3xl border border-indigo-500/15">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-lg text-indigo-300"><i class="fa-solid fa-ticket mr-2"></i>የካርተላ ምርጫ</h3>
-                    <span class="text-xs text-gray-400">ዋጋ፡ 10 ETB (በአንድ ጊዜ ቢበዛ 2 መግዛት ይቻላል)</span>
-                </div>
-                <div id="tickets-shelf" class="grid grid-cols-5 gap-3">
-                    </div>
-            </div>
-
-            <div id="my-cards-section" class="space-y-4">
-                <h3 class="font-extrabold text-lg text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
-                    <i class="fa-solid fa-grip mr-2"></i>የእርስዎ የመጫወቻ ካርዶች
-                </h3>
-                <div id="my-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    </div>
-                <button id="claim-btn" onclick="claimBingo()" class="hidden w-full bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 py-4 rounded-2xl font-extrabold text-lg text-slate-900 transition shadow-lg transform active:scale-95 flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-trophy text-xl"></i> ቢንጎ ሙላልኝ! (CLAIM BINGO)
-                </button>
-            </div>
-
-            <div class="bg-[#16162a] p-6 rounded-3xl border border-indigo-500/15">
-                <h4 class="font-bold text-sm text-gray-400 uppercase tracking-wider mb-3">ያለፉ ኳሶች ዝርዝር</h4>
-                <div id="drawn-balls-list" class="flex flex-wrap gap-2">
-                    </div>
-            </div>
-
-        </div>
-    </div>
-
-    <div id="deposit-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-[#16162a] p-6 rounded-3xl border border-emerald-500/20 w-full max-w-md shadow-2xl">
-            <h3 class="text-lg font-bold text-emerald-400 mb-4"><i class="fa-solid fa-plus-circle mr-2"></i>ሒሳብ ለመሙላት ጥያቄ መላኪያ</h3>
-            <div class="space-y-4">
-                <input type="number" id="dep-amount" placeholder="የብር መጠን (ETB)" class="w-full bg-[#0f0f1b] border border-emerald-500/30 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500">
-                <input type="text" id="dep-tx" placeholder="የግብይት መለያ ቁጥር (Transaction ID)" class="w-full bg-[#0f0f1b] border border-emerald-500/30 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500">
-                <div class="flex gap-3">
-                    <button onclick="submitDeposit()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold transition">ጥያቄ ላክ</button>
-                    <button onclick="toggleModal('deposit-modal')" class="bg-gray-800 hover:bg-gray-700 px-5 py-3 rounded-xl font-bold transition">ዝጋ</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="withdraw-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-[#16162a] p-6 rounded-3xl border border-rose-500/20 w-full max-w-md shadow-2xl">
-            <h3 class="text-lg font-bold text-rose-400 mb-4"><i class="fa-solid fa-minus-circle mr-2"></i>ብር ለማውጣት መጠየቂያ</h3>
-            <div class="space-y-4">
-                <input type="number" id="wit-amount" placeholder="የብር መጠን (ETB)" class="w-full bg-[#0f0f1b] border border-rose-500/30 rounded-xl px-4 py-3 focus:outline-none focus:border-rose-500">
-                <div class="flex gap-3">
-                    <button onclick="submitWithdraw()" class="flex-1 bg-rose-600 hover:bg-rose-500 py-3 rounded-xl font-bold transition">ጥያቄ ላክ</button>
-                    <button onclick="toggleModal('withdraw-modal')" class="bg-gray-800 hover:bg-gray-700 px-5 py-3 rounded-xl font-bold transition">ዝጋ</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const socket = io();
-        let myPhone = "";
-        let myUsername = "";
-        let drawnBallsSet = new Set();
-
-        // 1. Check local storage on load
-        window.onload = () => {
-            const savedPhone = localStorage.getItem("bingo_phone");
-            const savedName = localStorage.getItem("bingo_name");
-            if (savedPhone && savedName) {
-                myPhone = savedPhone;
-                myUsername = savedName;
-                showDashboard();
-                fetchStatus();
-            }
-        };
-
-        function showDashboard() {
-            document.getElementById("auth-panel").classList.add("hidden");
-            document.getElementById("game-dashboard").classList.remove("hidden");
-            document.getElementById("user-badge").classList.remove("flex");
-            document.getElementById("user-badge").classList.add("flex");
-            document.getElementById("display-name").textContent = myUsername;
-            renderTicketsShelf();
-        }
-
-        // 2. Handle Authentication
-        async function handleLogin() {
-            const phone = document.getElementById("phone-input").value.trim();
-            const username = document.getElementById("username-input").value.trim();
-            
-            if(!phone || !username) return alert("ስም እና ስልክ ቁጥር በትክክል ያስገቡ!");
-
-            const res = await fetch('/register_or_login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone, username })
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                myPhone = phone;
-                myUsername = username;
-                localStorage.setItem("bingo_phone", phone);
-                localStorage.setItem("bingo_name", username);
-                showDashboard();
-                fetchStatus();
-            } else {
-                alert(data.msg);
-            }
-        }
-
-        // 3. Render Tickets Store
-        function renderTicketsShelf() {
-            const shelf = document.getElementById("tickets-shelf");
-            shelf.innerHTML = "";
-            for (let i = 1; i <= 30; i++) {
-                const btn = document.createElement("button");
-                btn.id = `ticket-slot-${i}`;
-                btn.className = "p-3 bg-slate-800 hover:bg-indigo-900 border border-indigo-500/10 rounded-xl font-extrabold text-sm transition transform active:scale-90 text-center";
-                btn.textContent = i;
-                btn.onclick = () => buyTicket(i);
-                shelf.appendChild(btn);
-            }
-        }
-
-        // 4. API Calls
-        async function fetchStatus() {
-            if(!myPhone) return;
-            const res = await fetch(`/get_status?phone=${myPhone}`);
-            const data = await res.json();
-            updateUI(data);
-        }
-
-        async function buyTicket(num) {
-            const res = await fetch('/buy_specific_ticket', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone: myPhone, ticket_num: num, username: myUsername })
-            });
-            const data = await res.json();
-            if(!data.success) alert(data.msg);
-            fetchStatus();
-        }
-
-        async function cancelTicket(num) {
-            const res = await fetch('/cancel_ticket', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone: myPhone, ticket_num: num })
-            });
-            const data = await res.json();
-            if(!data.success) alert(data.msg);
-            fetchStatus();
-        }
-
-        async function claimBingo() {
-            const res = await fetch('/claim_bingo', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone: myPhone })
-            });
-            const data = await res.json();
-            if(!data.success) alert(data.msg);
-            fetchStatus();
-        }
-
-        // 5. Live State Updates from SocketIO
-        socket.on('game_update', (data) => {
-            if(myPhone) updateUI(data);
-        });
-
-        function updateUI(state) {
-            // Update Balance
-            const balance = state.balances[myPhone] !== undefined ? state.balances[myPhone] : (state.balance || 0);
-            document.getElementById("display-balance").textContent = `${Number(balance).toFixed(2)} ETB`;
-
-            // State & Pot info
-            document.getElementById("game-pot").textContent = `${state.pot} ETB`;
-            document.getElementById("game-timer").textContent = state.status === 'lobby' ? state.timer : '--';
-            document.getElementById("game-status-text").textContent = state.status.toUpperCase();
-
-            // Ball Display
-            document.getElementById("ball-display").textContent = state.current_ball;
-            if (state.status === "playing") {
-                document.getElementById("ball-timer-label").textContent = `ቀጣይ ኳስ በ ${state.ball_timer} ሰከንድ`;
-                document.getElementById("claim-btn").classList.remove("hidden");
-            } else {
-                document.getElementById("ball-timer-label").textContent = "--";
-                document.getElementById("claim-btn").classList.add("hidden");
-            }
-
-            // Drawn Balls list
-            const drawnList = document.getElementById("drawn-balls-list");
-            drawnList.innerHTML = "";
-            drawnBallsSet.clear();
-            state.drawn_balls.forEach(b => {
-                drawnBallsSet.add(parseInt(b.slice(1)));
-                const span = document.createElement("span");
-                span.className = "px-3 py-1 bg-indigo-950 text-indigo-300 border border-indigo-500/20 text-xs font-bold rounded-full";
-                span.textContent = b;
-                drawnList.appendChild(span);
-            });
-
-            // Handle Ticket store grid visually
-            for (let i = 1; i <= 30; i++) {
-                const btn = document.getElementById(`ticket-slot-${i}`);
-                if (!btn) continue;
-                
-                const owner = state.sold_tickets[i.toString()];
-                if (owner) {
-                    if (owner === myPhone) {
-                        btn.className = "p-3 bg-amber-500 text-slate-900 border border-amber-400 rounded-xl font-extrabold text-sm transition text-center cursor-pointer";
-                        btn.onclick = () => cancelTicket(i);
-                    } else {
-                        btn.className = "p-3 bg-red-950/40 text-red-400 border border-red-500/10 rounded-xl font-semibold text-sm opacity-50 text-center cursor-not-allowed";
-                        btn.onclick = null;
-                    }
-                } else {
-                    btn.className = "p-3 bg-slate-800 hover:bg-indigo-900 border border-indigo-500/10 rounded-xl font-extrabold text-sm text-center cursor-pointer";
-                    btn.onclick = () => buyTicket(i);
+ function renderCard(card, cardIdx) {
+            const safeCardIdx = parseInt(cardIdx);
+            const wrap = document.createElement('div'); wrap.style.marginBottom="5px"; wrap.style.width="100%";
+            wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:5px;font-size:0.8rem;border-radius:5px 5px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
+            const grid = document.createElement('div'); grid.className='bingo-card';
+            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
+            card.forEach((n, i) => {
+                const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
+                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
+                else { 
+                    let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
+                    cell.onclick = () => { cell.classList.toggle('selected'); trackCell(safeCardIdx, numVal); } 
                 }
-            }
+                grid.appendChild(cell);
+            });
+            wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
+        }
 
-            // Render Player's Cards
-            const myCardsContainer = document.getElementById("my-cards-container");
-            myCardsContainer.innerHTML = "";
+        function claim() { 
+            const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
+            fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
+            .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
+        }
+        
+        function subD() {
+            let amt = parseInt(document.getElementById('da').value);
+            let tid = sanitizeText(document.getElementById('di').value);
+            if(!amt || amt < 10 || !tid || tid.length < 4) return alert("ትክክለኛ መረጃ ያስገቡ!");
+            fetch('/request_deposit', { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({phone: phone, amount: amt, transaction_id: tid}) 
+            }).then(() => {
+                closeM('dep-m'); 
+                alert("የዲፖዚት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                fetchBalanceOnly();
+            }).catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
+            });
+        }
+
+        function subW() {
+            let amt = parseInt(document.getElementById('wa').value);
+            if(!amt || amt < 20) return alert("እባክዎ ትክክለኛ የብር መጠን ያስገቡ (ቢያንስ 20 ETB)!");
+            if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
             
-            const myCards = state.my_cards || [];
-            myCards.forEach((card, idx) => {
-                const cardDiv = document.createElement("div");
-                cardDiv.className = "bg-[#1f1f3e]/80 p-5 rounded-2xl border border-indigo-500/20 shadow-lg relative";
-                
-                const cardHeader = document.createElement("div");
-                cardHeader.className = "flex justify-between mb-2 text-xs font-semibold text-indigo-300";
-                cardHeader.innerHTML = `<span>🎰 CARD #${idx+1}</span> <span class="text-yellow-400 font-bold">10 ETB</span>`;
-                cardDiv.appendChild(cardHeader);
-
-                const grid = document.createElement("div");
-                grid.className = "grid grid-cols-5 gap-2 text-center";
-
-                card.forEach((val, cIdx) => {
-                    const block = document.createElement("div");
-                    const isDrawn = drawnBallsSet.has(val) || val === 0;
-                    
-                    block.className = `p-2 rounded-lg font-bold text-sm flex items-center justify-center h-10 ${
-                        isDrawn 
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-inner scale-95 border-emerald-400' 
-                        : 'bg-slate-900/50 text-gray-300 border border-slate-700/50'
-                    }`;
-                    
-                    block.textContent = val === 0 ? "FREE" : val;
-                    grid.appendChild(block);
-                });
-
-                cardDiv.appendChild(grid);
-                myCardsContainer.appendChild(cardDiv);
-            });
-        }
-
-        // 6. Modal Functions
-        function toggleModal(id) {
-            const modal = document.getElementById(id);
-            modal.classList.toggle("hidden");
-            modal.classList.toggle("flex");
-        }
-
-        async function submitDeposit() {
-            const amount = document.getElementById("dep-amount").value;
-            const transaction_id = document.getElementById("dep-tx").value;
-            if(!amount || !transaction_id) return alert("እባክዎ መረጃውን ሙሉ ያድርጉ!");
-
-            await fetch('/request_deposit', {
+            fetch('/request_withdrawal', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone: myPhone, amount: parseFloat(amount), transaction_id })
+                body: JSON.stringify({ phone: phone, amount: amt })
+            })
+            .then(r => r.json())
+            .then(res => {
+                closeM('with-m');
+                alert(res.msg || "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!");
+                fetchBalanceOnly();
+            })
+            .catch(() => {
+                alert("የኔትወርክ ችግር አጋጥሟል!");
             });
-            alert("ጥያቄዎ ተልኳል! በአስተዳዳሪው ሲረጋገጥ ገቢ ይደረጋል።");
-            toggleModal('deposit-modal');
-        }
-
-        async function submitWithdraw() {
-            const amount = document.getElementById("wit-amount").value;
-            if(!amount) return alert("እባክዎ መጠን ያስገቡ!");
-
-            const res = await fetch('/request_withdrawal', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone: myPhone, amount: parseFloat(amount) })
-            });
-            const data = await res.json();
-            alert(data.msg);
-            toggleModal('withdraw-modal');
         }
     </script>
 </body>
