@@ -107,7 +107,7 @@
         #ball-prep-countdown { font-size: 0.9rem; font-weight: 900; color: var(--orange); background: rgba(255, 136, 0, 0.15); padding: 6px 12px; border-radius: 8px; border: 2px dashed var(--orange); text-align: center; }
         .game-start-alert { font-size: 0.85rem; font-weight: bold; color: var(--gold); background: rgba(255, 204, 0, 0.1); padding: 4px 15px; border-radius: 15px; border: 1px solid var(--gold); letter-spacing: 1px; }
 
-        /* 🔄 55 / 45 የቦታ ክፍፍል (55% ለካርቴላው በግራ፣ 45% ለቢንጎ ሰሌዳው በቀኝ) */
+        /* 🔄 55 / 45 የቦታ ክፍፍል */
         .game-layout {
             display: grid;
             grid-template-columns: 55fr 45fr;
@@ -328,7 +328,6 @@
         }
 
         // 🎲 የቢንጎ ቲኬት በስሌት በራሱ ማመንጫ (Fallback Generator)
-        // ሰርቨሩ በኔትወርክ ወይም በባግ ምክንያት ካርቴላ ካላከለ፣ የገዛኸውን የቲኬት ቁጥር መነሻ አድርጎ 100% ተመሳሳይ ካርታ ይፈጥራል!
         function generateLocalBingoCard(ticketNum) {
             let seed = parseInt(ticketNum) || 1;
             function seededRandom(max, min = 1) {
@@ -471,7 +470,7 @@
                     // 🎫 የካርቴላ መፈለጊያ ዋና አልጎሪዝም (Deep Search)
                     let myCards = null;
 
-                    // ሰፊ የቁልፍ ስሞች ፍለጋ (የተለያዩ የሰርቨር ስሪቶች የሚጠቀሟቸው ስሞች)
+                    // ሰፊ የቁልፍ ስሞች ፍለጋ
                     let possibleKeys = ['my_cards_dict', 'my_cards', 'cards', 'user_cards', 'player_cards'];
                     for (let key of possibleKeys) {
                         if (d[key]) {
@@ -484,7 +483,7 @@
                         }
                     }
 
-                    // 🛠️ 100% ፍጹም የመጠባበቂያ መንገድ (ካርታውን ፈልጎ ራሱ እንዲሰራ ማድረግ)
+                    // 🛠️ 100% ፍጹም የመጠባበቂያ መንገድ
                     if (!myCards || myCards.length === 0) {
                         let myTicketNums = [];
                         if (d.sold_tickets) {
@@ -501,13 +500,12 @@
                                 if (d.all_cards && d.all_cards[num]) {
                                     myCards.push(d.all_cards[num]);
                                 } else {
-                                    // ሰርቨሩ ላይ ሁሉንም ካርዶች መላክ ካቆመ ራሳችን እዚሁ እንሰራዋለን!
                                     myCards.push(generateLocalBingoCard(num));
                                 }
                             });
                         }
                     }
-                    
+
                     // ካርታውን በስክሪኑ ላይ መሳል
                     if(myCards && myCards.length > 0) {
                         const cardArea = document.getElementById('card-area');
