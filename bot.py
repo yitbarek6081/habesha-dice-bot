@@ -13,7 +13,7 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# async_mode='gevent' ከ Render እና Gunicorn ጋር ፍጹም ተስማሚ ነው
+# 💡 async_mode='gevent' ከ Render እና Gunicorn ጋር ፍጹም ተስማሚ ነው
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # --- CONFIG ---
@@ -28,7 +28,6 @@ wallets = db['wallets']
 
 wallets.create_index("phone", unique=True)
 
-# የጌም ስቴት በሜሞሪ ውስጥ (በ -w 1 ስለሚሰራ አስተማማኝ ነው)
 game_state = {
     "status": "lobby", 
     "timer": 30, 
@@ -43,6 +42,7 @@ game_state = {
     "winning_ticket_num": None  
 }
 
+# 💡 ታይመሩ ከአንድ ጊዜ በላይ እንዳይጀምር መቆጣጠሪያ
 loop_started = False
 
 def sanitize_input(text):
@@ -133,7 +133,7 @@ def webhook():
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             requests.post(url, json={
                 "chat_id": chat_id, 
-                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክፍያ ሂደቱን ለማቅለል፤ እባክዎ **የቴሌብር (Telebirr) ወይም ሲቢኢ ብር (CBE Birr)** ስልክ ቁጥርዎን ያስገቡ፦"
+                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክፍያ ሂደቱን ለማቅለል፤ እባክዎ **የተጫዋች (የመጫወቻ) ወይም የቴሌብር/ሲቢኢ ብር** ስልክ ቁጥርዎን ያስገቡ፦"
             })
             return "OK", 200
 
@@ -213,7 +213,7 @@ def webhook():
             elif msg.startswith("/check_balance") or msg.startswith("/check"):
                 try:
                     parts = msg.split()
-                    if len(parts) >= 2:
+                    if len(parts) == 2:
                         target_phone = sanitize_input(parts[1])
                         user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                         if user:
@@ -254,7 +254,7 @@ def webhook():
             elif msg.startswith("/remove"):
                 try:
                     parts = msg.split()
-                    if len(parts) >= 2:
+                    if len(parts) == 2:
                         target_phone = sanitize_input(parts[1])
                         result = wallets.delete_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                         if result.deleted_count > 0:
@@ -265,73 +265,38 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ ስህተት መረጃ! ፎርማቱ: `/remove ስልክ` ({e})")
 
-            # 🛠️ ፍጹም ዘመናዊ እና ብልጥ የሆነው የ ADD ትዕዛዝ (የስልክ አጻጻፍንና ባዶ ቦታዎችን በብልሃት የሚፈታው)
             elif msg.startswith("/add"):
                 try:
-                    cleaned_msg = " ".join(msg.split())
-                    parts = cleaned_msg.split()
-                    if len(parts) >= 3:
-                        raw_phone = sanitize_input(parts[1])
-                        amount = float(parts[2])
-                        
-                        if amount <= 0:
-                            send_telegram("❌ ስህተት! የሚጨመረው ብር መጠን ከ 0 በላይ መሆን አለበት።")
-                            return "OK", 200
-
-                        # የስልኩን የመጨረሻ 9 ቁጥሮች ብቻ በመውሰድ ያነጻጽራል
-                        clean_phone = raw_phone.replace("+", "").replace(" ", "")
-                        if len(clean_phone) >= 9:
-                            last_9_digits = clean_phone[-9:]
-                            
-                            # በዳታቤዝ ውስጥ በነዚህ 9 ቁጥሮች የሚጨርስ ስልክ እንፈልጋለን
-                            user = wallets.find_one({"phone": {"$regex": f"{last_9_digits}$"}})
-                            
+                    parts = msg.split()
+                    if len(parts) == 3:
+                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                        if amount > 0:
+                            # 🛡️ MongoDB $or upsert ስህተትን ለመከላከል መጀመሪያ ተጠቃሚውን መፈለግ
+                            user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                             if user:
-                                db_phone = user["phone"]
-                                wallets.update_one({"phone": db_phone}, {"$inc": {"balance": amount}})
-                                send_telegram(f"✅ ለ ተጠቃሚ `{user.get('username', 'ያልታወቀ')}` ({db_phone}) {amount} ETB ተጨምሯል።")
-                                broadcast_game_state()
+                                wallets.update_one({"_id": user["_id"]}, {"$inc": {"balance": amount}})
                             else:
-                                send_telegram(f"❌ ስህተት! በ `{raw_phone}` (ወይም በ `{last_9_digits}`) የሚጨርስ ተጠቃሚ በዳታቤዝ ውስጥ አልተገኘም።")
-                        else:
-                            send_telegram("❌ ስህተት! እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ።")
-                    else:
-                        send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት! ፎርማቱ: /add ስልክ መጠን (ስህተት: {str(e)})")
+                                wallets.insert_one({
+                                    "phone": target_phone, 
+                                    "balance": amount, 
+                                    "username": f"User_{target_phone[-4:]}"
+                                })
+                            send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
+                            broadcast_game_state() 
+                except:
+                    send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
             
-            # 🛠️ ፍጹም ዘመናዊ እና ብልጥ የሆነው የ SUB ትዕዛዝ
             elif msg.startswith("/sub"):
                 try:
-                    cleaned_msg = " ".join(msg.split())
-                    parts = cleaned_msg.split()
-                    if len(parts) >= 3:
-                        raw_phone = sanitize_input(parts[1])
-                        amount = float(parts[2])
-                        
-                        if amount <= 0:
-                            send_telegram("❌ ስህተት! የሚቀነሰው ብር መጠን ከ 0 በላይ መሆን አለበት።")
-                            return "OK", 200
-
-                        clean_phone = raw_phone.replace("+", "").replace(" ", "")
-                        if len(clean_phone) >= 9:
-                            last_9_digits = clean_phone[-9:]
-                            
-                            user = wallets.find_one({"phone": {"$regex": f"{last_9_digits}$"}})
-                            
-                            if user:
-                                db_phone = user["phone"]
-                                wallets.update_one({"phone": db_phone}, {"$inc": {"balance": -amount}})
-                                send_telegram(f"⚠️ ከ ተጠቃሚ `{user.get('username', 'ያልታወቀ')}` ({db_phone}) {amount} ETB ተቀንሷል።")
-                                broadcast_game_state()
-                            else:
-                                send_telegram(f"❌ ስህተት! በ `{raw_phone}` (ወይም በ `{last_9_digits}`) የሚጨርስ ተጠቃሚ በዳታቤዝ ውስጥ አልተገኘም።")
-                        else:
-                            send_telegram("❌ ስህተት! እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ።")
-                    else:
-                        send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን (ስህተት: {str(e)})")
+                    parts = msg.split()
+                    if len(parts) == 3:
+                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                        if amount > 0:
+                            wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": -amount}})
+                            send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
+                            broadcast_game_state() 
+                except:
+                    send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
 
     return "OK", 200
 
@@ -377,35 +342,28 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
-# 🛠️ ፍጹም የተስተካከለ እና ትክክለኛውን የቢንጎ መስመር የሚያረጋግጥ ፈንክሽን
 def check_winning_line(card, drawn_numbers):
-    # የወጡ ኳሶችን ቁጥር ብቻ ለይቶ ማውጣት (ለምሳሌ፡ B15 -> 15)
     drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0)  # የቢንጎ መካከለኛ ነጻ ክፍል (FREE SPACE)
+    drawn_set.add(0)
 
-    # 1. አግድም መስመሮችን ማረጋገጥ (5 ሮው)
-    for r in range(5):
-        row_indices = [r * 5 + c for c in range(5)]
+    for i in range(5):
+        row_indices = [i*5 + j for j in range(5)]
         if all(card[idx] in drawn_set for idx in row_indices):
-            return row_indices, f"አግድም (መስመር {r + 1})"
+            return row_indices, f"አግድም (Row {i+1})"
 
-    # 2. ቁልቁል መስመሮችን ማረጋገጥ (5 ኮለምን)
-    for c in range(5):
-        col_indices = [c + r * 5 for r in range(5)]
+    for i in range(5):
+        col_indices = [i + j*5 for j in range(5)]
         if all(card[idx] in drawn_set for idx in col_indices):
-            return col_indices, f"ቁልቁል (አምድ {c + 1})"
+            return col_indices, f"ቁልቁል (Column {i+1})"
 
-    # 3. ዲያጎናል መስመር (ከግራ ወደ ቀኝ ታች) 📉
     diag1_indices = [0, 6, 12, 18, 24]
     if all(card[idx] in drawn_set for idx in diag1_indices):
-        return diag1_indices, "ዲያጎናል (ከግራ ወደ ቀኝ)"
+        return diag1_indices, "ዲያጎናል (Diagonal 📉)"
 
-    # 4. ዲያጎናል መስመር (ከቀኝ ወደ ግራ ታች) 📈
     diag2_indices = [4, 8, 12, 16, 20]
     if all(card[idx] in drawn_set for idx in diag2_indices):
-        return diag2_indices, "ዲያጎናል (ከቀኝ ወደ ግራ)"
+        return diag2_indices, "ዲያጎናል (Diagonal 📈)"
 
-    # 5. አራቱ ማዕዘናት (4 Corners)
     corner_indices = [0, 4, 20, 24]
     if all(card[idx] in drawn_set for idx in corner_indices):
         return corner_indices, "አራቱ ማዕዘናት (4 Corners)"
@@ -524,7 +482,6 @@ def buy_ticket():
     )
     
     if res:
-        # ለቢንጎ B-I-N-G-O 5x5 በቅደም ተከተል ቁጥሮችን ማመንጨት
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             columns.append(random.sample(range(r[0], r[1]+1), 5))
@@ -534,7 +491,7 @@ def buy_ticket():
             for col_idx in range(5):
                 flat.append(columns[col_idx][row_idx])
                 
-        flat[12] = 0  # መካከለኛው ነፃ ቦታ (Free Space)
+        flat[12] = 0  
         
         if game_state["status"] != "lobby":
             if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
@@ -708,12 +665,14 @@ def claim_bingo():
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
+# 🛡️ ሉፑን በአስተማማኝ ሁኔታ መጀመሪያ ተጠቃሚ ሲገናኝ ብቻ ማስጀመሪያ ስልት
 @socketio.on('connect')
 def handle_connect():
     global loop_started
     if not loop_started:
         loop_started = True
         set_webhook()
+        # 🚀 ታይመሩን በሴፍ ባክግራውንድ ታስክ እዚህ ላይ ያስጀምረዋል
         socketio.start_background_task(game_loop)
     broadcast_game_state()
 
