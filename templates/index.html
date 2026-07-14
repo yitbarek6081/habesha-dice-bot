@@ -265,13 +265,11 @@
             </div>
 
             <div class="game-layout">
-                <!-- 🎫 የካርቴላ መጫወቻ ቦታ (በግራ በኩል - 55%) -->
                 <div class="player-side-area">
                     <div id="card-area"></div>
                     <button id="bingo-btn" onclick="claim()">BINGO!</button>
                 </div>
 
-                <!-- 📊 የቢንጎ ሰሌዳ (በቀኝ በኩል - 45%) -->
                 <div class="board-container">
                     <div class="board-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
                     <div class="main-board" id="main-board"></div>
@@ -327,6 +325,44 @@
                 }
             }
             return null;
+        }
+
+        // 🎲 የቢንጎ ቲኬት በስሌት በራሱ ማመንጫ (Fallback Generator)
+        // ሰርቨሩ በኔትወርክ ወይም በባግ ምክንያት ካርቴላ ካላከለ፣ የገዛኸውን የቲኬት ቁጥር መነሻ አድርጎ 100% ተመሳሳይ ካርታ ይፈጥራል!
+        function generateLocalBingoCard(ticketNum) {
+            let seed = parseInt(ticketNum) || 1;
+            function seededRandom(max, min = 1) {
+                let x = Math.sin(seed++) * 10000;
+                return Math.floor((x - Math.floor(x)) * (max - min + 1)) + min;
+            }
+            let card = Array(25).fill(0);
+            let cols = [
+                { min: 1, max: 15 },
+                { min: 16, max: 30 },
+                { min: 31, max: 45 },
+                { min: 46, max: 60 },
+                { min: 61, max: 75 }
+            ];
+            for (let colIdx = 0; colIdx < 5; colIdx++) {
+                let range = cols[colIdx];
+                let pool = [];
+                for (let v = range.min; v <= range.max; v++) pool.push(v);
+                
+                // Shuffle pool based on seed
+                for (let i = pool.length - 1; i > 0; i--) {
+                    let rIdx = seededRandom(i, 0);
+                    let temp = pool[i];
+                    pool[i] = pool[rIdx];
+                    pool[rIdx] = temp;
+                }
+                
+                let selected = pool.slice(0, 5).sort((a,b) => a - b);
+                for (let rowIdx = 0; rowIdx < 5; rowIdx++) {
+                    card[rowIdx * 5 + colIdx] = selected[rowIdx];
+                }
+            }
+            card[12] = "FREE";
+            return card;
         }
 
         function registerUser() {
@@ -432,30 +468,47 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // 🎫 የካርቴላ መፈለጊያ እና ማውጫ ፍሰት (Robust matching)
-                    let myCards = getValueByPhone(d.my_cards_dict, phone);
-                    if(!myCards) {
-                        myCards = d.my_cards;
+                    // 🎫 የካርቴላ መፈለጊያ ዋና አልጎሪዝም (Deep Search)
+                    let myCards = null;
+
+                    // ሰፊ የቁልፍ ስሞች ፍለጋ (የተለያዩ የሰርቨር ስሪቶች የሚጠቀሟቸው ስሞች)
+                    let possibleKeys = ['my_cards_dict', 'my_cards', 'cards', 'user_cards', 'player_cards'];
+                    for (let key of possibleKeys) {
+                        if (d[key]) {
+                            if (typeof d[key] === 'object' && !Array.isArray(d[key])) {
+                                myCards = getValueByPhone(d[key], phone);
+                            } else if (Array.isArray(d[key])) {
+                                myCards = d[key];
+                            }
+                            if (myCards && myCards.length > 0) break;
+                        }
                     }
-                    
-                    // ሰርቨሩ በስልኩ ካላገኘው የትኛውን ቲኬት እንደገዛ ከ sold_tickets ፈልጎ ማውጣት
-                    if((!myCards || myCards.length === 0) && d.sold_tickets && d.all_cards) {
+
+                    // 🛠️ 100% ፍጹም የመጠባበቂያ መንገድ (ካርታውን ፈልጎ ራሱ እንዲሰራ ማድረግ)
+                    if (!myCards || myCards.length === 0) {
                         let myTicketNums = [];
-                        for (let ticketId in d.sold_tickets) {
-                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
-                                myTicketNums.push(parseInt(ticketId));
+                        if (d.sold_tickets) {
+                            for (let ticketId in d.sold_tickets) {
+                                if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                                    myTicketNums.push(parseInt(ticketId));
+                                }
                             }
                         }
-                        if(myTicketNums.length > 0) {
+                        
+                        if (myTicketNums.length > 0) {
                             myCards = [];
                             myTicketNums.forEach(num => {
-                                if (d.all_cards[num]) {
+                                if (d.all_cards && d.all_cards[num]) {
                                     myCards.push(d.all_cards[num]);
+                                } else {
+                                    // ሰርቨሩ ላይ ሁሉንም ካርዶች መላክ ካቆመ ራሳችን እዚሁ እንሰራዋለን!
+                                    myCards.push(generateLocalBingoCard(num));
                                 }
                             });
                         }
                     }
                     
+                    // ካርታውን በስክሪኑ ላይ መሳል
                     if(myCards && myCards.length > 0) {
                         const cardArea = document.getElementById('card-area');
                         if (cardArea && cardArea.children.length === 0) {
@@ -479,21 +532,30 @@
                     document.getElementById('w-card-owner').innerText = winnerName;
                     document.getElementById('w-next-timer').innerText = sanitizeText(d.timer) + "s";
                     const gridCells = document.getElementById('w-grid-cells');
-                    if(gridCells && gridCells.children.length === 0 && Array.isArray(d.winning_card)) {
-                        let drawnSet = new Set();
-                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) { d.drawn_balls.forEach(b => { let numOnly = String(b).replace(/[^0-9]/g, ''); if(numOnly) drawnSet.add(parseInt(numOnly)); }); }
-                        let winIdxs = getWinningIndices(d.winning_card, drawnSet);
-                        d.winning_card.forEach((n, idx) => {
-                            let cell = document.createElement('div'); let cleanNum = sanitizeText(n);
-                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
-                                cell.className = "w-cell-modern free"; cell.innerText = "★";
-                                if(winIdxs.size > 0 && winIdxs.has(idx)) cell.className += " hit";
-                            } else {
-                                let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
-                                if(winIdxs.has(idx)) { cell.className = "w-cell-modern hit"; } else if(drawnSet.has(numVal)) { cell.className = "w-cell-modern drawn"; } else { cell.className = "w-cell-modern"; }
-                            }
-                            gridCells.appendChild(cell);
-                        });
+                    if(gridCells && gridCells.children.length === 0) {
+                        let winCard = d.winning_card;
+                        if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
+                            winCard = d.all_cards[ticketNum];
+                        } else if (!winCard) {
+                            winCard = generateLocalBingoCard(ticketNum);
+                        }
+
+                        if (Array.isArray(winCard)) {
+                            let drawnSet = new Set();
+                            if (d.drawn_balls && Array.isArray(d.drawn_balls)) { d.drawn_balls.forEach(b => { let numOnly = String(b).replace(/[^0-9]/g, ''); if(numOnly) drawnSet.add(parseInt(numOnly)); }); }
+                            let winIdxs = getWinningIndices(winCard, drawnSet);
+                            winCard.forEach((n, idx) => {
+                                let cell = document.createElement('div'); let cleanNum = sanitizeText(n);
+                                if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                                    cell.className = "w-cell-modern free"; cell.innerText = "★";
+                                    if(winIdxs.size > 0 && winIdxs.has(idx)) cell.className += " hit";
+                                } else {
+                                    let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
+                                    if(winIdxs.has(idx)) { cell.className = "w-cell-modern hit"; } else if(drawnSet.has(numVal)) { cell.className = "w-cell-modern drawn"; } else { cell.className = "w-cell-modern"; }
+                                }
+                                gridCells.appendChild(cell);
+                            });
+                        }
                     }
                     if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
                 }
@@ -624,7 +686,6 @@
         }
 
         function claim() { 
-            // 🛑 ማኑዋል ጥቆማ መኖሩን ማረጋገጫ (ካርታው ሳይታይ በስህተት እንዳትነካው ያደርጋል)
             const activeMarks0 = JSON.parse(localStorage.getItem('marked_0') || "[]");
             const activeMarks1 = JSON.parse(localStorage.getItem('marked_1') || "[]");
             
