@@ -271,7 +271,6 @@ def webhook():
                     if len(parts) == 3:
                         target_phone, amount = sanitize_input(parts[1]), float(parts[2])
                         if amount > 0:
-                            # 🛡️ MongoDB $or upsert ስህተትን ለመከላከል መጀመሪያ ተጠቃሚውን መፈለግ
                             user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                             if user:
                                 wallets.update_one({"_id": user["_id"]}, {"$inc": {"balance": amount}})
@@ -436,6 +435,8 @@ def game_loop():
 def index(): 
     return render_template('index.html')
 
+# 🛠️ ማስተካከያ የተደረገበት ፖይንት፦ 
+# የተጠቃሚውን ስልክ ፈልጎ ትክክለኛውን ካርተላ ለይቶ ለFrontend እንዲልክ ተደርጓል።
 @app.route('/get_status')
 def get_status():
     phone = sanitize_input(request.args.get('phone'))
