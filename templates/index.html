@@ -140,10 +140,10 @@
         }
         
         /* 🎫 የካርቴላ Grid ስታይሎች - መጠናቸው በስክሪኑ ልክ እንዲሆን ማስተካከል */
-        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #444; padding: 2px; width: 100%; box-sizing: border-box; }
-        .cell { background: #fff; color: #000; height: 26px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; cursor: pointer; border-radius: 2px; }
-        .cell.selected { background: var(--gold) !important; font-weight: 900; }
-        .cell.free { background: var(--red) !important; color: white; font-size: 0.55rem; font-weight: 900; }
+        .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; max-width: 300px; margin: 0 auto; }
+        .cell { background: #fff; color: #000; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
+        .cell.selected { background: var(--gold) !important; }
+        .cell.free { background: var(--red) !important; color: white; font-size: 0.6rem; }
         
         #bingo-btn { width: 100%; padding: 10px 0; background: var(--red); color: white; font-size: 1rem; font-weight: 900; border-radius: 8px; border: 1px solid white; cursor: pointer; text-transform: uppercase; margin-top: 5px; }
         #bingo-btn:disabled { background: #555 !important; border-color: #888 !important; color: #aaa !important; cursor: not-allowed; }
