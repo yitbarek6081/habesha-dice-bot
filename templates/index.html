@@ -90,7 +90,7 @@
         .t-box.mine { background: var(--gold) !important; color: #000 !important; box-shadow: inset 0 0 0 2px #ffffff; }
         .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
 
-        /* 📱 የጨዋታ ገጽ Layout ማስተካከያ */
+        /* 📱 የጨዋታ ገጽ Layout */
         #game-ui {
             flex: 1;
             display: flex;
@@ -107,11 +107,11 @@
         #ball-prep-countdown { font-size: 0.9rem; font-weight: 900; color: var(--orange); background: rgba(255, 136, 0, 0.15); padding: 6px 12px; border-radius: 8px; border: 2px dashed var(--orange); text-align: center; }
         .game-start-alert { font-size: 0.85rem; font-weight: bold; color: var(--gold); background: rgba(255, 204, 0, 0.1); padding: 4px 15px; border-radius: 15px; border: 1px solid var(--gold); letter-spacing: 1px; }
 
-        /* 🔄 የቢንጎ ሰሌዳ እና የካርቴላዎች ጎን ለጎን 50/50 እኩል የመጋራት ህግ */
+        /* 🔄 55 / 45 የቦታ ክፍፍል (55% ለካርቴላው በግራ፣ 45% ለቢንጎ ሰሌዳው በቀኝ) */
         .game-layout {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* 50% ለሰሌዳ፣ 50% ለካርቴላ */
-            gap: 10px;
+            grid-template-columns: 55fr 45fr;
+            gap: 6px;
             flex: 1;
             overflow: hidden;
             width: 100%;
@@ -130,14 +130,13 @@
             height: 100%;
             box-sizing: border-box;
         }
-        .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; font-size: 0.75rem; padding: 2px 0; border-radius: 4px; margin-bottom: 2px; }
+        .board-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--gold); color: #000; font-weight: 900; font-size: 0.7rem; padding: 2px 0; border-radius: 4px; margin-bottom: 2px; }
         .main-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; flex: 1; overflow: hidden; }
         .board-column { display: flex; flex-direction: column; gap: 1px; height: 100%; justify-content: space-between; }
         
         .ball-dot { font-size: 0.65rem; background: #111; padding: 2px 0; color: #444; border-radius: 2px; text-align: center; font-weight: bold; flex: 1; display: flex; align-items: center; justify-content: center; }
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; box-shadow: 0 0 3px var(--gold); }
         
-        /* 🎫 የካርቴላው አካባቢ ስክሪን ላይ ጎልቶ እንዲወጣ የተስተካከለ ስታይል */
         .player-side-area { 
             display: flex; 
             flex-direction: column; 
@@ -153,7 +152,7 @@
             gap: 6px; 
             overflow-y: auto; 
             padding-right: 2px;
-            min-height: 180px; /* ቁመቱ ከዜሮ በላይ እንዲሆን ዋስትና ይሰጣል */
+            min-height: 190px;
         }
         
         /* 🎫 የካርቴላ Grid ስታይሎች */
@@ -170,7 +169,7 @@
         .cell { 
             background: #fff; 
             color: #000; 
-            height: 32px; /* በሞባይል ለመንካት ምቹ የሆነ ቁመት */
+            height: 33px; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
@@ -266,13 +265,16 @@
             </div>
 
             <div class="game-layout">
-                <div class="board-container">
-                    <div class="board-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
-                    <div class="main-board" id="main-board"></div>
-                </div>
+                <!-- 🎫 የካርቴላ መጫወቻ ቦታ (በግራ በኩል - 55%) -->
                 <div class="player-side-area">
                     <div id="card-area"></div>
                     <button id="bingo-btn" onclick="claim()">BINGO!</button>
+                </div>
+
+                <!-- 📊 የቢንጎ ሰሌዳ (በቀኝ በኩል - 45%) -->
+                <div class="board-container">
+                    <div class="board-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
+                    <div class="main-board" id="main-board"></div>
                 </div>
             </div>
         </div>
@@ -407,7 +409,7 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // 🎫 የካርቴላዎች አቀራረብ ፍሰት ማሻሻያ
+                    // 🎫 የካርቴላዎች አቀራረብ ፍሰት
                     let myCards = d.my_cards;
                     if(d.my_cards_dict && d.my_cards_dict[phone]) {
                         myCards = d.my_cards_dict[phone];
@@ -419,7 +421,7 @@
                             cardArea.innerHTML = "";
                             let cardsArray = Array.isArray(myCards[0]) ? myCards : [myCards];
                             cardsArray.forEach((c, i) => { 
-                                if(Array.isArray(c) && c.length >= 24) {
+                                if(Array.isArray(c)) {
                                     renderCard(c, i); 
                                 }
                             }); 
