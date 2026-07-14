@@ -436,7 +436,8 @@ def index():
     return render_template('index.html')
 
 # 🛠️ ማስተካከያ የተደረገበት ፖይንት፦ 
-# የተጠቃሚውን ስልክ ፈልጎ ትክክለኛውን ካርተላ ለይቶ ለFrontend እንዲልክ ተደርጓል።
+# የ "players" መረጃ ለፍሮንትኤንዱ ከመላኩ በፊት ጃቫስክሪፕቱ እንዳይበላሽ (እንዳይከሰከስ) 
+# "cards"ን ከዲክሽነሪ ወደ መደበኛ ሊስት (Array) ቀይሮ ይልካል። 
 @app.route('/get_status')
 def get_status():
     phone = sanitize_input(request.args.get('phone'))
@@ -446,8 +447,26 @@ def get_status():
     p_data = game_state["players"].get(db_phone, {"cards": {}})
     cards_list = list(p_data["cards"].values())
     
+    # የሌሎች ተጫዋቾችን ካርዶችም ፍሮንትኤንዱ በሚረዳው መልክ (እንደ List) እናዘጋጃለን
+    clean_players = {}
+    for k, v in game_state["players"].items():
+        clean_players[k] = {
+            "username": v.get("username", ""),
+            "cards": list(v.get("cards", {}).values())
+        }
+    
     status_copy = {
-        **game_state,
+        "status": game_state["status"],
+        "timer": game_state["timer"],
+        "ball_timer": game_state["ball_timer"],
+        "pot": game_state["pot"],
+        "sold_tickets": game_state["sold_tickets"],
+        "current_ball": game_state["current_ball"],
+        "drawn_balls": game_state["drawn_balls"],
+        "winner": game_state["winner"],
+        "winning_card": game_state["winning_card"],
+        "winning_ticket_num": game_state["winning_ticket_num"],
+        "players": clean_players, # 👈 ፍጹም ደህንነቱ የተጠበቀና ትክክለኛ የሊስት ፎርማት
         "balance": user['balance'] if user else 0, 
         "my_cards": cards_list, 
         "active_players": len(game_state["players"])
