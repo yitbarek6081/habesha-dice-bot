@@ -432,10 +432,28 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // 🎫 የካርቴላዎች ማውጫ ፍሰት (በስልክ ቁጥር የተጠበቀ)
+                    // 🎫 የካርቴላ መፈለጊያ እና ማውጫ ፍሰት (Robust matching)
                     let myCards = getValueByPhone(d.my_cards_dict, phone);
                     if(!myCards) {
                         myCards = d.my_cards;
+                    }
+                    
+                    // ሰርቨሩ በስልኩ ካላገኘው የትኛውን ቲኬት እንደገዛ ከ sold_tickets ፈልጎ ማውጣት
+                    if((!myCards || myCards.length === 0) && d.sold_tickets && d.all_cards) {
+                        let myTicketNums = [];
+                        for (let ticketId in d.sold_tickets) {
+                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                                myTicketNums.push(parseInt(ticketId));
+                            }
+                        }
+                        if(myTicketNums.length > 0) {
+                            myCards = [];
+                            myTicketNums.forEach(num => {
+                                if (d.all_cards[num]) {
+                                    myCards.push(d.all_cards[num]);
+                                }
+                            });
+                        }
                     }
                     
                     if(myCards && myCards.length > 0) {
@@ -606,9 +624,16 @@
         }
 
         function claim() { 
-            // 🛑 ማኑዋል ጥቆማ መኖሩን ማረጋገጫ (ቢያንስ 3 ቁጥር ካላጠቆረ BINGO አይልም)
+            // 🛑 ማኑዋል ጥቆማ መኖሩን ማረጋገጫ (ካርታው ሳይታይ በስህተት እንዳትነካው ያደርጋል)
             const activeMarks0 = JSON.parse(localStorage.getItem('marked_0') || "[]");
             const activeMarks1 = JSON.parse(localStorage.getItem('marked_1') || "[]");
+            
+            const cardArea = document.getElementById('card-area');
+            if (!cardArea || cardArea.children.length === 0) {
+                alert("ይቅርታ፣ የቢንጎ ካርታዎ ስላልታየ BINGO ማለት አይችሉም! ኔትወርክዎን ያረጋግጡ።");
+                return;
+            }
+
             if (activeMarks0.length === 0 && activeMarks1.length === 0) {
                 alert("እባክዎ መጀመሪያ የወጡትን ቁጥሮች ካርቴላዎ ላይ ያጥቁሩ!");
                 return;
