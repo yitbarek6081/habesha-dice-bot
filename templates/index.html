@@ -280,7 +280,7 @@
         </div>
     </div>
 
-    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)。<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)。<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ。<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
     <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
     <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
@@ -307,6 +307,26 @@
                 document.getElementById('auth-ui').style.display = 'flex';
                 document.getElementById('main-app-content').style.display = 'none';
             }
+        }
+
+        // 🔄 የስልክ ቁጥር ማመሳከሪያ ኢንጂን
+        function phoneMatches(p1, p2) {
+            if (!p1 || !p2) return false;
+            let clean1 = String(p1).replace(/[^0-9]/g, '').slice(-9);
+            let clean2 = String(p2).replace(/[^0-9]/g, '').slice(-9);
+            return clean1 === clean2 && clean1.length > 0;
+        }
+
+        function getValueByPhone(dict, targetPhone) {
+            if (!dict || !targetPhone) return null;
+            let targetClean = String(targetPhone).replace(/[^0-9]/g, '').slice(-9);
+            for (let key in dict) {
+                let keyClean = String(key).replace(/[^0-9]/g, '').slice(-9);
+                if (keyClean === targetClean) {
+                    return dict[key];
+                }
+            }
+            return null;
         }
 
         function registerUser() {
@@ -374,9 +394,12 @@
                 document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
                 document.getElementById('timer').innerText = sanitizeText(d.timer);
                 
-                if (d.balances && d.balances[phone] !== undefined) {
-                    clientBalance = parseFloat(d.balances[phone]) || 0;
-                    document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                if (d.balances) {
+                    let myBalance = getValueByPhone(d.balances, phone);
+                    if (myBalance !== null) {
+                        clientBalance = parseFloat(myBalance) || 0;
+                        document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                    }
                 }
 
                 if(d.status === "lobby") {
@@ -409,10 +432,10 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // 🎫 የካርቴላዎች አቀራረብ ፍሰት
-                    let myCards = d.my_cards;
-                    if(d.my_cards_dict && d.my_cards_dict[phone]) {
-                        myCards = d.my_cards_dict[phone];
+                    // 🎫 የካርቴላዎች ማውጫ ፍሰት (በስልክ ቁጥር የተጠበቀ)
+                    let myCards = getValueByPhone(d.my_cards_dict, phone);
+                    if(!myCards) {
+                        myCards = d.my_cards;
                     }
                     
                     if(myCards && myCards.length > 0) {
@@ -510,12 +533,11 @@
         }
 
         function renderTickets(sold) {
-            const cleanPhone = String(phone);
             for(let i=1; i<=500; i++) {
                 let box = document.getElementById('t-'+i); if(!box) continue;
                 box.style.pointerEvents = "auto"; 
                 if(sold[i]) { 
-                    const isMine = (String(sold[i]) === cleanPhone);
+                    const isMine = phoneMatches(sold[i], phone);
                     box.className = isMine ? 't-box mine' : 't-box sold'; 
                     box.onclick = isMine ? () => refund(i) : null; 
                 } else { 
@@ -584,6 +606,14 @@
         }
 
         function claim() { 
+            // 🛑 ማኑዋል ጥቆማ መኖሩን ማረጋገጫ (ቢያንስ 3 ቁጥር ካላጠቆረ BINGO አይልም)
+            const activeMarks0 = JSON.parse(localStorage.getItem('marked_0') || "[]");
+            const activeMarks1 = JSON.parse(localStorage.getItem('marked_1') || "[]");
+            if (activeMarks0.length === 0 && activeMarks1.length === 0) {
+                alert("እባክዎ መጀመሪያ የወጡትን ቁጥሮች ካርቴላዎ ላይ ያጥቁሩ!");
+                return;
+            }
+
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
             fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
             .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
