@@ -355,8 +355,7 @@
                     pool[rIdx] = temp;
                 }
                 
-                // ኮዱን ቀይሬዋለሁ፡ መደርደር (sort) አንፈልግም የተደበላለቀ እንዲሆን ነው
-                let selected = pool.slice(0, 5); 
+                let selected = pool.slice(0, 5).sort((a,b) => a - b);
                 for (let rowIdx = 0; rowIdx < 5; rowIdx++) {
                     card[rowIdx * 5 + colIdx] = selected[rowIdx];
                 }
@@ -586,34 +585,18 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
-        // የተሻሻለው የአሸናፊ መስመር ፈታሽ (ሁሉንም የቢንጎ ህጎች በትክክል አጥርቶ ያሳያል)
         function getWinningIndices(card, drawnSet) {
-            let winningIndices = new Set();
             const isHit = (idx) => {
-                let cellVal = String(card[idx]).trim().toUpperCase();
-                if (idx === 12 || cellVal === "FREE" || cellVal === "★" || cellVal === "0") return true;
+                if (idx === 12 || card[idx] === "FREE" || card[idx] === "★" || card[idx] === 0) return true;
                 let val = parseInt(card[idx]);
                 return !isNaN(val) && drawnSet.has(val);
             };
-            
-            let lines = [
-                // 5 Row (አግድም)
-                [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14], [15, 16, 17, 18, 19], [20, 21, 22, 23, 24],
-                // 5 Column (ቁልቁል)
-                [0, 5, 10, 15, 20], [1, 6, 11, 16, 21], [2, 7, 12, 17, 22], [3, 8, 13, 18, 23], [4, 9, 14, 19, 24],
-                // 2 Diagonal (ሰያፍ)
-                [0, 6, 12, 18, 24], [4, 8, 12, 16, 20],
-                // 4 Corners (ማዕዘን)
-                [0, 4, 20, 24]
-            ];
-            
-            lines.forEach(line => {
-                if (line.every(isHit)) {
-                    line.forEach(idx => winningIndices.add(idx));
-                }
-            });
-            
-            return winningIndices;
+            for (let i = 0; i < 5; i++) { let r = [i*5, i*5+1, i*5+2, i*5+3, i*5+4]; if (r.every(isHit)) return new Set(r); }
+            for (let j = 0; j < 5; j++) { let c = [j, j+5, j+10, j+15, j+20]; if (c.every(isHit)) return new Set(c); }
+            let d1 = [0, 6, 12, 18, 24]; if (d1.every(isHit)) return new Set(d1);
+            let d2 = [4, 8, 12, 16, 20]; if (d2.every(isHit)) return new Set(d2);
+            let cr = [0, 4, 20, 24]; if (cr.every(isHit)) return new Set(cr);
+            return new Set();
         }
 
         function initTicketsOnce() {
