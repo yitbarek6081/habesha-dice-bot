@@ -435,9 +435,6 @@ def game_loop():
 def index(): 
     return render_template('index.html')
 
-# 🛠️ ማስተካከያ የተደረገበት ፖይንት፦ 
-# የ "players" መረጃ ለፍሮንትኤንዱ ከመላኩ በፊት ጃቫስክሪፕቱ እንዳይበላሽ (እንዳይከሰከስ) 
-# "cards"ን ከዲክሽነሪ ወደ መደበኛ ሊስት (Array) ቀይሮ ይልካል። 
 @app.route('/get_status')
 def get_status():
     phone = sanitize_input(request.args.get('phone'))
@@ -447,7 +444,6 @@ def get_status():
     p_data = game_state["players"].get(db_phone, {"cards": {}})
     cards_list = list(p_data["cards"].values())
     
-    # የሌሎች ተጫዋቾችን ካርዶችም ፍሮንትኤንዱ በሚረዳው መልክ (እንደ List) እናዘጋጃለን
     clean_players = {}
     for k, v in game_state["players"].items():
         clean_players[k] = {
@@ -455,6 +451,10 @@ def get_status():
             "cards": list(v.get("cards", {}).values())
         }
     
+    is_waiting = False
+    if game_state["status"] in ["playing", "result"] and db_phone not in game_state["players"]:
+        is_waiting = True
+
     status_copy = {
         "status": game_state["status"],
         "timer": game_state["timer"],
@@ -466,10 +466,11 @@ def get_status():
         "winner": game_state["winner"],
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
-        "players": clean_players, # 👈 ፍጹም ደህንነቱ የተጠበቀና ትክክለኛ የሊስት ፎርማት
+        "players": clean_players, 
         "balance": user['balance'] if user else 0, 
         "my_cards": cards_list, 
-        "active_players": len(game_state["players"])
+        "active_players": len(game_state["players"]),
+        "is_waiting": is_waiting 
     }
     return jsonify(status_copy)
 
@@ -487,7 +488,7 @@ def buy_ticket():
     db_phone = user["phone"]
 
     if game_state["status"] != "lobby":
-        return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
+        return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል! እባክዎ ቀጣዩን ዙር ይጠብቁ።"})
     if t_num in game_state["sold_tickets"]:
         return jsonify({"success": False, "msg": "ይህ ካርተላ ቀድሞ ተይዟል!"})
     if db_phone in game_state["players"] and len(game_state["players"][db_phone]["cards"]) >= 2:
@@ -504,7 +505,9 @@ def buy_ticket():
     if res:
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
-            columns.append(random.sample(range(r[0], r[1]+1), 5))
+            # 🎲 ቁጥሮቹ በዘፈቀደ የተድበላለቁ (Shuffled) ሆነው እንዲመጡ ይደረጋል
+            shuffled_pool = random.sample(range(r[0], r[1]+1), 5)
+            columns.append(shuffled_pool)
             
         flat = []
         for row_idx in range(5):
@@ -518,7 +521,7 @@ def buy_ticket():
                 del game_state["sold_tickets"][t_num]
             wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}})
             broadcast_game_state()
-            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
+            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል! እባክዎ ቀጣዩን ዙር ይጠብቁ።"})
             
         game_state["sold_tickets"][t_num] = db_phone
         game_state["pot"] += 10
@@ -547,7 +550,10 @@ def cancel_ticket():
         return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
     db_phone = user["phone"]
 
-    if game_state["status"] == "lobby" and game_state["sold_tickets"].get(t_num) == db_phone:
+    if game_state["status"] != "lobby":
+        return jsonify({"success": False, "msg": "ጨዋታው ስለተጀመረ መሰረዝ አይቻልም!"})
+
+    if game_state["sold_tickets"].get(t_num) == db_phone:
         wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}}) 
         game_state["pot"] -= 10
         del game_state["sold_tickets"][t_num]
@@ -560,7 +566,7 @@ def cancel_ticket():
         broadcast_game_state() 
         return jsonify({"success": True})
             
-    return jsonify({"success": False, "msg": "መሰረዝ አይቻልም!"})
+    return jsonify({"success": False, "msg": "ካርተላውን መሰረዝ አይቻልም!"})
 
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
@@ -685,14 +691,12 @@ def claim_bingo():
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
-# 🛡️ ሉፑን በአስተማማኝ ሁኔታ መጀመሪያ ተጠቃሚ ሲገናኝ ብቻ ማስጀመሪያ ስልት
 @socketio.on('connect')
 def handle_connect():
     global loop_started
     if not loop_started:
         loop_started = True
         set_webhook()
-        # 🚀 ታይመሩን በሴፍ ባክግራውንድ ታስክ እዚህ ላይ ያስጀምረዋል
         socketio.start_background_task(game_loop)
     broadcast_game_state()
 
