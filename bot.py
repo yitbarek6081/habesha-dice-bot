@@ -341,30 +341,53 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
+# 🎯 በአሸናፊው መስመር ላይ የሚገኙትን ቁጥሮች በትክክለኛው የካርቴላ መደራጃ ኢንዴክስ መሰረት መፈተሻ (የተስተካከለ)
 def check_winning_line(card, drawn_numbers):
-    drawn_set = {int(b[1:]) for b in drawn_numbers if len(b) > 1}
-    drawn_set.add(0)
+    # የወጡትን ኳሶች ቁጥር ብቻ ለይቶ ማውጣት (ምሳሌ 'B15' -> 15)
+    drawn_set = set()
+    for b in drawn_numbers:
+        if len(b) > 1:
+            try:
+                drawn_set.add(int(b[1:]))
+            except ValueError:
+                pass
+    drawn_set.add(0) # FREE space represents 0
 
+    # ረዳት ተግባር - የተሰጡት የሴል ቁጥሮች በሙሉ መውጣታቸውን ማረጋገጫ
+    def is_hit(idx):
+        val = card[idx]
+        if idx == 12 or val == 0 or val == "FREE":
+            return True
+        try:
+            return int(val) in drawn_set
+        except:
+            return False
+
+    # 1. አግድም መስመር (5 ሮው)
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
-        if all(card[idx] in drawn_set for idx in row_indices):
-            return row_indices, f"አግድም (Row {i+1})"
+        if all(is_hit(idx) for idx in row_indices):
+            return row_indices, f"አግድም መስመር {i+1} (Row {i+1})"
 
-    for i in range(5):
-        col_indices = [i + j*5 for j in range(5)]
-        if all(card[idx] in drawn_set for idx in col_indices):
-            return col_indices, f"ቁልቁል (Column {i+1})"
+    # 2. ቁልቁል መስመር (5 ኮለመን)
+    for j in range(5):
+        col_indices = [j + i*5 for i in range(5)]
+        if all(is_hit(idx) for idx in col_indices):
+            return col_indices, f"ቁልቁል መስመር {j+1} (Column {j+1})"
 
+    # 3. ዲያጎናል መስመር 1 (↘)
     diag1_indices = [0, 6, 12, 18, 24]
-    if all(card[idx] in drawn_set for idx in diag1_indices):
-        return diag1_indices, "ዲያጎናል (Diagonal 📉)"
+    if all(is_hit(idx) for idx in diag1_indices):
+        return diag1_indices, "ዲያጎናል መስመር ↘ (Diagonal ↘)"
 
+    # 4. ዲያጎናል መስመር 2 (↙)
     diag2_indices = [4, 8, 12, 16, 20]
-    if all(card[idx] in drawn_set for idx in diag2_indices):
-        return diag2_indices, "ዲያጎናል (Diagonal 📈)"
+    if all(is_hit(idx) for idx in diag2_indices):
+        return diag2_indices, "ዲያጎናል መስመር ↙ (Diagonal ↙)"
 
+    # 5. አራቱ ማዕዘናት (4 Corners)
     corner_indices = [0, 4, 20, 24]
-    if all(card[idx] in drawn_set for idx in corner_indices):
+    if all(is_hit(idx) for idx in corner_indices):
         return corner_indices, "አራቱ ማዕዘናት (4 Corners)"
 
     return None, None
@@ -383,7 +406,6 @@ def game_loop():
         current_status = game_state["status"]
 
         if current_status == "lobby":
-            # ከ 30 ወደ 0 ይቆጥራል
             for i in range(30, -1, -1):
                 if game_state["status"] != "lobby": 
                     break
@@ -391,7 +413,6 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            # ቢያንስ 2 ተጫዋች ሲኖር መጫወት ይጀምራል
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -399,7 +420,6 @@ def game_loop():
                 shuffled = balls.copy()
                 random.shuffle(shuffled)
             else:
-                # ሰው ከሌለ መልሶ 30 ላይ ያቆመዋል
                 game_state["timer"] = 30
                 shuffled = []
             broadcast_game_state()
@@ -505,7 +525,6 @@ def buy_ticket():
     if res:
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
-            # 🎲 ቁጥሮቹ በዘፈቀደ የተድበላለቁ (Shuffled) ሆነው እንዲመጡ ይደረጋል
             shuffled_pool = random.sample(range(r[0], r[1]+1), 5)
             columns.append(shuffled_pool)
             
