@@ -198,8 +198,15 @@
         .winner-card-owner-lbl { color: #10b981; font-style: italic; }
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #f8fafc; padding: 6px; border-radius: 12px; border: 1px solid #e2e8f0; }
         .w-cell-modern { background: #ffffff; color: #a0aec0; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; }
-        .w-cell-modern.drawn { background: #e2e8f0; color: #475569; }
         
+        /* 1. በተለመደው የወጡ (የተመቱ) ቁጥሮች መደበኛ ግራጫ እንዲሆኑ */
+        .w-cell-modern.drawn { 
+            background: #cbd5e1; 
+            color: #475569; 
+            border-color: #cbd5e1;
+        }
+        
+        /* 2. ትክክለኛ ያሸነፈበት መስመር (ወይም መስመሮች) ብቻ በደማቅ ቀይ እንዲበሩ */
         .w-cell-modern.hit { 
             background: #ef4444 !important; 
             color: #ffffff !important; 
@@ -432,7 +439,6 @@
             }).catch(() => {});
         }
 
-        // 🎯 በአንድ ጊዜ የተዘጉትን ሁሉንም ያሸነፉ መስመሮች ሰብስቦ የሚይዝ የፍሮንትኤንድ ሎጂክ
         function getWinningPatternInfo(card, drawnSet) {
             const isHit = (idx) => {
                 if (idx === 12 || card[idx] === "FREE" || card[idx] === "★" || card[idx] === 0) return true;
@@ -475,7 +481,7 @@
                 names.push("ዲያጎናል ↙");
             }
 
-            // 5. 4ቱ ማዕዘናት (4 Corners)
+            // 5. 4ቱ ማዕዘናት
             let cr = [0, 4, 20, 24];
             if (cr.every(isHit)) {
                 cr.forEach(idx => allWinIndices.add(idx));
@@ -614,8 +620,16 @@
                                 }); 
                             }
                             
+                            // 🎯 ከBackend የመጣውን ያሸነፉበትን እውነተኛ መስመር indices እንጠቀማለን (ካልመጣ በFront እራሱ ይለየዋል)
+                            let winIdxs = new Set();
                             let winPattern = getWinningPatternInfo(winCard, drawnSet);
-                            let winIdxs = winPattern.indices;
+                            
+                            if (d.winning_indices && Array.isArray(d.winning_indices)) {
+                                d.winning_indices.forEach(idx => winIdxs.add(idx));
+                            } else {
+                                winIdxs = winPattern.indices;
+                            }
+
                             let patternNameEl = document.getElementById('w-pattern-name');
                             if (patternNameEl) {
                                 patternNameEl.innerText = winPattern.name ? `🎉 ያሸነፈበት መስመር፦ ${winPattern.name}` : "";
@@ -625,10 +639,20 @@
                                 let cell = document.createElement('div'); let cleanNum = sanitizeText(n);
                                 if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
                                     cell.className = "w-cell-modern free"; cell.innerText = "★";
+                                    // ፍሪ ስፔስ (12) ያሸነፈበት መስመር ውስጥ ካለ ብቻ እንዲበራ
                                     if(winIdxs.size > 0 && winIdxs.has(idx)) cell.className += " hit";
                                 } else {
                                     let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
-                                    if(winIdxs.has(idx)) { cell.className = "w-cell-modern hit"; } else if(drawnSet.has(numVal)) { cell.className = "w-cell-modern drawn"; } else { cell.className = "w-cell-modern"; }
+                                    
+                                    // 🎯 ቁልፍ ማስተካከያ፡ ያሸነፈበት መስመር ውስጥ ያለ ኢንዴክስ ከሆነ ብቻ ቀይ (hit) ይሆናል። 
+                                    // የተቀረው በጨዋታው ሂደት የበራው ቁጥር በሙሉ ግራጫ (drawn) ብቻ ሆኖ ይታያል!
+                                    if (winIdxs.has(idx)) { 
+                                        cell.className = "w-cell-modern hit"; 
+                                    } else if (drawnSet.has(numVal)) { 
+                                        cell.className = "w-cell-modern drawn"; 
+                                    } else { 
+                                        cell.className = "w-cell-modern"; 
+                                    }
                                 }
                                 gridCells.appendChild(cell);
                             });
