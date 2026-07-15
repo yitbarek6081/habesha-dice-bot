@@ -39,7 +39,8 @@ game_state = {
     "winner": None,
     "winning_card": None,
     "winning_ticket_num": None,
-    "winning_indices": None  # ያሸነፉበትን መስመር ኢንዴክሶች ብቻ ለይቶ መያዣ አዲስ ክፍል
+    "winning_indices": None,
+    "all_cards": {}  # ሁሉንም ካርታዎች ከነቁጥራቸው እዚህ ይይዛል
 }
 
 loop_started = False
@@ -84,7 +85,8 @@ def broadcast_game_state():
         "winner": game_state["winner"],
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
-        "winning_indices": game_state.get("winning_indices"), # እዚህ ጋር ይልካል
+        "winning_indices": game_state.get("winning_indices"),
+        "all_cards": game_state.get("all_cards", {}), # ካርታዎቹን ወደ ስልክ/ዌብ ይልካል
         "active_players": len(game_state["players"]),
         "balances": all_balances  
     }
@@ -402,7 +404,7 @@ def check_winning_line(card, drawn_numbers):
 def reset_game():
     game_state.update({
         "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "winning_indices": None, "pot": 0, "players": {}, 
-        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
+        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}
     })
     broadcast_game_state() 
 
@@ -494,6 +496,7 @@ def get_status():
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
         "winning_indices": game_state.get("winning_indices"),
+        "all_cards": game_state.get("all_cards", {}),
         "players": clean_players, 
         "balance": user['balance'] if user else 0, 
         "my_cards": cards_list, 
@@ -553,6 +556,11 @@ def buy_ticket():
         game_state["sold_tickets"][t_num] = db_phone
         game_state["pot"] += 10
         
+        # ካርታውን ሁለቱም ጋር ተመሳስሎ እንዲቀመጥ ሰርቨሩ ላይ እናስቀምጠዋለን
+        if "all_cards" not in game_state:
+            game_state["all_cards"] = {}
+        game_state["all_cards"][t_num] = flat
+        
         p_uname = uname if uname else res.get("username", f"User_{db_phone[-4:]}")
         if db_phone not in game_state["players"]:
             game_state["players"][db_phone] = {"cards": {t_num: flat}, "username": p_uname}
@@ -585,6 +593,9 @@ def cancel_ticket():
         game_state["pot"] -= 10
         del game_state["sold_tickets"][t_num]
         
+        if "all_cards" in game_state and t_num in game_state["all_cards"]:
+            del game_state["all_cards"][t_num]
+            
         if db_phone in game_state["players"]:
             if t_num in game_state["players"][db_phone]["cards"]:
                 del game_state["players"][db_phone]["cards"][t_num]
@@ -673,7 +684,7 @@ def claim_bingo():
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
-            game_state["winning_indices"] = win_indices # አሸናፊ ሳጥኖች ብቻ እዚህ ይያዛሉ!
+            game_state["winning_indices"] = win_indices
             
             win_amt = game_state["pot"] * 0.8
             wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
