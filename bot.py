@@ -343,19 +343,26 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
+# =====================================================================
+# የተስተካከለው የቢንጎ አሸናፊ መስመር መፈተሻ ሎጂክ (ምንም ያልተቆረጠ)
+# =====================================================================
 def check_winning_line(card, drawn_numbers):
     drawn_set = set()
     for b in drawn_numbers:
         if len(b) > 1:
             try:
+                # ከኳሱ ፊደሉን በመተው (ለምሳሌ B15 ከሆነ 15ቱን) ቁጥር ብቻ ለይቶ ይወስዳል
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
-    drawn_set.add(0) # FREE space
+    drawn_set.add(0)  # የካርዱ መሃል FREE space (0) ሁልጊዜ እንደወጣ ይቆጠራል
 
+    # አንድ ክፍል (ሴል) መውጣቱን መፈተሻ
     def is_hit(idx):
+        if idx == 12:  # መካከለኛው FREE space (index 12) ሁሌም True ነው
+            return True
         val = card[idx]
-        if idx == 12 or val == 0 or val == "FREE" or val == "★":
+        if val == 0 or val == "FREE" or val == "★" or val == "*":
             return True
         try:
             return int(val) in drawn_set
@@ -365,14 +372,14 @@ def check_winning_line(card, drawn_numbers):
     all_win_indices = set()
     line_types = []
 
-    # 1. አግድም መስመር (5 ሮው)
+    # 1. አግድም መስመር (5 ረድፎች)
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
         if all(is_hit(idx) for idx in row_indices):
             all_win_indices.update(row_indices)
             line_types.append(f"ረድፍ {i+1} (Row {i+1})")
 
-    # 2. ቁልቁል መስመር (5 ኮለመን)
+    # 2. ቁልቁል መስመር (5 አምዶች)
     for j in range(5):
         col_indices = [j + i*5 for i in range(5)]
         if all(is_hit(idx) for idx in col_indices):
@@ -630,7 +637,7 @@ def request_deposit():
                f"💵 Amount: `{amt}` ETB\n"
                f"🆔 ID: `{t_id}`\n\n"
                f"👇 Approve:\n`/add {db_phone} {amt}`")
-               
+                
     send_telegram(msg)
     return jsonify({"success": True})
 
