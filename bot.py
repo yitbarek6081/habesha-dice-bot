@@ -13,7 +13,6 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# 💡 async_mode='gevent' ከ Render እና Gunicorn ጋር ፍጹም ተስማሚ ነው
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # --- CONFIG ---
@@ -42,7 +41,6 @@ game_state = {
     "winning_ticket_num": None  
 }
 
-# 💡 ታይመሩ ከአንድ ጊዜ በላይ እንዳይጀምር መቆጣጠሪያ
 loop_started = False
 
 def sanitize_input(text):
@@ -341,9 +339,8 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
-# 🎯 በአሸናፊው መስመር ላይ የሚገኙትን ቁጥሮች በትክክለኛው የካርቴላ መደራጃ ኢንዴክስ መሰረት መፈተሻ (የተስተካከለ)
+# 🎯 ማስተካከያ የተደረገበት የቢንጎ መስመር መፈተሻ ሎጂክ
 def check_winning_line(card, drawn_numbers):
-    # የወጡትን ኳሶች ቁጥር ብቻ ለይቶ ማውጣት (ምሳሌ 'B15' -> 15)
     drawn_set = set()
     for b in drawn_numbers:
         if len(b) > 1:
@@ -351,9 +348,8 @@ def check_winning_line(card, drawn_numbers):
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
-    drawn_set.add(0) # FREE space represents 0
+    drawn_set.add(0) # FREE space is 0
 
-    # ረዳት ተግባር - የተሰጡት የሴል ቁጥሮች በሙሉ መውጣታቸውን ማረጋገጫ
     def is_hit(idx):
         val = card[idx]
         if idx == 12 or val == 0 or val == "FREE":
@@ -363,13 +359,13 @@ def check_winning_line(card, drawn_numbers):
         except:
             return False
 
-    # 1. አግድም መስመር (5 ሮው)
+    # 1. አግድም መስመር (5 ሮው) -> [0..4], [5..9], [10..14], [15..19], [20..24]
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
         if all(is_hit(idx) for idx in row_indices):
             return row_indices, f"አግድም መስመር {i+1} (Row {i+1})"
 
-    # 2. ቁልቁል መስመር (5 ኮለመን)
+    # 2. ቁልቁል መስመር (5 ኮለመን) -> [0,5,10,15,20], [1,6,11,16,21], ...
     for j in range(5):
         col_indices = [j + i*5 for i in range(5)]
         if all(is_hit(idx) for idx in col_indices):
@@ -385,7 +381,7 @@ def check_winning_line(card, drawn_numbers):
     if all(is_hit(idx) for idx in diag2_indices):
         return diag2_indices, "ዲያጎናል መስመር ↙ (Diagonal ↙)"
 
-    # 5. አራቱ ማዕዘናት (4 Corners)
+    # 5. አራቱ ማዕዘናት
     corner_indices = [0, 4, 20, 24]
     if all(is_hit(idx) for idx in corner_indices):
         return corner_indices, "አራቱ ማዕዘናት (4 Corners)"
@@ -399,7 +395,6 @@ def reset_game():
     })
     broadcast_game_state() 
 
-# 🔄 ዋናው የጌም ታይመር እና የኳስ ሉፕ
 def game_loop():
     balls = [f"{'BINGO'[i//15]}{i+1}" for i in range(75)]
     while True:
@@ -445,8 +440,8 @@ def game_loop():
                 game_state["winner"] = "No Winner (House)"
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
-                send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል። ሁሉም ኳሶች አልቀዋል።")
-                socketio.start_background_task(lambda: (socketio.sleep(5), reset_game()))
+                send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
+                socketio.start_background_task(lambda: (socketio.sleep(10), reset_game()))
             broadcast_game_state()
 
         socketio.sleep(1)
@@ -508,7 +503,7 @@ def buy_ticket():
     db_phone = user["phone"]
 
     if game_state["status"] != "lobby":
-        return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል! እባክዎ ቀጣዩን ዙር ይጠብቁ።"})
+        return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
     if t_num in game_state["sold_tickets"]:
         return jsonify({"success": False, "msg": "ይህ ካርተላ ቀድሞ ተይዟል!"})
     if db_phone in game_state["players"] and len(game_state["players"][db_phone]["cards"]) >= 2:
@@ -523,6 +518,7 @@ def buy_ticket():
     )
     
     if res:
+        # በፍሮንትኤንድ ላይ ካለው አደራደር ጋር 100% ተመሳሳይ በሆነ ፎርማት እንዲፈጠር ማድረግ
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             shuffled_pool = random.sample(range(r[0], r[1]+1), 5)
@@ -540,7 +536,7 @@ def buy_ticket():
                 del game_state["sold_tickets"][t_num]
             wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}})
             broadcast_game_state()
-            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል! እባክዎ ቀጣዩን ዙር ይጠብቁ።"})
+            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
             
         game_state["sold_tickets"][t_num] = db_phone
         game_state["pot"] += 10
@@ -648,7 +644,7 @@ def claim_bingo():
     db_phone = user_info["phone"]
 
     if game_state["status"] != "playing":
-        return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም ወይም ሌላ አሸናፊ ተገኝቷል!"})
+        return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም!"})
         
     p_data = game_state["players"].get(db_phone)
     if not p_data:
@@ -660,7 +656,9 @@ def claim_bingo():
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
         
         if win_indices is not None:
+            # ሪሰት ከመደረጉ በፊት "Next Round" ታይመር እንዲጀምር ታይመሩን ወደ 10 ሰከንድ እንቀይረዋለን
             game_state["status"] = "result"
+            game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
@@ -682,12 +680,10 @@ def claim_bingo():
                     idx = r * 5 + c  
                     val = card[idx]
                     val_str = "FREE" if val == 0 else str(val)
-                    
                     if idx in win_indices:
                         row_vals.append(f"⭐{val_str}⭐")
                     else:
                         row_vals.append(val_str)
-                        
                 card_rows.append(" | ".join(row_vals))
             card_text = "\n".join(card_rows)
             
@@ -705,7 +701,16 @@ def claim_bingo():
             
             send_telegram(success_msg)
             broadcast_game_state() 
-            socketio.start_background_task(lambda: (socketio.sleep(10), reset_game()))
+
+            # በስተጀርባ ታይመሩ እየቀነሰ እንዲሄድ እና ከ10 ሰከንድ በኋላ ሪሰት እንዲሆን ማድረግ
+            def countdown_and_reset():
+                for t in range(10, -1, -1):
+                    game_state["timer"] = t
+                    broadcast_game_state()
+                    socketio.sleep(1)
+                reset_game()
+
+            socketio.start_background_task(countdown_and_reset)
             return jsonify({"success": True})
             
     return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
