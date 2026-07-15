@@ -339,7 +339,7 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
-# 🎯 ማስተካከያ የተደረገበት የቢንጎ መስመር መፈተሻ ሎጂክ
+# 🎯 በአንድ ጊዜ ሁሉንም ያሸነፉ መስመሮችን (Columns, Rows, Diagonals) ሰብስቦ የሚይዘው ሎጂክ
 def check_winning_line(card, drawn_numbers):
     drawn_set = set()
     for b in drawn_numbers:
@@ -348,44 +348,54 @@ def check_winning_line(card, drawn_numbers):
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
-    drawn_set.add(0) # FREE space is 0
+    drawn_set.add(0) # FREE space 0 ነው
 
     def is_hit(idx):
         val = card[idx]
-        if idx == 12 or val == 0 or val == "FREE":
+        if idx == 12 or val == 0 or val == "FREE" or val == "★":
             return True
         try:
             return int(val) in drawn_set
         except:
             return False
 
-    # 1. አግድም መስመር (5 ሮው) -> [0..4], [5..9], [10..14], [15..19], [20..24]
+    all_win_indices = set()
+    line_types = []
+
+    # 1. አግድም መስመር (5 ሮው)
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
         if all(is_hit(idx) for idx in row_indices):
-            return row_indices, f"አግድም መስመር {i+1} (Row {i+1})"
+            all_win_indices.update(row_indices)
+            line_types.append(f"ረድፍ {i+1} (Row {i+1})")
 
-    # 2. ቁልቁል መስመር (5 ኮለመን) -> [0,5,10,15,20], [1,6,11,16,21], ...
+    # 2. ቁልቁል መስመር (5 ኮለመን)
     for j in range(5):
         col_indices = [j + i*5 for i in range(5)]
         if all(is_hit(idx) for idx in col_indices):
-            return col_indices, f"ቁልቁል መስመር {j+1} (Column {j+1})"
+            all_win_indices.update(col_indices)
+            line_types.append(f"አምድ {j+1} (Column {j+1})")
 
     # 3. ዲያጎናል መስመር 1 (↘)
     diag1_indices = [0, 6, 12, 18, 24]
     if all(is_hit(idx) for idx in diag1_indices):
-        return diag1_indices, "ዲያጎናል መስመር ↘ (Diagonal ↘)"
+        all_win_indices.update(diag1_indices)
+        line_types.append("ዲያጎናል ↘")
 
     # 4. ዲያጎናል መስመር 2 (↙)
     diag2_indices = [4, 8, 12, 16, 20]
     if all(is_hit(idx) for idx in diag2_indices):
-        return diag2_indices, "ዲያጎናል መስመር ↙ (Diagonal ↙)"
+        all_win_indices.update(diag2_indices)
+        line_types.append("ዲያጎናል ↙")
 
     # 5. አራቱ ማዕዘናት
     corner_indices = [0, 4, 20, 24]
     if all(is_hit(idx) for idx in corner_indices):
-        return corner_indices, "አራቱ ማዕዘናት (4 Corners)"
+        all_win_indices.update(corner_indices)
+        line_types.append("4 ማዕዘን")
 
+    if all_win_indices:
+        return list(all_win_indices), " + ".join(line_types)
     return None, None
 
 def reset_game():
@@ -518,7 +528,6 @@ def buy_ticket():
     )
     
     if res:
-        # በፍሮንትኤንድ ላይ ካለው አደራደር ጋር 100% ተመሳሳይ በሆነ ፎርማት እንዲፈጠር ማድረግ
         columns = []
         for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
             shuffled_pool = random.sample(range(r[0], r[1]+1), 5)
@@ -702,7 +711,6 @@ def claim_bingo():
             send_telegram(success_msg)
             broadcast_game_state() 
 
-            # በስተጀርባ ታይመሩ እየቀነሰ እንዲሄድ እና ከ10 ሰከንድ በኋላ ሪሰት እንዲሆን ማድረግ
             def countdown_and_reset():
                 for t in range(10, -1, -1):
                     game_state["timer"] = t
