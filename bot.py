@@ -27,6 +27,7 @@ wallets = db['wallets']
 
 wallets.create_index("phone", unique=True)
 
+# ዋናው የጨዋታ ሁኔታ መቆጣጠሪያ
 game_state = {
     "status": "lobby", 
     "timer": 30, 
@@ -343,15 +344,16 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
+
 # =====================================================================
-# የተስተካከለው የቢንጎ አሸናፊ መስመር መፈተሻ ሎጂክ (ምንም ያልተቆረጠ)
+# የቢንጎ አሸናፊ መስመር መፈተሻ ሎጂክ
 # =====================================================================
 def check_winning_line(card, drawn_numbers):
     drawn_set = set()
     for b in drawn_numbers:
         if len(b) > 1:
             try:
-                # ከኳሱ ፊደሉን በመተው (ለምሳሌ B15 ከሆነ 15ቱን) ቁጥር ብቻ ለይቶ ይወስዳል
+                # ከኳሱ ፊደሉን በመተው ቁጥር ብቻ ለይቶ ይወስዳል
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
@@ -408,10 +410,26 @@ def check_winning_line(card, drawn_numbers):
         return list(all_win_indices), " + ".join(line_types)
     return None, None
 
+
+# =====================================================================
+# 🛠️ የተስተካከለው የጨዋታ ማጽጃ (Reset Game) ፈንክሽን 
+# =====================================================================
 def reset_game():
+    """ጨዋታው ሲጠናቀቅ የቀደሙትን የቢንጎ እሴቶችና ካርታዎች በአስተማማኝ ሁኔታ ያጸዳል"""
     game_state.update({
-        "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "winning_indices": None, "pot": 0, "players": {}, 
-        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}
+        "status": "lobby", 
+        "winner": None, 
+        "winning_card": None, 
+        "winning_ticket_num": None, 
+        "winning_indices": None, 
+        "pot": 0, 
+        "players": {}, 
+        "sold_tickets": {}, 
+        "drawn_balls": [], 
+        "current_ball": "--", 
+        "timer": 30, 
+        "ball_timer": 3, 
+        "all_cards": {}  # ካርታዎቹን ሙሉ በሙሉ እዚህ ጋር እናጸዳቸዋለን!
     })
     broadcast_game_state() 
 
