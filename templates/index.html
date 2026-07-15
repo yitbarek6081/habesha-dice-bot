@@ -303,7 +303,6 @@
                 <div class="winner-grid-modern" id="w-grid-cells"></div>
             </div>
         </div>
-        <!-- 🎯 ታይመሩ በትክክል እንዲታይ የተቀየረበት ስፓን (#w-next-timer) -->
         <div class="next-round-bar">Next Round: <span id="w-next-timer">10s</span></div>
     </div>
 
@@ -433,7 +432,7 @@
             }).catch(() => {});
         }
 
-        // 🎯 100% ትክክለኛውን የአሸናፊ መስመር መለያ (መጋጠሚያ) አልጎሪዝም
+        // 🎯 በአንድ ጊዜ የተዘጉትን ሁሉንም ያሸነፉ መስመሮች ሰብስቦ የሚይዝ የፍሮንትኤንድ ሎጂክ
         function getWinningPatternInfo(card, drawnSet) {
             const isHit = (idx) => {
                 if (idx === 12 || card[idx] === "FREE" || card[idx] === "★" || card[idx] === 0) return true;
@@ -441,31 +440,49 @@
                 return !isNaN(val) && drawnSet.has(val);
             };
 
+            let allWinIndices = new Set();
+            let names = [];
+
             // 1. አግድም መስመር (5 ሮው)
             for (let i = 0; i < 5; i++) {
                 let r = [i * 5, i * 5 + 1, i * 5 + 2, i * 5 + 3, i * 5 + 4];
-                if (r.every(isHit)) return { indices: new Set(r), name: `አግድም መስመር ${i+1} (Row ${i+1})` };
+                if (r.every(isHit)) {
+                    r.forEach(idx => allWinIndices.add(idx));
+                    names.push(`ረድፍ ${i+1}`);
+                }
             }
 
             // 2. ቁልቁል መስመር (5 ኮለመን)
             for (let j = 0; j < 5; j++) {
                 let c = [j, j + 5, j + 10, j + 15, j + 20];
-                if (c.every(isHit)) return { indices: new Set(c), name: `ቁልቁል መስመር ${j+1} (Column ${j+1})` };
+                if (c.every(isHit)) {
+                    c.forEach(idx => allWinIndices.add(idx));
+                    names.push(`አምድ ${j+1}`);
+                }
             }
 
             // 3. ዲያጎናል መስመር 1 (↘)
             let d1 = [0, 6, 12, 18, 24];
-            if (d1.every(isHit)) return { indices: new Set(d1), name: "ዲያጎናል መስመር ↘ (Diagonal ↘)" };
+            if (d1.every(isHit)) {
+                d1.forEach(idx => allWinIndices.add(idx));
+                names.push("ዲያጎናል ↘");
+            }
 
             // 4. ዲያጎናል መስመር 2 (↙)
             let d2 = [4, 8, 12, 16, 20];
-            if (d2.every(isHit)) return { indices: new Set(d2), name: "ዲያጎናል መስመር ↙ (Diagonal ↙)" };
+            if (d2.every(isHit)) {
+                d2.forEach(idx => allWinIndices.add(idx));
+                names.push("ዲያጎናል ↙");
+            }
 
             // 5. 4ቱ ማዕዘናት (4 Corners)
             let cr = [0, 4, 20, 24];
-            if (cr.every(isHit)) return { indices: new Set(cr), name: "አራቱ ማዕዘናት (4 Corners)" };
+            if (cr.every(isHit)) {
+                cr.forEach(idx => allWinIndices.add(idx));
+                names.push("4 ማዕዘን");
+            }
 
-            return { indices: new Set(), name: "" };
+            return { indices: allWinIndices, name: names.join(" + ") };
         }
 
         function initWebSocket() {
@@ -572,7 +589,6 @@
                     document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
                     document.getElementById('w-card-owner').innerText = winnerName;
                     
-                    // 🎯 "Next Round: S" የሚለውን ስህተት ለመቅረፍ d.timer መኖሩን እና ትክክለኛ ቁጥር መሆኑን መፈተሻ
                     let timerVal = parseInt(d.timer);
                     if (isNaN(timerVal)) {
                         document.getElementById('w-next-timer').innerText = "10s";
@@ -598,7 +614,6 @@
                                 }); 
                             }
                             
-                            // 🎯 በፍሮንትኤንድ ላይ አሸናፊውን መስመር በትክክል ለይቶ ማሳያ
                             let winPattern = getWinningPatternInfo(winCard, drawnSet);
                             let winIdxs = winPattern.indices;
                             let patternNameEl = document.getElementById('w-pattern-name');
