@@ -38,7 +38,8 @@ game_state = {
     "drawn_balls": [], 
     "winner": None,
     "winning_card": None,
-    "winning_ticket_num": None  
+    "winning_ticket_num": None,
+    "winning_indices": None  # ያሸነፉበትን መስመር ኢንዴክሶች ብቻ ለይቶ መያዣ አዲስ ክፍል
 }
 
 loop_started = False
@@ -83,6 +84,7 @@ def broadcast_game_state():
         "winner": game_state["winner"],
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
+        "winning_indices": game_state.get("winning_indices"), # እዚህ ጋር ይልካል
         "active_players": len(game_state["players"]),
         "balances": all_balances  
     }
@@ -339,7 +341,6 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
-# 🎯 በአንድ ጊዜ ሁሉንም ያሸነፉ መስመሮችን (Columns, Rows, Diagonals) ሰብስቦ የሚይዘው ሎጂክ
 def check_winning_line(card, drawn_numbers):
     drawn_set = set()
     for b in drawn_numbers:
@@ -348,7 +349,7 @@ def check_winning_line(card, drawn_numbers):
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
-    drawn_set.add(0) # FREE space 0 ነው
+    drawn_set.add(0) # FREE space
 
     def is_hit(idx):
         val = card[idx]
@@ -400,7 +401,7 @@ def check_winning_line(card, drawn_numbers):
 
 def reset_game():
     game_state.update({
-        "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "pot": 0, "players": {}, 
+        "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "winning_indices": None, "pot": 0, "players": {}, 
         "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3
     })
     broadcast_game_state() 
@@ -450,6 +451,7 @@ def game_loop():
                 game_state["winner"] = "No Winner (House)"
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
+                game_state["winning_indices"] = None
                 send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
                 socketio.start_background_task(lambda: (socketio.sleep(10), reset_game()))
             broadcast_game_state()
@@ -491,6 +493,7 @@ def get_status():
         "winner": game_state["winner"],
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
+        "winning_indices": game_state.get("winning_indices"),
         "players": clean_players, 
         "balance": user['balance'] if user else 0, 
         "my_cards": cards_list, 
@@ -665,12 +668,12 @@ def claim_bingo():
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
         
         if win_indices is not None:
-            # ሪሰት ከመደረጉ በፊት "Next Round" ታይመር እንዲጀምር ታይመሩን ወደ 10 ሰከንድ እንቀይረዋለን
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
+            game_state["winning_indices"] = win_indices # አሸናፊ ሳጥኖች ብቻ እዚህ ይያዛሉ!
             
             win_amt = game_state["pot"] * 0.8
             wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
