@@ -27,7 +27,6 @@ wallets = db['wallets']
 
 wallets.create_index("phone", unique=True)
 
-# ዋናው የጨዋታ ሁኔታ መቆጣጠሪያ
 game_state = {
     "status": "lobby", 
     "timer": 30, 
@@ -344,27 +343,19 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
-
-# =====================================================================
-# የቢንጎ አሸናፊ መስመር መፈተሻ ሎጂክ (የተስተካከለ)
-# =====================================================================
 def check_winning_line(card, drawn_numbers):
     drawn_set = set()
     for b in drawn_numbers:
         if len(b) > 1:
             try:
-                # ከኳሱ ፊደሉን በመተው ቁጥር ብቻ ለይቶ ይወስዳል
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
-    drawn_set.add(0)  # የካርዱ መሃል FREE space (0) ሁልጊዜ እንደወጣ ይቆጠራል
+    drawn_set.add(0) # FREE space
 
-    # አንድ ክፍል (ሴል) መውጣቱን መፈተሻ
     def is_hit(idx):
-        if idx == 12:  # መካከለኛው FREE space (index 12) ሁሌም True ነው
-            return True
         val = card[idx]
-        if val == 0 or val == "FREE" or val == "★" or val == "*":
+        if idx == 12 or val == 0 or val == "FREE" or val == "★":
             return True
         try:
             return int(val) in drawn_set
@@ -374,27 +365,27 @@ def check_winning_line(card, drawn_numbers):
     all_win_indices = set()
     line_types = []
 
-    # 1. አግድም መስመር (5 ረድፎች)
+    # 1. አግድም መስመር (5 ሮው)
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
         if all(is_hit(idx) for idx in row_indices):
             all_win_indices.update(row_indices)
             line_types.append(f"ረድፍ {i+1} (Row {i+1})")
 
-    # 2. ቁልቁል መስመር (5 አምዶች)
+    # 2. ቁልቁል መስመር (5 ኮለመን)
     for j in range(5):
         col_indices = [j + i*5 for i in range(5)]
         if all(is_hit(idx) for idx in col_indices):
             all_win_indices.update(col_indices)
             line_types.append(f"አምድ {j+1} (Column {j+1})")
 
-    # 3. ዲያጎናል መስመር 1 (↘ ከግራ-ላይ ወደ ቀኝ-ታች)
+    # 3. ዲያጎናል መስመር 1 (↘)
     diag1_indices = [0, 6, 12, 18, 24]
     if all(is_hit(idx) for idx in diag1_indices):
         all_win_indices.update(diag1_indices)
         line_types.append("ዲያጎናል ↘")
 
-    # 4. ዲያጎናል መስመር 2 (↙ ከቀኝ-ላይ ወደ ግራ-ታች)
+    # 4. ዲያጎናል መስመር 2 (↙)
     diag2_indices = [4, 8, 12, 16, 20]
     if all(is_hit(idx) for idx in diag2_indices):
         all_win_indices.update(diag2_indices)
@@ -410,26 +401,10 @@ def check_winning_line(card, drawn_numbers):
         return list(all_win_indices), " + ".join(line_types)
     return None, None
 
-
-# =====================================================================
-# 🛠️ የተስተካከለው የጨዋታ ማጽጃ (Reset Game) ፈንክሽን 
-# =====================================================================
 def reset_game():
-    """ጨዋታው ሲጠናቀቅ የቀደሙትን የቢንጎ እሴቶችና ካርታዎች በአስተማማኝ ሁኔታ ያጸዳል"""
     game_state.update({
-        "status": "lobby", 
-        "winner": None, 
-        "winning_card": None, 
-        "winning_ticket_num": None, 
-        "winning_indices": None, 
-        "pot": 0, 
-        "players": {}, 
-        "sold_tickets": {}, 
-        "drawn_balls": [], 
-        "current_ball": "--", 
-        "timer": 30, 
-        "ball_timer": 3, 
-        "all_cards": {}  # ካርታዎቹን ሙሉ በሙሉ እዚህ ጋር እናጸዳቸዋለን!
+        "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "winning_indices": None, "pot": 0, "players": {}, 
+        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}
     })
     broadcast_game_state() 
 
@@ -655,7 +630,7 @@ def request_deposit():
                f"💵 Amount: `{amt}` ETB\n"
                f"🆔 ID: `{t_id}`\n\n"
                f"👇 Approve:\n`/add {db_phone} {amt}`")
-                
+               
     send_telegram(msg)
     return jsonify({"success": True})
 
