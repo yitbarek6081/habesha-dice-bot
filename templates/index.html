@@ -199,14 +199,12 @@
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #f8fafc; padding: 6px; border-radius: 12px; border: 1px solid #e2e8f0; }
         .w-cell-modern { background: #ffffff; color: #a0aec0; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; }
         
-        /* በተለመደው የወጡ ቁጥሮች መደበኛ ግራጫ */
         .w-cell-modern.drawn { 
             background: #cbd5e1; 
             color: #475569; 
             border-color: #cbd5e1;
         }
         
-        /* ያሸነፈበት ትክክለኛ መስመር (ወይም መስመሮች) በደማቅ ቀይ */
         .w-cell-modern.hit { 
             background: #ef4444 !important; 
             color: #ffffff !important; 
@@ -319,6 +317,9 @@
         let announced = false, lastBall = "--", clientBalance = 0;
         let isProcessingBuy = false;
         let socket = null;
+
+        // የገዛናቸው ቲኬቶች ቁጥር እና የካርታ መረጃዎችን መያዣ
+        let myCurrentTickets = {}; 
 
         window.onload = function() {
             if (phone && username) {
@@ -474,28 +475,49 @@
                 }
 
                 if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                    document.getElementById('lobby-ui').style.display='flex'; 
+                    document.getElementById('game-ui').style.display='none'; 
+                    document.getElementById('result-ui').style.display='none';
+                    document.getElementById('main-board').innerHTML=""; 
+                    document.getElementById('card-area').innerHTML="";
                     document.getElementById('w-grid-cells').innerHTML = ""; 
                     document.getElementById('ball-prep-countdown').style.display = 'none';
                     document.getElementById('start-alert-msg').style.display = 'none';
-                    if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
-                    const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
+                    
+                    if (announced) { 
+                        // ሁሉንም የተቀመጡ ማርኮች ማጽዳት
+                        for (let k in localStorage) {
+                            if (k.startsWith('marked_')) {
+                                localStorage.removeItem(k);
+                            }
+                        }
+                        announced = false; 
+                    }
+                    
+                    const bBtn = document.getElementById('bingo-btn'); 
+                    if(bBtn) bBtn.disabled = false;
                     lastBall = "--";
+                    myCurrentTickets = {}; // ማጽጃ
+                    
                     initTicketsOnce(); 
                     if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
                 } 
                 else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='flex'; document.getElementById('result-ui').style.display='none';
+                    document.getElementById('lobby-ui').style.display='none'; 
+                    document.getElementById('game-ui').style.display='flex'; 
+                    document.getElementById('result-ui').style.display='none';
+                    
                     const prepCountdownEl = document.getElementById('ball-prep-countdown');
                     const startAlertEl = document.getElementById('start-alert-msg');
                     let ballTimerVal = parseInt(d.ball_timer);
                     if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
-                        prepCountdownEl.style.display = 'block'; startAlertEl.style.display = 'block'; 
+                        prepCountdownEl.style.display = 'block'; 
+                        startAlertEl.style.display = 'block'; 
                         prepCountdownEl.innerText = `⏳ ዝግጅት፦ ${ballTimerVal}`;
                         document.getElementById('ball-circle').style.opacity = '0.4'; 
                     } else {
-                        prepCountdownEl.style.display = 'none'; startAlertEl.style.display = 'none'; 
+                        prepCountdownEl.style.display = 'none'; 
+                        startAlertEl.style.display = 'none'; 
                         document.getElementById('ball-circle').style.opacity = '1';  
                     }
                     let secureBall = sanitizeText(d.current_ball);
@@ -503,14 +525,15 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // ሁልጊዜም ካርታውን ከሰርቨሩ 'all_cards' ፈልጎ ያወጣል እንጂ ራሱ አያመነጭም!
+                    // የገዛናቸውን ካርታዎች ከሰርቨር ማውጣት
                     let myCards = [];
                     if (d.sold_tickets) {
                         for (let ticketId in d.sold_tickets) {
                             if (phoneMatches(d.sold_tickets[ticketId], phone)) {
                                 let tNumStr = String(ticketId);
                                 if (d.all_cards && d.all_cards[tNumStr]) {
-                                    myCards.push(d.all_cards[tNumStr]);
+                                    myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
+                                    myCurrentTickets[tNumStr] = d.all_cards[tNumStr];
                                 }
                             }
                         }
@@ -520,9 +543,9 @@
                         const cardArea = document.getElementById('card-area');
                         if (cardArea && cardArea.children.length === 0) {
                             cardArea.innerHTML = "";
-                            myCards.forEach((c, i) => { 
-                                if(Array.isArray(c)) {
-                                    renderCard(c, i); 
+                            myCards.forEach((c) => { 
+                                if(Array.isArray(c.matrix)) {
+                                    renderCard(c.matrix, c.id); 
                                 }
                             }); 
                         }
@@ -559,7 +582,7 @@
                                     if(numOnly) drawnSet.add(parseInt(numOnly)); 
                                 }); 
                             }
-                            
+
                             // 🎯 ባክኤንድ ላይ የተመዘገቡት ትክክለኛ አሸናፊ ማውጫዎች
                             let winIdxs = new Set();
                             let winPattern = getWinningPatternInfo(winCard, drawnSet);
@@ -583,7 +606,7 @@
                                 } else {
                                     let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
                                     
-                                    // 🎯 ያሸነፈበት ትክክለኛው መስመር ላይ ያሉ ቁጥሮች ብቻ ቀይ (hit) ይሆናሉ። የተቀሩት የወጡት ግን ግራጫ (drawn) ብቻ ይሆናሉ!
+                                    // 🎯 ያሸነፈበት መስመር ላይ ያሉ ብቻ ቀይ (hit) ይሆናሉ። የተቀሩት የወጡት ግን ግራጫ (drawn) ብቻ ይሆናሉ!
                                     if (winIdxs.has(idx)) { 
                                         cell.className = "w-cell-modern hit"; 
                                     } else if (drawnSet.has(numVal)) { 
@@ -692,18 +715,18 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
-        function renderCard(card, cardIdx) {
-            const safeCardIdx = parseInt(cardIdx);
-            const wrap = document.createElement('div'); wrap.style.marginBottom="2px"; wrap.style.width="100%";
+        function renderCard(card, cardId) {
+            const safeCardId = parseInt(cardId);
+            const wrap = document.createElement('div'); wrap.style.style = "margin-bottom:2px; width:100%;";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:2px;font-size:0.7rem;border-radius:4px 4px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
-            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
+            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardId}`) || "[]");
             card.forEach((n, i) => {
                 const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
                 if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
                 else { 
                     let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
-                    cell.onclick = () => { cell.classList.toggle('selected'); trackCell(safeCardIdx, numVal); } 
+                    cell.onclick = () => { cell.classList.toggle('selected'); trackCell(safeCardId, numVal); } 
                 }
                 grid.appendChild(cell);
             });
@@ -711,23 +734,57 @@
         }
 
         function claim() { 
-            const activeMarks0 = JSON.parse(localStorage.getItem('marked_0') || "[]");
-            const activeMarks1 = JSON.parse(localStorage.getItem('marked_1') || "[]");
-            
             const cardArea = document.getElementById('card-area');
-            if (!cardArea || cardArea.children.length === 0) {
+            if (!cardArea || cardArea.children.length === 0 || Object.keys(myCurrentTickets).length === 0) {
                 alert("ይቅርታ፣ የቢንጎ ካርታዎ ስላልታየ BINGO ማለት አይችሉም!");
                 return;
             }
 
-            if (activeMarks0.length === 0 && activeMarks1.length === 0) {
+            // ለሁሉም የገዛናቸው ቲኬቶች ማርክ የተደረጉትን ማዘጋጀት
+            let payloadTickets = {};
+            let hasAnyMark = false;
+
+            for (let tId in myCurrentTickets) {
+                let savedMarks = JSON.parse(localStorage.getItem(`marked_${tId}`) || "[]");
+                if (savedMarks.length > 0) {
+                    hasAnyMark = true;
+                }
+                // ባክኤንድ የሚፈልገውን መዋቅር ማዘጋጀት
+                payloadTickets[tId] = {
+                    selected_numbers: savedMarks, // ተጠቃሚው የነካቸው እውነተኛ ቁጥሮች
+                    marked_indices: savedMarks.map(num => myCurrentTickets[tId].indexOf(num)).filter(idx => idx !== -1) // ማርክ የተደረጉባቸው ሳጥኖች ኢንዴክሶች
+                };
+            }
+
+            if (!hasAnyMark) {
                 alert("እባክዎ መጀመሪያ የወጡትን ቁጥሮች ካርቴላዎ ላይ ያጥቁሩ!");
                 return;
             }
 
-            const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
-            fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
-            .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
+            const bBtn = document.getElementById('bingo-btn'); 
+            if(bBtn) bBtn.disabled = true;
+
+            // ከባክኤንድ ጋር ፍጹም ተኳሃኝ የሆነ የ BINGO ኤፒአይ ጥሪ
+            fetch('/claim_bingo', { 
+                method:'POST', 
+                headers:{ 'Content-Type':'application/json' }, 
+                body:JSON.stringify({
+                    phone: phone,
+                    tickets: payloadTickets // የቲኬት ቁጥሮች፣ እውነተኛ ማርኮች እና ኢንዴክሶች በአንድ ላይ ይላካሉ
+                }) 
+            })
+            .then(r => r.json())
+            .then(d => { 
+                if(!d.success) { 
+                    alert(sanitizeText(d.msg)); 
+                    if(bBtn) bBtn.disabled = false; 
+                } else {
+                    alert("ቢንጎ በተሳካ ሁኔታ ተጠይቋል! እባክዎ ሰርቨሩ እስኪያረጋግጥ ይጠብቁ።");
+                }
+            })
+            .catch(() => { 
+                if(bBtn) bBtn.disabled = false; 
+            }); 
         }
         
         function subD() {
