@@ -72,8 +72,8 @@ def broadcast_game_state():
         for u in wallets.find({}, {"phone": 1, "balance": 1}):
             if "phone" in u:
                 all_balances[u["phone"]] = u.get("balance", 0)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Balance broadcast fetch error: {e}")
 
     state_payload = {
         "status": game_state["status"],
@@ -286,8 +286,8 @@ def webhook():
                                 })
                             send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
                             broadcast_game_state() 
-                except:
-                    send_telegram("❌ ስህተት! ፎርማቱ: /add ስልክ መጠን")
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት! ፎርማቱ: /add ስልክ መጠን (ዝርዝር: {e})")
             
             elif msg.startswith("/sub"):
                 try:
@@ -298,8 +298,8 @@ def webhook():
                             wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": -amount}})
                             send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
                             broadcast_game_state() 
-                except:
-                    send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን (ዝርዝር: {e})")
 
     return "OK", 200
 
@@ -350,8 +350,6 @@ def register_or_login():
 # 🎯 የተጫዋቹን የግል ማክለሚያ (Manual Daubing) ፍተሻ ሎጂክ
 # =====================================================================
 def check_user_selected_win(selected_set):
-    # selected_set ተጫዋቹ ስክሪኑ ላይ የነካቸው ኢንዴክሶች ስብስብ (Set) ነው
-
     # 1. Rows
     for r_idx in range(5):
         row_indices = {r_idx * 5 + col for col in range(5)}
@@ -416,6 +414,7 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
+            # ጨዋታው እንዲጀምር ቢያንስ 2 ተጫዋቾች መኖር አለባቸው
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -427,7 +426,8 @@ def game_loop():
                 shuffled = []
             broadcast_game_state()
 
-            if shuffled:
+            # ጨዋታው ከተጀመረ ብቻ ኳስ መጣል ይጀምራል
+            if game_state["status"] == "playing" and shuffled:
                 for j in range(3, -1, -1):
                     if game_state["status"] != "playing":
                         break
@@ -443,6 +443,7 @@ def game_loop():
                     broadcast_game_state() 
                     socketio.sleep(4) 
             
+            # ሁሉም ኳሶች አልቀው ማንም ካላሸነፈ
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
                 game_state["winner"] = "No Winner (House)"
@@ -659,8 +660,17 @@ def claim_bingo():
     d = request.json or {}
     ph = sanitize_input(d.get('phone'))
     
-    # ⚠️ ተጫዋቹ ስክሪኑ ላይ የመረጣቸው የሳጥን ኢንዴክሶች (ምሳሌ: [0, 5, 10, 15, 20])
-    selected_indices = d.get('selected_indices', []) 
+    # የትኛው ቲኬት/ካርተላ እንደሆነ ከ front-end መቀበል (ባለብዙ ካርተላ ስህተትን ይፈታል)
+    t_num = str(d.get('ticket_num', ''))
+    
+    # ⚠️ ተጫዋቹ ስክሪኑ ላይ የመረጣቸው የሳጥን ኢንዴክሶች
+    raw_selected_indices = d.get('selected_indices', []) 
+    
+    # ኢንዴክሶቹን በአስተማማኝ ሁኔታ ወደ int መለወጥ
+    try:
+        selected_indices = [int(x) for x in raw_selected_indices]
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "msg": "የተሳሳቱ ኢንዴክሶች ተልከዋል!"})
     
     user_info = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     if not user_info:
@@ -678,8 +688,10 @@ def claim_bingo():
     if not cards_to_check:
         return jsonify({"success": False, "msg": "ምንም ካርተላ የለዎትም!"})
 
-    # ተጠቃሚው የትኛውንም የካርታ ቁጥር ቢልክ ስህተቱ እንዳይፈጠር፣ በእጁ ካሉት ካርታዎች የመጀመሪያውን በቀጥታ እንወስዳለን።
-    t_num = list(cards_to_check.keys())[0]
+    # ተጠቃሚው የትኛውን ቲኬት እንደመረጠ ካልገለጸ የመጀመሪያውን ቲኬት እንወስዳለን
+    if not t_num or t_num not in cards_to_check:
+        t_num = list(cards_to_check.keys())[0]
+        
     card = cards_to_check[t_num]
 
     # 1. የወጡትን ኳሶች በሙሉ ወደ ስብስብ (Set) እንለውጣለን
@@ -693,9 +705,8 @@ def claim_bingo():
     drawn_numbers_set.add(0)  # FREE space (0) ሁሌም እንደወጣ ይቆጠራል
 
     # 2. ተጫዋቹ ያበራቸው ቁጥሮች በእርግጥ በዳታቤዝ መውጣታቸውን ማረጋገጥ (Anti-Cheat)
-    for idx in selected_indices:
+    for idx_int in selected_indices:
         try:
-            idx_int = int(idx)
             if idx_int < 0 or idx_int > 24:
                  return jsonify({"success": False, "msg": "የተሳሳተ የካርታ ቦታ!"})
             
@@ -707,13 +718,13 @@ def claim_bingo():
                 continue
 
             # ተጠቃሚው ያበራው ቁጥር በእርግጥ ካልወጣ ጥያቄው ውድቅ ይሆናል
-            if int(val) not in drawn_numbers_set:
+            if int(val) not in list(drawn_numbers_set):
                 return jsonify({"success": False, "msg": f"ያልወጣን ቁጥር ({val}) አክልመዋል! እባክዎ በትክክል ያስተካክሉ!"})
-        except Exception:
-             return jsonify({"success": False, "msg": "ስህተት ተፈጥሯል!"})
+        except Exception as e:
+             return jsonify({"success": False, "msg": f"በፍተሻ ወቅት ስህተት ተፈጥሯል: {str(e)}"})
 
     # 3. ያበራቸው ኢንዴክሶች ብቻ ትክክለኛ የቢንጎ መስመር መስራታቸውን መፈተሽ
-    selected_set = set(int(x) for x in selected_indices)
+    selected_set = set(selected_indices)
     selected_set.add(12)  # መሃሉን በነጻነት ጨምረው
 
     win_indices, line_type = check_user_selected_win(selected_set)
