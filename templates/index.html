@@ -649,6 +649,7 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
+        // ሎቢ ውስጥ 500 ቦክሶችን መፍጠር
         function initTicketsOnce() {
             const area = document.getElementById('ticket-area');
             if(area && area.children.length === 0) { 
@@ -660,6 +661,7 @@
             }
         }
 
+        // የቲኬቶችን ቀለም እና ክሊክ ኢቨንት ማደስ
         function renderTickets(sold) {
             for(let i=1; i<=500; i++) {
                 let box = document.getElementById('t-'+i); if(!box) continue;
