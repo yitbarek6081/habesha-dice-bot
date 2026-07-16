@@ -405,6 +405,7 @@
             }).catch(() => {});
         }
 
+        // 🎯 የፊት-ለፊት ቼከር (5 Rows, 5 Columns, 2 Diagonals, 4 Corners)
         function getWinningPatternInfo(card, drawnSet) {
             const isHit = (idx) => {
                 if (idx === 12 || card[idx] === "FREE" || card[idx] === "★" || card[idx] === 0) return true;
@@ -415,7 +416,7 @@
             let allWinIndices = new Set();
             let names = [];
 
-            // 1. አግድም መስመር
+            // 1. 5ቱን ረድፎች መፈተሽ
             for (let i = 0; i < 5; i++) {
                 let r = [i * 5, i * 5 + 1, i * 5 + 2, i * 5 + 3, i * 5 + 4];
                 if (r.every(isHit)) {
@@ -424,7 +425,7 @@
                 }
             }
 
-            // 2. ቁልቁል መስመር
+            // 2. 5ቱን አምዶች መፈተሽ
             for (let j = 0; j < 5; j++) {
                 let c = [j, j + 5, j + 10, j + 15, j + 20];
                 if (c.every(isHit)) {
@@ -497,7 +498,7 @@
                     const bBtn = document.getElementById('bingo-btn'); 
                     if(bBtn) bBtn.disabled = false;
                     lastBall = "--";
-                    myCurrentTickets = {}; // ማጽጃ
+                    myCurrentTickets = {}; 
                     
                     initTicketsOnce(); 
                     if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
@@ -525,7 +526,6 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // የገዛናቸውን ካርታዎች ከሰርቨር ማውጣት
                     let myCards = [];
                     if (d.sold_tickets) {
                         for (let ticketId in d.sold_tickets) {
@@ -583,7 +583,6 @@
                                 }); 
                             }
 
-                            // 🎯 ባክኤንድ ላይ የተመዘገቡት ትክክለኛ አሸናፊ ማውጫዎች
                             let winIdxs = new Set();
                             let winPattern = getWinningPatternInfo(winCard, drawnSet);
                             
@@ -595,7 +594,9 @@
 
                             let patternNameEl = document.getElementById('w-pattern-name');
                             if (patternNameEl) {
-                                patternNameEl.innerText = winPattern.name ? `🎉 ያሸነፈበት መስመር፦ ${winPattern.name}` : "";
+                                // በሰርቨር የተላከውን ወይም በፍሮንት የተገኘውን አሸናፊ መስመር ስም መጻፍ
+                                let pName = d.winning_pattern_name ? d.winning_pattern_name : winPattern.name;
+                                patternNameEl.innerText = pName ? `🎉 ያሸነፈበት መስመር፦ ${pName}` : "";
                             }
 
                             winCard.forEach((n, idx) => {
@@ -606,7 +607,6 @@
                                 } else {
                                     let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
                                     
-                                    // 🎯 ያሸነፈበት መስመር ላይ ያሉ ብቻ ቀይ (hit) ይሆናሉ። የተቀሩት የወጡት ግን ግራጫ (drawn) ብቻ ይሆናሉ!
                                     if (winIdxs.has(idx)) { 
                                         cell.className = "w-cell-modern hit"; 
                                     } else if (drawnSet.has(numVal)) { 
@@ -717,7 +717,7 @@
 
         function renderCard(card, cardId) {
             const safeCardId = parseInt(cardId);
-            const wrap = document.createElement('div'); wrap.style.style = "margin-bottom:2px; width:100%;";
+            const wrap = document.createElement('div'); wrap.style.marginBottom = "2px"; wrap.style.width = "100%";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:2px;font-size:0.7rem;border-radius:4px 4px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardId}`) || "[]");
@@ -740,7 +740,6 @@
                 return;
             }
 
-            // ለሁሉም የገዛናቸው ቲኬቶች ማርክ የተደረጉትን ማዘጋጀት
             let payloadTickets = {};
             let hasAnyMark = false;
 
@@ -749,10 +748,9 @@
                 if (savedMarks.length > 0) {
                     hasAnyMark = true;
                 }
-                // ባክኤንድ የሚፈልገውን መዋቅር ማዘጋጀት
                 payloadTickets[tId] = {
-                    selected_numbers: savedMarks, // ተጠቃሚው የነካቸው እውነተኛ ቁጥሮች
-                    marked_indices: savedMarks.map(num => myCurrentTickets[tId].indexOf(num)).filter(idx => idx !== -1) // ማርክ የተደረጉባቸው ሳጥኖች ኢንዴክሶች
+                    selected_numbers: savedMarks, 
+                    marked_indices: savedMarks.map(num => myCurrentTickets[tId].indexOf(num)).filter(idx => idx !== -1) 
                 };
             }
 
@@ -764,13 +762,12 @@
             const bBtn = document.getElementById('bingo-btn'); 
             if(bBtn) bBtn.disabled = true;
 
-            // ከባክኤንድ ጋር ፍጹም ተኳሃኝ የሆነ የ BINGO ኤፒአይ ጥሪ
             fetch('/claim_bingo', { 
                 method:'POST', 
                 headers:{ 'Content-Type':'application/json' }, 
                 body:JSON.stringify({
                     phone: phone,
-                    tickets: payloadTickets // የቲኬት ቁጥሮች፣ እውነተኛ ማርኮች እና ኢንዴክሶች በአንድ ላይ ይላካሉ
+                    tickets: payloadTickets 
                 }) 
             })
             .then(r => r.json())
