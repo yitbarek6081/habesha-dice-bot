@@ -346,7 +346,7 @@ def register_or_login():
 
 
 # =====================================================================
-# የቢንጎ አሸናፊ መስመር መፈተሻ ሎጂክ
+# የቢንጎ አሸናፊ መስመር መፈተሻ ሎጂክ (የተስተካከለ)
 # =====================================================================
 def check_winning_line(card, drawn_numbers):
     drawn_set = set()
@@ -388,13 +388,13 @@ def check_winning_line(card, drawn_numbers):
             all_win_indices.update(col_indices)
             line_types.append(f"አምድ {j+1} (Column {j+1})")
 
-    # 3. ዲያጎናል መስመር 1 (↘)
+    # 3. ዲያጎናል መስመር 1 (↘ ከግራ-ላይ ወደ ቀኝ-ታች)
     diag1_indices = [0, 6, 12, 18, 24]
     if all(is_hit(idx) for idx in diag1_indices):
         all_win_indices.update(diag1_indices)
         line_types.append("ዲያጎናል ↘")
 
-    # 4. ዲያጎናል መስመር 2 (↙)
+    # 4. ዲያጎናል መስመር 2 (↙ ከቀኝ-ላይ ወደ ግራ-ታች)
     diag2_indices = [4, 8, 12, 16, 20]
     if all(is_hit(idx) for idx in diag2_indices):
         all_win_indices.update(diag2_indices)
