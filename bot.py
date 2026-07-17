@@ -25,7 +25,10 @@ client = MongoClient(MONGO_URL)
 db = client['bingo_db']
 wallets = db['wallets']
 
-wallets.create_index("phone", unique=True)
+try:
+    wallets.create_index("phone", unique=True)
+except Exception as e:
+    print(f"Index creation notice: {e}")
 
 game_state = {
     "status": "lobby", 
@@ -224,7 +227,7 @@ def webhook():
                             invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
                             send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
                         else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለም።")
+                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለውም።")
                 except Exception as e:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
 
@@ -556,7 +559,6 @@ def buy_ticket():
         game_state["sold_tickets"][t_num] = db_phone
         game_state["pot"] += 10
         
-        # ካርታውን ሁለቱም ጋር ተመሳስሎ እንዲቀመጥ ሰርቨሩ ላይ እናስቀምጠዋለን
         if "all_cards" not in game_state:
             game_state["all_cards"] = {}
         game_state["all_cards"][t_num] = flat
