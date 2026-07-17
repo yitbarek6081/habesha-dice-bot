@@ -43,6 +43,7 @@ game_state = {
     "winning_card": None,
     "winning_ticket_num": None,
     "winning_indices": None,
+    "winning_line_name": None,  # ያሸነፈበትን መስመር ስም ለሁሉም ለማሳየት
     "all_cards": {}  
 }
 
@@ -89,6 +90,7 @@ def broadcast_game_state():
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
         "winning_indices": game_state.get("winning_indices"),
+        "winning_line_name": game_state.get("winning_line_name"), # ለሁሉም እንዲደርስ
         "all_cards": game_state.get("all_cards", {}), 
         "active_players": len(game_state["players"]),
         "balances": all_balances  
@@ -204,7 +206,7 @@ def webhook():
             if msg == "/security_check":
                 try:
                     high_balance_users = list(wallets.find({"balance": {"$gt": 5000}}))
-                    sec_report = ["🛡️ *ወቅታዊ የሲስተም የደህንነት ፍተሻ ሪፖርት:*\n"]
+                    sec_report = ["🛡️ *ወቅታዊ የሲስተም የደሁንነት ፍተሻ ሪፖርት:*\n"]
                     if high_balance_users:
                         sec_report.append("⚠️ *ከፍተኛ ባላንስ ያላቸው ተጠቃሚዎች (ሊያጠራጥሩ የሚችሉ):*")
                         for u in high_balance_users:
@@ -356,7 +358,7 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
                 pass
     drawn_set.add(0) 
 
-    # ተጫዋቹ ያቀለማቸውን ቁጥሮች ወደ set መቀየር
+    # ተጫዋቹ ያቀለማቸውን ቁጥሮች መውሰድ (Strict Check)
     marked_set = set(player_marked_numbers) if player_marked_numbers is not None else None
 
     def is_hit(idx):
@@ -365,7 +367,6 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
             return True
         try:
             val_int = int(val)
-            # ህግ ማረጋገጫ፡ ቁጥሩ በወጡት ኳሶች ውስጥ መኖር አለበት AND (ተጫዋቹ በእጁ አቅልሞት መሆን አለበት)
             if marked_set is not None:
                 return (val_int in drawn_set) and (val_int in marked_set)
             return val_int in drawn_set
@@ -379,13 +380,13 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
         row_indices = [i*5 + j for j in range(5)]
         if all(is_hit(idx) for idx in row_indices):
             all_win_indices.update(row_indices)
-            line_types.append(f"ረድፍ {i+1} (Row {i+1})")
+            line_types.append(f"ረድፍ {i+1}")
 
     for j in range(5):
         col_indices = [j + i*5 for i in range(5)]
         if all(is_hit(idx) for idx in col_indices):
             all_win_indices.update(col_indices)
-            line_types.append(f"አምድ {j+1} (Column {j+1})")
+            line_types.append(f"አምድ {j+1}")
 
     diag1_indices = [0, 6, 12, 18, 24]
     if all(is_hit(idx) for idx in diag1_indices):
@@ -408,7 +409,8 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
 
 def reset_game():
     game_state.update({
-        "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, "winning_indices": None, "pot": 0, "players": {}, 
+        "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, 
+        "winning_indices": None, "winning_line_name": None, "pot": 0, "players": {}, 
         "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}
     })
     broadcast_game_state() 
@@ -459,6 +461,7 @@ def game_loop():
                 game_state["winning_card"] = None
                 game_state["winning_ticket_num"] = None
                 game_state["winning_indices"] = None
+                game_state["winning_line_name"] = None
                 send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
                 socketio.start_background_task(lambda: (socketio.sleep(10), reset_game()))
             broadcast_game_state()
@@ -501,6 +504,7 @@ def get_status():
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
         "winning_indices": game_state.get("winning_indices"),
+        "winning_line_name": game_state.get("winning_line_name"),
         "all_cards": game_state.get("all_cards", {}),
         "players": clean_players, 
         "balance": user['balance'] if user else 0, 
@@ -654,7 +658,7 @@ def withdraw():
         return_document=True
     )
     if res:
-        msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` ተጠቀም።"
+        msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` teqedem."
         send_telegram(msg)
         broadcast_game_state() 
         return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
@@ -664,7 +668,6 @@ def withdraw():
 def claim_bingo():
     d = request.json or {}
     ph = sanitize_input(d.get('phone'))
-    # ተጫዋቹ በእጁ ያቀለማቸውን ቁጥሮች መቀበል
     marked_0 = d.get('marked_0', [])
     marked_1 = d.get('marked_1', [])
     combined_marked = list(set(marked_0 + marked_1))
@@ -683,32 +686,42 @@ def claim_bingo():
         
     cards_to_check = p_data["cards"]
     
-    # "ኳስ ከወጣ በኋላ ማቅለም አሸናፊ አያደርግም" የሚለውን ህግ ለማስከበር፡
-    # ቢንጎ የተባለው ኳስ በወጣበት ቅጽበት (የመጨረሻው የወጣው ኳስ) ካርታው ላይ ያለውን መስመር መሙላት አለበት።
+    # 3 ተከታታይ ኳስ የማለፍ ህግ ማስከበሪያ
     for t_num, card in cards_to_check.items():
-        # ተጫዋቹ ያቀለማቸውን (combined_marked) ብቻ እንዲፈትሽ ወደ ፈንክሽኑ መላክ
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=combined_marked)
         
         if win_indices is not None:
-            # የመጨረሻው ኳስ የግድ በዚህ መስመር ውስጥ መኖር አለበት (የቆየ ኳስ ከሆነ Claim ውድቅ ይሆናል)
-            last_ball = game_state["drawn_balls"][-1] if game_state["drawn_balls"] else None
-            if last_ball and len(last_ball) > 1:
-                try:
-                    last_ball_num = int(last_ball[1:])
-                    # ካርታው ላይ ያሉት የዊኒንግ ቁጥሮች የመጨረሻውን ኳስ የያዙ መሆናቸውን ማረጋገጫ
-                    winning_values = [card[idx] for idx in win_indices if idx != 12]
-                    if last_ball_num not in winning_values:
-                        return jsonify({"success": False, "msg": "ስህተት! ቢንጎ ያደረገዎትን የመጨረሻ ኳስ በሰዓቱ አልነኩም (ኳስ ካለፈ በኋላ ማቅለም አይፈቀድም)!"})
-                except ValueError:
-                    pass
+            # መስመሩን ለማሟላት ምክንያት የሆነውን (በተጫዋቹ ካርታ ላይ ያለ እና በወጡት ኳሶች ውስጥ ያለ) የመጨረሻውን ቁጥር መፈለግ
+            winning_numbers_in_card = [card[idx] for idx in win_indices if idx != 12 and card[idx] != 0]
+            
+            # እነዚህ ቁጥሮች በ drawn_balls ውስጥ በስንተኛው ደረጃ ላይ እንደወጡ መፈተሽ
+            max_drawn_index = -1
+            for num in winning_numbers_in_card:
+                for idx_drawn, ball_str in enumerate(game_state["drawn_balls"]):
+                    try:
+                        b_num = int(ball_str[1:])
+                        if b_num == num:
+                            if idx_drawn > max_drawn_index:
+                                max_drawn_index = idx_drawn
+                    except ValueError:
+                        pass
+            
+            # ህግ፡ ቢንጎ ያሰኘው ቁጥር ከወጣ በኋላ ከ 3 ኳስ በላይ ማለፍ የለበትም። 
+            # ማለትም የአሁኑ ጠቅላላ የወጡ ኳሶች ብዛት (len) - የመጨረሻው የቢንጎ ቁጥር የወጣበት ደረጃ (max_drawn_index) <= 4 መሆን አለበት።
+            # 4ኛ አዲስ ኳስ ሲጠራ (ልዩነቱ 4 ሲሆን) ጊዜው አልፏል ተብሎ ይታገዳል።
+            total_drawn = len(game_state["drawn_balls"])
+            if max_drawn_index != -1 and (total_drawn - 1 - max_drawn_index) >= 3:
+                return jsonify({"success": False, "msg": "⚠️ አልፎሃል! ቢንጎ ያሰኘህ ቁጥር ከወጣ 3 ኳስ አልፎታል። አራተኛው ኳስ ሳይጠራ መናገር ነበረብህ!"})
 
+            # ቢንጎ ከተረጋገጠ ሂደቱን ማጠናቀቅ
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
             game_state["winning_indices"] = win_indices
-            
+            game_state["winning_line_name"] = line_type # የረድፍ/የአምድ ስም
+
             win_amt = game_state["pot"] * 0.8
             wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
             
