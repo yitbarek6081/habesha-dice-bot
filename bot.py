@@ -43,7 +43,7 @@ game_state = {
     "winning_card": None,
     "winning_ticket_num": None,
     "winning_indices": None,
-    "all_cards": {}  # ሁሉንም ካርታዎች ከነቁጥራቸው እዚህ ይይዛል
+    "all_cards": {}  
 }
 
 loop_started = False
@@ -89,7 +89,7 @@ def broadcast_game_state():
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
         "winning_indices": game_state.get("winning_indices"),
-        "all_cards": game_state.get("all_cards", {}), # ካርታዎቹን ወደ ስልክ/ዌብ ይልካል
+        "all_cards": game_state.get("all_cards", {}), 
         "active_players": len(game_state["players"]),
         "balances": all_balances  
     }
@@ -354,7 +354,7 @@ def check_winning_line(card, drawn_numbers):
                 drawn_set.add(int(b[1:]))
             except ValueError:
                 pass
-    drawn_set.add(0) # FREE space
+    drawn_set.add(0) 
 
     def is_hit(idx):
         val = card[idx]
@@ -368,33 +368,28 @@ def check_winning_line(card, drawn_numbers):
     all_win_indices = set()
     line_types = []
 
-    # 1. አግድም መስመር (5 ሮው)
     for i in range(5):
         row_indices = [i*5 + j for j in range(5)]
         if all(is_hit(idx) for idx in row_indices):
             all_win_indices.update(row_indices)
             line_types.append(f"ረድፍ {i+1} (Row {i+1})")
 
-    # 2. ቁልቁል መስመር (5 ኮለመን)
     for j in range(5):
         col_indices = [j + i*5 for i in range(5)]
         if all(is_hit(idx) for idx in col_indices):
             all_win_indices.update(col_indices)
             line_types.append(f"አምድ {j+1} (Column {j+1})")
 
-    # 3. ዲያጎናል መስመር 1 (↘)
     diag1_indices = [0, 6, 12, 18, 24]
     if all(is_hit(idx) for idx in diag1_indices):
         all_win_indices.update(diag1_indices)
         line_types.append("ዲያጎናል ↘")
 
-    # 4. ዲያጎናል መስመር 2 (↙)
     diag2_indices = [4, 8, 12, 16, 20]
     if all(is_hit(idx) for idx in diag2_indices):
         all_win_indices.update(diag2_indices)
         line_types.append("ዲያጎናል ↙")
 
-    # 5. አራቱ ማዕዘናት
     corner_indices = [0, 4, 20, 24]
     if all(is_hit(idx) for idx in corner_indices):
         all_win_indices.update(corner_indices)
@@ -677,10 +672,24 @@ def claim_bingo():
         
     cards_to_check = p_data["cards"]
     
+    # "ኳስ ከወጣ በኋላ ማቅለም አሸናፊ አያደርግም" የሚለውን ህግ ለማስከበር፡
+    # ቢንጎ የተባለው ኳስ በወጣበት ቅጽበት (የመጨረሻው የወጣው ኳስ) ካርታው ላይ ያለውን መስመር መሙላት አለበት።
     for t_num, card in cards_to_check.items():
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
         
         if win_indices is not None:
+            # የመጨረሻው ኳስ የግድ በዚህ መስመር ውስጥ መኖር አለበት (የቆየ ኳስ ከሆነ Claim ውድቅ ይሆናል)
+            last_ball = game_state["drawn_balls"][-1] if game_state["drawn_balls"] else None
+            if last_ball and len(last_ball) > 1:
+                try:
+                    last_ball_num = int(last_ball[1:])
+                    # ካርታው ላይ ያሉት የዊኒንግ ቁጥሮች የመጨረሻውን ኳስ የያዙ መሆናቸውን ማረጋገጫ
+                    winning_values = [card[idx] for idx in win_indices if idx != 12]
+                    if last_ball_num not in winning_values:
+                        return jsonify({"success": False, "msg": "ስህተት! ቢንጎ ያደረገዎትን የመጨረሻ ኳስ በሰዓቱ አልነኩም (ኳስ ካለፈ በኋላ ማቅለም አይፈቀድም)!"})
+                except ValueError:
+                    pass
+
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
