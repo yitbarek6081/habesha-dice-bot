@@ -346,7 +346,7 @@ def register_or_login():
             return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
-def check_winning_line(card, drawn_numbers):
+def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
     drawn_set = set()
     for b in drawn_numbers:
         if len(b) > 1:
@@ -356,12 +356,19 @@ def check_winning_line(card, drawn_numbers):
                 pass
     drawn_set.add(0) 
 
+    # ተጫዋቹ ያቀለማቸውን ቁጥሮች ወደ set መቀየር
+    marked_set = set(player_marked_numbers) if player_marked_numbers is not None else None
+
     def is_hit(idx):
         val = card[idx]
         if idx == 12 or val == 0 or val == "FREE" or val == "★":
             return True
         try:
-            return int(val) in drawn_set
+            val_int = int(val)
+            # ህግ ማረጋገጫ፡ ቁጥሩ በወጡት ኳሶች ውስጥ መኖር አለበት AND (ተጫዋቹ በእጁ አቅልሞት መሆን አለበት)
+            if marked_set is not None:
+                return (val_int in drawn_set) and (val_int in marked_set)
+            return val_int in drawn_set
         except:
             return False
 
@@ -657,6 +664,10 @@ def withdraw():
 def claim_bingo():
     d = request.json or {}
     ph = sanitize_input(d.get('phone'))
+    # ተጫዋቹ በእጁ ያቀለማቸውን ቁጥሮች መቀበል
+    marked_0 = d.get('marked_0', [])
+    marked_1 = d.get('marked_1', [])
+    combined_marked = list(set(marked_0 + marked_1))
     
     user_info = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     if not user_info:
@@ -675,7 +686,8 @@ def claim_bingo():
     # "ኳስ ከወጣ በኋላ ማቅለም አሸናፊ አያደርግም" የሚለውን ህግ ለማስከበር፡
     # ቢንጎ የተባለው ኳስ በወጣበት ቅጽበት (የመጨረሻው የወጣው ኳስ) ካርታው ላይ ያለውን መስመር መሙላት አለበት።
     for t_num, card in cards_to_check.items():
-        win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
+        # ተጫዋቹ ያቀለማቸውን (combined_marked) ብቻ እንዲፈትሽ ወደ ፈንክሽኑ መላክ
+        win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=combined_marked)
         
         if win_indices is not None:
             # የመጨረሻው ኳስ የግድ በዚህ መስመር ውስጥ መኖር አለበት (የቆየ ኳስ ከሆነ Claim ውድቅ ይሆናል)
