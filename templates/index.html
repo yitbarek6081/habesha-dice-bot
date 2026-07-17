@@ -199,14 +199,12 @@
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #f8fafc; padding: 6px; border-radius: 12px; border: 1px solid #e2e8f0; }
         .w-cell-modern { background: #ffffff; color: #a0aec0; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; }
         
-        /* በተለመደው የወጡ ቁጥሮች መደበኛ ግራጫ */
         .w-cell-modern.drawn { 
             background: #cbd5e1; 
             color: #475569; 
             border-color: #cbd5e1;
         }
         
-        /* ያሸነፈበት ትክክለኛ መስመር (ወይም መስመሮች) በደማቅ ቀይ */
         .w-cell-modern.hit { 
             background: #ef4444 !important; 
             color: #ffffff !important; 
@@ -293,7 +291,7 @@
         </div>
     </div>
 
-    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ。<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች አግድም፣ ቁልቁል፣ ዲያጎናል ወይም 4 ማዕዘን ሲሞሉ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
     <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
     <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
@@ -503,7 +501,6 @@
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     renderMainBoard(d.drawn_balls || []);
                     
-                    // ሁልጊዜም ካርታውን ከሰርቨሩ 'all_cards' ፈልጎ ያወጣል እንጂ ራሱ አያመነጭም!
                     let myCards = [];
                     if (d.sold_tickets) {
                         for (let ticketId in d.sold_tickets) {
@@ -560,7 +557,6 @@
                                 }); 
                             }
                             
-                            // 🎯 ባክኤንድ ላይ የተመዘገቡት ትክክለኛ አሸናፊ ማውጫዎች
                             let winIdxs = new Set();
                             let winPattern = getWinningPatternInfo(winCard, drawnSet);
                             
@@ -583,7 +579,6 @@
                                 } else {
                                     let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
                                     
-                                    // 🎯 ያሸነፈበት ትክክለኛው መስመር ላይ ያሉ ቁጥሮች ብቻ ቀይ (hit) ይሆናሉ። የተቀሩት የወጡት ግን ግራጫ (drawn) ብቻ ይሆናሉ!
                                     if (winIdxs.has(idx)) { 
                                         cell.className = "w-cell-modern hit"; 
                                     } else if (drawnSet.has(numVal)) { 
