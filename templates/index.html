@@ -786,7 +786,12 @@
             }
 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
-            fetch('/claim_bingo', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({phone: phone}) })
+            // ተጫዋቹ በእጁ ያጠቆራቸውን ቁጥሮች (marked_0, marked_1) ወደ ባክኤንድ አብሮ መላክ
+            fetch('/claim_bingo', { 
+                method:'POST', 
+                headers:{ 'Content-Type':'application/json' }, 
+                body:JSON.stringify({phone: phone, marked_0: activeMarks0, marked_1: activeMarks1}) 
+            })
             .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
         }
         
