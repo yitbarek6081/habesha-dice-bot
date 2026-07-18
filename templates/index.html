@@ -309,7 +309,6 @@
                     <div class="winner-card-num-lbl" id="w-card-number">CARD #0</div>
                     <div class="winner-card-owner-lbl" id="w-card-owner">Player</div>
                 </div>
-                <!-- ያሸነፈበት መስመር ስም ለሁሉም ጎልቶ የሚታይበት ቦታ -->
                 <div id="w-pattern-name" style="font-weight: 900; color: #dc2626; margin-bottom: 8px; font-size: 1rem; text-transform: uppercase;"></div>
                 <div class="winner-grid-modern" id="w-grid-cells"></div>
             </div>
@@ -500,7 +499,8 @@
                     let winnerName = sanitizeText(d.winner || "Player");
                     document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
-                    let ticketNum = d.winning_ticket_num ? d.winning_ticket_num : "100";
+                    
+                    let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
                     document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
                     document.getElementById('w-card-owner').innerText = winnerName;
                     
@@ -513,44 +513,49 @@
                     }
 
                     const gridCells = document.getElementById('w-grid-cells');
-                    if(gridCells && gridCells.children.length === 0) {
-                        let winCard = d.winning_card;
-                        if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
-                            winCard = d.all_cards[ticketNum];
+                    gridCells.innerHTML = ""; 
+
+                    let winCard = d.winning_card;
+                    if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
+                        winCard = d.all_cards[ticketNum];
+                    }
+
+                    if (Array.isArray(winCard)) {
+                        let drawnSet = new Set();
+                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
+                            d.drawn_balls.forEach(b => { 
+                                let numOnly = String(b).replace(/[^0-9]/g, ''); 
+                                if(numOnly) drawnSet.add(parseInt(numOnly)); 
+                            }); 
+                        }
+                        
+                        let winIdxs = new Set();
+                        if (d.winning_indices && Array.isArray(d.winning_indices)) {
+                            d.winning_indices.forEach(idx => winIdxs.add(idx));
                         }
 
-                        if (Array.isArray(winCard)) {
-                            let drawnSet = new Set();
-                            if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
-                                d.drawn_balls.forEach(b => { 
-                                    let numOnly = String(b).replace(/[^0-9]/g, ''); 
-                                    if(numOnly) drawnSet.add(parseInt(numOnly)); 
-                                }); 
-                            }
+                        winCard.forEach((n, idx) => {
+                            let cell = document.createElement('div'); 
+                            let cleanNum = sanitizeText(n);
                             
-                            let winIdxs = new Set();
-                            if (d.winning_indices && Array.isArray(d.winning_indices)) {
-                                d.winning_indices.forEach(idx => winIdxs.add(idx));
-                            }
-
-                            winCard.forEach((n, idx) => {
-                                let cell = document.createElement('div'); let cleanNum = sanitizeText(n);
-                                if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
-                                    cell.className = "w-cell-modern free"; cell.innerText = "★";
-                                    if(winIdxs.has(idx)) cell.className += " hit";
-                                } else {
-                                    let numVal = parseInt(cleanNum); cell.innerText = cleanNum;
-                                    if (winIdxs.has(idx)) { 
-                                        cell.className = "w-cell-modern hit"; 
-                                    } else if (drawnSet.has(numVal)) { 
-                                        cell.className = "w-cell-modern drawn"; 
-                                    } else { 
-                                        cell.className = "w-cell-modern"; 
-                                    }
+                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                                cell.className = "w-cell-modern free"; 
+                                cell.innerText = "★";
+                                if(winIdxs.has(idx)) cell.className += " hit";
+                            } else {
+                                let numVal = parseInt(cleanNum); 
+                                cell.innerText = cleanNum;
+                                
+                                if (winIdxs.has(idx)) { 
+                                    cell.className = "w-cell-modern hit"; 
+                                } else if (drawnSet.has(numVal)) { 
+                                    cell.className = "w-cell-modern drawn"; 
+                                } else { 
+                                    cell.className = "w-cell-modern"; 
                                 }
-                                gridCells.appendChild(cell);
-                            });
-                        }
+                            }
+                            gridCells.appendChild(cell);
+                        });
                     }
                     if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
                 }
@@ -668,10 +673,8 @@
                             }
                         }
 
-                        // የ 3 ኳስ መቅለም ህግ ፍተሻ (Front-end Check)
                         if (ballFound) {
                             let totalDrawn = latestDrawnBallsGlobal.length;
-                            // የአሁኑን ጨምሮ ወደ ኋላ 3 ኳስ ብቻ ነው ማቅለም የሚቻለው። ከዛ ካለፈ (ልዩነቱ ከ 3 ከበለጠ) ይታገዳል
                             if ((totalDrawn - 1 - matchedBallIndex) >= 3) {
                                 alert("⚠️ አልፎሃል! ይህ ቁጥር ከወጣ 3 ኳስ ስለአለፈው መቅለም አትችልም!");
                                 return; 
