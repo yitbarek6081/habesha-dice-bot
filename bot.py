@@ -43,7 +43,7 @@ game_state = {
     "winning_card": None,
     "winning_ticket_num": None,
     "winning_indices": None,
-    "winning_line_name": None,  # ያሸነፈበትን መስመር ስም ለሁሉም ለማሳየት
+    "winning_line_name": None,  
     "all_cards": {}  
 }
 
@@ -90,7 +90,7 @@ def broadcast_game_state():
         "winning_card": game_state["winning_card"],
         "winning_ticket_num": game_state["winning_ticket_num"],
         "winning_indices": game_state.get("winning_indices"),
-        "winning_line_name": game_state.get("winning_line_name"), # ለሁሉም እንዲደርስ
+        "winning_line_name": game_state.get("winning_line_name"), 
         "all_cards": game_state.get("all_cards", {}), 
         "active_players": len(game_state["players"]),
         "balances": all_balances  
@@ -358,7 +358,6 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
                 pass
     drawn_set.add(0) 
 
-    # ተጫዋቹ ያቀለማቸውን ቁጥሮች መውሰድ (Strict Check)
     marked_set = set(player_marked_numbers) if player_marked_numbers is not None else None
 
     def is_hit(idx):
@@ -670,7 +669,6 @@ def claim_bingo():
     ph = sanitize_input(d.get('phone'))
     marked_0 = d.get('marked_0', [])
     marked_1 = d.get('marked_1', [])
-    combined_marked = list(set(marked_0 + marked_1))
     
     user_info = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     if not user_info:
@@ -686,15 +684,15 @@ def claim_bingo():
         
     cards_to_check = p_data["cards"]
     
-    # 3 ተከታታይ ኳስ የማለፍ ህግ ማስከበሪያ
-    for t_num, card in cards_to_check.items():
-        win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=combined_marked)
+    # እያንዳንዱን ካርተላ ከተጫዋቹ የራሱ ማርክ (marked_0 ለመጀመሪያው፣ marked_1 ለሁለተኛው) ጋር ለይቶ መፈተሽ
+    for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
+        current_marked = marked_0 if idx_key == 0 else marked_1
+        
+        win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=current_marked)
         
         if win_indices is not None:
-            # መስመሩን ለማሟላት ምክንያት የሆነውን (በተጫዋቹ ካርታ ላይ ያለ እና በወጡት ኳሶች ውስጥ ያለ) የመጨረሻውን ቁጥር መፈለግ
             winning_numbers_in_card = [card[idx] for idx in win_indices if idx != 12 and card[idx] != 0]
             
-            # እነዚህ ቁጥሮች በ drawn_balls ውስጥ በስንተኛው ደረጃ ላይ እንደወጡ መፈተሽ
             max_drawn_index = -1
             for num in winning_numbers_in_card:
                 for idx_drawn, ball_str in enumerate(game_state["drawn_balls"]):
@@ -706,21 +704,18 @@ def claim_bingo():
                     except ValueError:
                         pass
             
-            # ህግ፡ ቢንጎ ያሰኘው ቁጥር ከወጣ በኋላ ከ 3 ኳስ በላይ ማለፍ የለበትም። 
-            # ማለትም የአሁኑ ጠቅላላ የወጡ ኳሶች ብዛት (len) - የመጨረሻው የቢንጎ ቁጥር የወጣበት ደረጃ (max_drawn_index) <= 4 መሆን አለበት።
-            # 4ኛ አዲስ ኳስ ሲጠራ (ልዩነቱ 4 ሲሆን) ጊዜው አልፏል ተብሎ ይታገዳል።
             total_drawn = len(game_state["drawn_balls"])
             if max_drawn_index != -1 and (total_drawn - 1 - max_drawn_index) >= 3:
                 return jsonify({"success": False, "msg": "⚠️ አልፎሃል! ቢንጎ ያሰኘህ ቁጥር ከወጣ 3 ኳስ አልፎታል። አራተኛው ኳስ ሳይጠራ መናገር ነበረብህ!"})
 
-            # ቢንጎ ከተረጋገጠ ሂደቱን ማጠናቀቅ
+            # ቢንጎ ከተረጋገጠ ትክክለኛውን ያሸነፈበትን የካርተላ ቁጥር (t_num) መመዝገብ
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
             game_state["winning_indices"] = win_indices
-            game_state["winning_line_name"] = line_type # የረድፍ/የአምድ ስም
+            game_state["winning_line_name"] = line_type 
 
             win_amt = game_state["pot"] * 0.8
             wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
