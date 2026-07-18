@@ -565,11 +565,17 @@
                     globalMyCardsData = myCards;
 
                     const cardArea = document.getElementById('card-area');
-                    if (cardArea && cardArea.children.length === 0 && myCards.length > 0) {
-                        cardArea.innerHTML = "";
-                        myCards.forEach((cObj, i) => { 
-                            renderCard(cObj.matrix, i); 
-                        }); 
+                    if (cardArea) {
+                        if (myCards.length > 0) {
+                            if (cardArea.children.length === 0 || cardArea.querySelector('.waiting-message')) {
+                                cardArea.innerHTML = "";
+                                myCards.forEach((cObj, i) => { 
+                                    renderCard(cObj.matrix, i); 
+                                }); 
+                            }
+                        } else {
+                            cardArea.innerHTML = `<div class="waiting-message" style="color: var(--gold); font-weight: bold; font-size: 1rem; padding: 20px; text-align: center; border: 2px dashed var(--gold); border-radius: 10px; background: rgba(255, 204, 0, 0.05); margin-top: 20px;">ጨዋታዉ ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ</div>`;
+                        }
                     }
                 } 
                 else if(d.status === "result") {
