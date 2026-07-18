@@ -298,11 +298,6 @@
                 <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
             </div>
             
-            <!-- ⚠️ ጨዋታው ከተጀመረ በኋላ ለሚገቡ ብቻ የሚታይ ማሳሰቢያ -->
-            <div id="late-joiner-notice" style="display: none; font-size: 0.95rem; font-weight: 900; color: #ff3e3e; background: rgba(255, 62, 62, 0.1); padding: 12px; border-radius: 10px; border: 2px dashed #ff3e3e; text-align: center; margin: 10px auto; width: 90%; max-width: 400px;">
-                ⚠️ ጨዋታዉ ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ።
-            </div>
-
             <div class="timer-container">
                 <div id="timer">30</div>
                 <div class="buy-notice">🎟️ ካርቴላ ይግዙ (10 ETB)</div>
@@ -363,7 +358,6 @@
         let socket = null;
         let latestDrawnBallsGlobal = []; 
         let globalMyCardsData = []; 
-        let hasSeenGameLayout = false; // 🔄 አዲስ የገባ ሰው መከታተያ ተለዋዋጭ
 
         window.onload = function() {
             if (phone && username) {
@@ -509,12 +503,6 @@
 
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('late-joiner-notice').style.display = 'none'; // 🔄 ማሳሰቢያ ደብቅ
-                    document.getElementById('ticket-area').style.pointerEvents = 'auto'; // 🔄 ቁልፍ ክፈት
-                    document.getElementById('ticket-area').style.opacity = '1';
-                    document.querySelector('.timer-container').style.display = 'flex';
-                    hasSeenGameLayout = true; // 🔄 ሎቢ ላይ የነበረ መሆኑን መመዝገቢያ
-
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('w-grid-cells').innerHTML = ""; 
                     document.getElementById('ball-prep-countdown').style.display = 'none';
@@ -529,39 +517,7 @@
                     if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
                 } 
                 else if(d.status === "playing") {
-                    let myCards = [];
-                    if (d.sold_tickets) {
-                        for (let ticketId in d.sold_tickets) {
-                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
-                                let tNumStr = String(ticketId);
-                                if (d.all_cards && d.all_cards[tNumStr]) {
-                                    myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
-                                }
-                            }
-                        }
-                    }
-                    globalMyCardsData = myCards;
-
-                    // 🔄 ጨዋታው ከተጀመረ በኋላ የገባ እና ካርቴላ የሌለው ሰው ከሆነ፡
-                    if (!hasSeenGameLayout && myCards.length === 0) {
-                        document.getElementById('lobby-ui').style.display = 'flex'; // ሎቢ ላይ ይቆይ
-                        document.getElementById('game-ui').style.display = 'none';
-                        document.getElementById('result-ui').style.display = 'none';
-                        document.getElementById('late-joiner-notice').style.display = 'block'; // 🔄 ማሳሰቢያ አሳይ
-                        
-                        // 🛑 የካርቴላ መግዣውን ቦታ ብቻ ቆልፍ (Deposit/Withdraw ግን ክፍት ናቸው)
-                        document.getElementById('ticket-area').style.pointerEvents = 'none';
-                        document.getElementById('ticket-area').style.opacity = '0.4';
-                        document.querySelector('.timer-container').style.display = 'none';
-                    } else {
-                        // 🟢 መደበኛ ተጫዋች ከሆነ ጨዋታ ውስጥ ይግባ
-                        document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='flex'; document.getElementById('result-ui').style.display='none';
-                        document.getElementById('late-joiner-notice').style.display = 'none';
-                        document.getElementById('ticket-area').style.pointerEvents = 'auto';
-                        document.getElementById('ticket-area').style.opacity = '1';
-                        document.querySelector('.timer-container').style.display = 'flex';
-                    }
-
+                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='flex'; document.getElementById('result-ui').style.display='none';
                     const prepCountdownEl = document.getElementById('ball-prep-countdown');
                     const startAlertEl = document.getElementById('start-alert-msg');
                     let ballTimerVal = parseInt(d.ball_timer);
@@ -595,6 +551,19 @@
                         });
                     }
 
+                    let myCards = [];
+                    if (d.sold_tickets) {
+                        for (let ticketId in d.sold_tickets) {
+                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                                let tNumStr = String(ticketId);
+                                if (d.all_cards && d.all_cards[tNumStr]) {
+                                    myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
+                                }
+                            }
+                        }
+                    }
+                    globalMyCardsData = myCards;
+
                     const cardArea = document.getElementById('card-area');
                     if (cardArea && cardArea.children.length === 0 && myCards.length > 0) {
                         cardArea.innerHTML = "";
@@ -605,7 +574,6 @@
                 } 
                 else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
-                    document.getElementById('late-joiner-notice').style.display = 'none';
                     let winnerName = sanitizeText(d.winner || "Player");
                     document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
