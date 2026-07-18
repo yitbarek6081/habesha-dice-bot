@@ -65,9 +65,37 @@
             overflow: hidden;
         }
 
-        .header-banner { background: linear-gradient(145deg, #1e293b, #050a18); padding: 8px 0; border-bottom: 2px solid var(--gold); }
+        /* 🔄 Side-by-Side Header Layout */
+        .header-banner { 
+            background: linear-gradient(145deg, #1e293b, #050a18); 
+            padding: 8px 15px; 
+            border-bottom: 2px solid var(--gold); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
         .header-banner h1 { margin: 0; font-size: 1.3rem; color: var(--gold); letter-spacing: 2px; }
         
+        /* Top Header Refresh Button Styling */
+        .btn-top-refresh {
+            background: var(--gold);
+            color: #000;
+            border: 1px solid white;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            padding: 4px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            transition: 0.2s;
+        }
+        .btn-top-refresh:active { transform: scale(0.9); }
+
         .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 6px; margin: 5px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
         .stats div { font-size: 0.75rem; color: #94a3b8; }
         .stats b { display: block; font-size: 0.95rem; color: var(--gold); }
@@ -137,28 +165,6 @@
         
         .ball-dot { font-size: 0.65rem; background: #111; padding: 2px 0; color: #444; border-radius: 2px; text-align: center; font-weight: bold; flex: 1; display: flex; align-items: center; justify-content: center; }
         .ball-dot.active { background: var(--gold); color: #000; font-weight: bold; box-shadow: 0 0 3px var(--gold); }
-        
-        /* 🔄 Tiny Refresh Button inside Main Board */
-        .btn-mini-refresh {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            width: 24px;
-            height: 24px;
-            background: var(--gold);
-            color: #000;
-            border: 1px solid white;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-        }
-        .btn-mini-refresh:active { transform: scale(0.9); }
 
         .player-side-area { 
             display: flex; 
@@ -272,7 +278,12 @@
 
     <div id="main-app-content" style="display: none;">
         <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
-        <div class="header-banner"><h1>BESH BINGO</h1></div>
+        
+        <!-- 🔄 Header Container with side-by-side title and refresh button -->
+        <div class="header-banner">
+            <h1>BESH BINGO</h1>
+            <button class="btn-top-refresh" onclick="forceRecoveryRefresh()">🔄 Refresh</button>
+        </div>
         
         <div class="stats">
             <div>BALANCE<b id="balance">0 ETB</b></div>
@@ -309,8 +320,6 @@
                 <div class="board-container">
                     <div class="board-header"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>
                     <div class="main-board" id="main-board"></div>
-                    <!-- 🔄 Mini Refresh Button Inside Main Board Layout -->
-                    <button class="btn-mini-refresh" onclick="forceRecoveryRefresh()">🔄</button>
                 </div>
 
                 <div class="player-side-area">
@@ -458,7 +467,6 @@
                     document.getElementById('ball-circle').innerText = secureBall;
                     renderMainBoard(latestDrawnBallsGlobal);
                     
-                    // Sync up the cards strictly without layout breaking
                     let updatedCards = [];
                     if (d.sold_tickets) {
                         for (let ticketId in d.sold_tickets) {
@@ -472,6 +480,7 @@
                     }
                     globalMyCardsData = updatedCards;
                 }
+                alert("🔄 መረጃው በተሳካ ሁኔታ ታድሷል!");
             }).catch(() => {});
         }
 
@@ -644,15 +653,6 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
-        function trackCell(cardId, cellVal) {
-            let key = `marked_${parseInt(cardId)}`;
-            let list = JSON.parse(localStorage.getItem(key) || "[]");
-            let val = parseInt(cellVal); if (isNaN(val)) return;
-            let idx = list.indexOf(val);
-            if(idx > -1) { list.splice(idx, 1); } else { list.push(val); }
-            localStorage.setItem(key, JSON.stringify(list));
-        }
-
         function initTicketsOnce() {
             const area = document.getElementById('ticket-area');
             if(area && area.children.length === 0) { 
@@ -716,7 +716,6 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
-        // 👥 Auto Match Same Numbers Across Two Cards Automatically
         function handleCellClickCrossMatch(targetNumVal) {
             if(isNaN(targetNumVal)) return;
             
@@ -740,7 +739,6 @@
                 }
             }
 
-            // Find all matching cells across all generated grids on screen and click/toggle them
             const allGrids = document.querySelectorAll('.bingo-card');
             allGrids.forEach((gridEl, cardIdx) => {
                 const cells = gridEl.querySelectorAll('.cell');
