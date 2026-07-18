@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BESH BINGO - SECURE DUAL-SYNC</title>
+    <title>BESH BINGO - FIXED DUAL-SYNC</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     
     <style>
@@ -115,7 +115,7 @@
         .player-side-area { display: flex; flex-direction: column; justify-content: space-between; height: 100%; overflow: hidden; }
         #card-area { flex: 1; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
         .bingo-card { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #444; padding: 4px; border-radius: 0 0 5px 5px; }
-        .cell { background: #fff; color: #000; height: 33px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; cursor: pointer; border-radius: 3px; }
+        .cell { background: #fff; color: #000; height: 33px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; cursor: pointer; border-radius: 3px; user-select: none; }
         .cell.selected { background: var(--gold) !important; color: #000 !important; }
         .cell.free { background: var(--red) !important; color: white; font-size: 0.65rem; }
         
@@ -207,14 +207,14 @@
     <script>
         let phone = localStorage.getItem('phone');
         let username = localStorage.getItem('username');
-        let announced = false, lastBall = "--", clientBalance = 0;
+        let announced = false, clientBalance = 0;
         let isProcessingBuy = false, socket = null, latestDrawnBallsGlobal = []; 
+        let cardsRendered = false; // በጨዋታ መሃል ካርዶች በየሰከንዱ ተደራርበው እንዳይሳሉ መከላከያ
 
         window.onload = function() {
             if (phone && username) { showGameUI(); }
         }
 
-        // 📱 የላቀ የ 9 ዲጂት ስልክ ቁጥር ማጣሪያ (ለ 251፣09፣07፣9፣7 መግቢያዎች ፍጹም ወጥ ያደርገዋል)
         function cleanPhoneStr(p) {
             if (!p) return "";
             let clean = String(p).replace(/[^0-9]/g, '');
@@ -237,7 +237,6 @@
             return null;
         }
 
-        // 🔄 ስልክ ሲደወል ስታክ ካደረገ ድረ-ገጹን ሳይዘጋ ሶኬቱን ብቻ መልሶ የሚያገናኝ ሶፍት ሪፍሬሽ
         function triggerSoftRefresh() {
             if (socket) {
                 console.log("Soft refreshing connection...");
@@ -308,7 +307,10 @@
 
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
+                    document.getElementById('main-board').innerHTML=""; 
+                    document.getElementById('card-area').innerHTML="";
+                    cardsRendered = false; // ሎቢ ሲገባ ቀጣይ ጨዋታ ካርዶችን እንዲስል መፍቀድ
+                    
                     if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
                     initTicketsOnce(); 
                     if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
@@ -320,21 +322,25 @@
                     latestDrawnBallsGlobal = d.drawn_balls || [];
                     renderMainBoard(latestDrawnBallsGlobal);
                     
-                    let myCards = [];
-                    if (d.sold_tickets) {
-                        for (let ticketId in d.sold_tickets) {
-                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
-                                if (d.all_cards && d.all_cards[ticketId]) {
-                                    myCards.push({ id: String(ticketId), matrix: d.all_cards[ticketId] });
+                    // ካርዶቹ አንዴ ብቻ እንዲሳሉ መከላከል (ይህ ነው ክሊክ ሲደረግ ሪፍሬሽ እንዳያደርግ የሚከለክለው)
+                    if (!cardsRendered) {
+                        let myCards = [];
+                        if (d.sold_tickets) {
+                            for (let ticketId in d.sold_tickets) {
+                                if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                                    if (d.all_cards && d.all_cards[ticketId]) {
+                                        myCards.push({ id: String(ticketId), matrix: d.all_cards[ticketId] });
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    const cardArea = document.getElementById('card-area');
-                    if (cardArea && cardArea.children.length === 0 && myCards.length > 0) {
-                        cardArea.innerHTML = "";
-                        myCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
+                        const cardArea = document.getElementById('card-area');
+                        if (cardArea && myCards.length > 0) {
+                            cardArea.innerHTML = "";
+                            myCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
+                            cardsRendered = true; 
+                        }
                     }
                 } 
                 else if(d.status === "result") {
@@ -356,7 +362,6 @@
         function openM(id) { document.getElementById(id).style.display='flex'; }
         function closeM(id) { document.getElementById(id).style.display='none'; }
 
-        // 🔄 በተጫዋቹ ምርጫ መሰረት ሴሎችን ማርክ ማድረጊያ እና የተመሳሳይ ቁጥሮች ማመሳሰያ
         function trackCell(cardId, cellVal, shouldSelect) {
             let key = `marked_${parseInt(cardId)}`;
             let list = JSON.parse(localStorage.getItem(key) || "[]");
@@ -371,10 +376,10 @@
             localStorage.setItem(key, JSON.stringify(list));
         }
 
+        // 🔄 በሁለቱም ካርተላ ላይ ተመሳሳይ ቁጥር ካለ ያለምንም ገጽ ሪፍሬሽ አብሮ ማቅለሚያ የላቀ ሎጂክ
         function handleCellClick(clickedNum, clickedCardIdx, cellElement) {
             let isSelecting = !cellElement.classList.contains('selected');
             
-            // ሁሉንም የጨዋታ ሴሎች መፈተሽ (በሁለቱም ካርዶች ላይ ተመሳሳይ ቁጥር ካለ አብሮ ማቅለሚያ)
             let allCells = document.querySelectorAll('.cell');
             allCells.forEach(c => {
                 let cellNum = parseInt(c.getAttribute('data-num'));
@@ -473,7 +478,6 @@
                         if (ballFound && (latestDrawnBallsGlobal.length - 1 - matchedBallIndex) >= 3) {
                             return alert("⚠️ አልፎሃል! ቁጥሩ ከወጣ 3 ኳስ አልፎታል።");
                         }
-                        // 🔄 የተመሳሰለ ክሊክ ሎጂክ መጥራት
                         handleCellClick(numVal, safeCardIdx, cell);
                     } 
                 }
