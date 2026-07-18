@@ -111,6 +111,23 @@
         #timer { font-size: 2rem; font-weight: 900; color: var(--gold); text-align: center; line-height: 1; }
         .buy-notice { font-size: 0.95rem; font-weight: 900; color: var(--green); background: rgba(0, 255, 136, 0.1); padding: 8px 12px; border-radius: 8px; border: 2px dashed var(--green); text-align: center; min-width: 140px; box-sizing: border-box; }
 
+        /* 🔴 Mid-game Join Warning Alert style */
+        .mid-game-alert {
+            background: rgba(255, 62, 62, 0.15);
+            border: 2px dashed var(--red);
+            color: #fff;
+            font-weight: bold;
+            padding: 12px;
+            margin: 10px auto;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            box-sizing: border-box;
+        }
+        .mid-game-alert span { color: var(--gold); display: block; margin-bottom: 4px; font-weight: 900; }
+
         .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; flex: 1; overflow-y: auto; background: #000; padding: 10px; margin: 5px 10px 10px 10px; border-radius: 10px; box-sizing: border-box; }
         .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; box-sizing: border-box; border: 1px solid transparent; }
         .t-box.mine { background: var(--gold) !important; color: #000 !important; box-shadow: inset 0 0 0 2px #ffffff; }
@@ -145,6 +162,21 @@
             width: 100%;
             box-sizing: border-box;
             padding: 4px;
+        }
+        
+        /* 📱 Mobile Optimization for Fast Bingo Card Display */
+        @media (max-width: 600px) {
+            .game-layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto;
+            }
+            /* Player's card shifts to the top so they can click and say BINGO quickly */
+            .player-side-area {
+                order: 1;
+            }
+            .board-container {
+                order: 2;
+            }
         }
         
         .board-container { 
@@ -298,7 +330,13 @@
                 <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
             </div>
             
-            <div class="timer-container">
+            <!-- 🔴 Mid-game Join Notice for late players (Hidden by default) -->
+            <div id="mid-game-join-notice" class="mid-game-alert" style="display: none;">
+                <span>⚠️ ማሳሰቢያ</span>
+                ጨዋታው ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ።
+            </div>
+
+            <div class="timer-container" id="lobby-timer-wrapper">
                 <div id="timer">30</div>
                 <div class="buy-notice">🎟️ ካርቴላ ይግዙ (10 ETB)</div>
             </div>
@@ -468,9 +506,11 @@
                     renderMainBoard(latestDrawnBallsGlobal);
                     
                     let updatedCards = [];
+                    let userHasCard = false;
                     if (d.sold_tickets) {
                         for (let ticketId in d.sold_tickets) {
                             if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                                userHasCard = true;
                                 let tNumStr = String(ticketId);
                                 if (d.all_cards && d.all_cards[tNumStr]) {
                                     updatedCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
@@ -479,6 +519,14 @@
                         }
                     }
                     globalMyCardsData = updatedCards;
+
+                    // Late Joiner Check during refresh
+                    if(!userHasCard) {
+                        document.getElementById('lobby-ui').style.display = 'flex';
+                        document.getElementById('game-ui').style.display = 'none';
+                        document.getElementById('mid-game-join-notice').style.display = 'block';
+                        document.getElementById('lobby-timer-wrapper').style.display = 'none';
+                    }
                 }
                 alert("🔄 መረጃው በተሳካ ሁኔታ ታድሷል!");
             }).catch(() => {});
@@ -503,6 +551,8 @@
 
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
+                    document.getElementById('mid-game-join-notice').style.display = 'none'; // Hide late warning
+                    document.getElementById('lobby-timer-wrapper').style.display = 'flex';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
                     document.getElementById('w-grid-cells').innerHTML = ""; 
                     document.getElementById('ball-prep-countdown').style.display = 'none';
@@ -517,6 +567,31 @@
                     if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
                 } 
                 else if(d.status === "playing") {
+                    let myCards = [];
+                    let userHasCard = false;
+                    if (d.sold_tickets) {
+                        for (let ticketId in d.sold_tickets) {
+                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                                userHasCard = true;
+                                let tNumStr = String(ticketId);
+                                if (d.all_cards && d.all_cards[tNumStr]) {
+                                    myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
+                                }
+                            }
+                        }
+                    }
+                    globalMyCardsData = myCards;
+
+                    // Check if player joined late (No ticket for this ongoing round)
+                    if(!userHasCard) {
+                        document.getElementById('lobby-ui').style.display = 'flex';
+                        document.getElementById('game-ui').style.display = 'none';
+                        document.getElementById('result-ui').style.display = 'none';
+                        document.getElementById('mid-game-join-notice').style.display = 'block'; // Show warning
+                        document.getElementById('lobby-timer-wrapper').style.display = 'none';
+                        return; // Halt rendering game view for late joiners
+                    }
+
                     document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='flex'; document.getElementById('result-ui').style.display='none';
                     const prepCountdownEl = document.getElementById('ball-prep-countdown');
                     const startAlertEl = document.getElementById('start-alert-msg');
@@ -551,19 +626,6 @@
                         });
                     }
 
-                    let myCards = [];
-                    if (d.sold_tickets) {
-                        for (let ticketId in d.sold_tickets) {
-                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
-                                let tNumStr = String(ticketId);
-                                if (d.all_cards && d.all_cards[tNumStr]) {
-                                    myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
-                                }
-                            }
-                        }
-                    }
-                    globalMyCardsData = myCards;
-
                     const cardArea = document.getElementById('card-area');
                     if (cardArea && cardArea.children.length === 0 && myCards.length > 0) {
                         cardArea.innerHTML = "";
@@ -574,6 +636,7 @@
                 } 
                 else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
+                    document.getElementById('mid-game-join-notice').style.display = 'none';
                     let winnerName = sanitizeText(d.winner || "Player");
                     document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
