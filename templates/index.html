@@ -65,9 +65,27 @@
             overflow: hidden;
         }
 
-        .header-banner { background: linear-gradient(145deg, #1e293b, #050a18); padding: 8px 0; border-bottom: 2px solid var(--gold); }
+        .header-banner { position: relative; background: linear-gradient(145deg, #1e293b, #050a18); padding: 8px 0; border-bottom: 2px solid var(--gold); }
         .header-banner h1 { margin: 0; font-size: 1.3rem; color: var(--gold); letter-spacing: 2px; }
         
+        /* እጅግ በጣም ትንሽ የሪፍረሽ በተን */
+        .btn-refresh-mini {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--gold);
+            border: 1px solid var(--gold);
+            padding: 3px 6px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .btn-refresh-mini:active { background: var(--gold); color: #000; }
+
         .stats { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 6px; margin: 5px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
         .stats div { font-size: 0.75rem; color: #94a3b8; }
         .stats b { display: block; font-size: 0.95rem; color: var(--gold); }
@@ -249,7 +267,11 @@
 
     <div id="main-app-content" style="display: none;">
         <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
-        <div class="header-banner"><h1>BESH BINGO</h1></div>
+        <div class="header-banner">
+            <h1>BESH BINGO</h1>
+            <!-- 🔄 የሪፍረሽ በተን -->
+            <button class="btn-refresh-mini" onclick="forceRefreshSystem()">🔄</button>
+        </div>
         
         <div class="stats">
             <div>BALANCE<b id="balance">0 ETB</b></div>
@@ -333,19 +355,24 @@
             }
         }
 
+        // የስልክ ቁጥር ወደ 9 አሃዝ ብቻ የመቀየሪያ ሪገክስ
+        function parseTo9Digit(phoneStr) {
+            if(!phoneStr) return "";
+            let cleaned = String(phoneStr).replace(/[^0-9+]/g, '');
+            let match = cleaned.match(/^(?:\+?251|0)?([79]\d{8})$/);
+            return match ? match[1] : cleaned;
+        }
+
         function phoneMatches(p1, p2) {
             if (!p1 || !p2) return false;
-            let clean1 = String(p1).replace(/[^0-9]/g, '').slice(-9);
-            let clean2 = String(p2).replace(/[^0-9]/g, '').slice(-9);
-            return clean1 === clean2 && clean1.length > 0;
+            return parseTo9Digit(p1) === parseTo9Digit(p2);
         }
 
         function getValueByPhone(dict, targetPhone) {
             if (!dict || !targetPhone) return null;
-            let targetClean = String(targetPhone).replace(/[^0-9]/g, '').slice(-9);
+            let targetClean = parseTo9Digit(targetPhone);
             for (let key in dict) {
-                let keyClean = String(key).replace(/[^0-9]/g, '').slice(-9);
-                if (keyClean === targetClean) {
+                if (parseTo9Digit(key) === targetClean) {
                     return dict[key];
                 }
             }
@@ -359,8 +386,10 @@
 
             if (inputName.length < 2) return alert("እባክዎ ትክክለኛ ስም ያስገቡ!");
             
-            const cleanPhone = inputPhone.replace(/[^0-9+]/g, '');
-            if (cleanPhone.length < 9 || cleanPhone.length > 13) return alert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ!");
+            let cleanPhone = parseTo9Digit(inputPhone);
+            if (cleanPhone.length !== 9 || (!cleanPhone.startsWith('9') && !cleanPhone.startsWith('7'))) {
+                return alert("እባክዎ ትክክለኛ ስልክ ቁጥር ያስገቡ! (በ 09 ወይም 07 የሚጀምር)");
+            }
 
             if(submitBtn) submitBtn.disabled = true;
 
@@ -391,6 +420,16 @@
             });
         }
 
+        // ስልክ ተደውሎ ሲመለስ ስታክ ካደረገ ማስለቀቂያ ሪፍረሽ ተግባር
+        function forceRefreshSystem() {
+            if(socket) {
+                socket.disconnect();
+            }
+            fetchBalanceOnly();
+            initWebSocket();
+            alert("🔄 ሲስተሙ በተሳካ ሁኔታ ሪፍረሽ ሆኗል!");
+        }
+
         function showGameUI() {
             document.getElementById('auth-ui').style.display = 'none';
             document.getElementById('main-app-content').style.display = 'flex'; 
@@ -409,7 +448,7 @@
         }
 
         function initWebSocket() {
-            socket = io("https://habesha-dice-bot.onrender.com");
+            socket = io(window.location.origin);
 
             socket.on('game_update', function(d) {
                 let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
@@ -575,13 +614,41 @@
         function closeM(id) { document.getElementById(id).style.display='none'; }
         function copyNum(n) { navigator.clipboard.writeText(n); alert("Copied: " + n); }
 
-        function trackCell(cardId, cellVal) {
-            let key = `marked_${parseInt(cardId)}`;
-            let list = JSON.parse(localStorage.getItem(key) || "[]");
-            let val = parseInt(cellVal); if (isNaN(val)) return;
-            let idx = list.indexOf(val);
-            if(idx > -1) { list.splice(idx, 1); } else { list.push(val); }
-            localStorage.setItem(key, JSON.stringify(list));
+        // የተመሳሰሉ ቁጥሮችን በሁለቱም ካርድ ላይ በጋራ የመቅለም/የማጥቆር ተግባር
+        function trackCellShared(numVal) {
+            let val = parseInt(numVal);
+            if (isNaN(val)) return;
+
+            // በሁሉም ሴሎች ላይ ተመሳሳዩን ቁጥር ፈልጎ ክላሱን መቀየር
+            let allCells = document.querySelectorAll(`.cell-num-${val}`);
+            
+            // መጀመሪያ አንዱ ካርድ ላይ የነበረውን ሁኔታ አይቶ ቶግል (Toggle) ለማድረግ
+            let isCurrentlySelected = false;
+            if(allCells.length > 0) {
+                isCurrentlySelected = allCells[0].classList.contains('selected');
+            }
+
+            for (let c of allCells) {
+                if (isCurrentlySelected) {
+                    c.classList.remove('selected');
+                } else {
+                    c.classList.add('selected');
+                }
+            }
+
+            // በሁለቱም የሎካል ስቶሬጅ ማርከር (marked_0 እና marked_1) ላይ ማስተካከል።
+            for (let cardIdx = 0; cardIdx <= 1; cardIdx++) {
+                let key = `marked_${cardIdx}`;
+                let list = JSON.parse(localStorage.getItem(key) || "[]");
+                let idx = list.indexOf(val);
+
+                if (isCurrentlySelected) {
+                    if (idx > -1) list.splice(idx, 1);
+                } else {
+                    if (idx === -1) list.push(val);
+                }
+                localStorage.setItem(key, JSON.stringify(list));
+            }
         }
 
         function initTicketsOnce() {
@@ -658,7 +725,9 @@
                 const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
                 if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
                 else { 
-                    let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
+                    let numVal = parseInt(cleanVal); 
+                    cell.className = savedMarks.includes(numVal) ? `cell selected cell-num-${numVal}` : `cell cell-num-${numVal}`; 
+                    cell.innerText=cleanVal; 
                     
                     cell.onclick = () => {
                         let ballFound = false;
@@ -681,8 +750,8 @@
                             }
                         }
 
-                        cell.classList.toggle('selected'); 
-                        trackCell(safeCardIdx, numVal); 
+                        // የጋራ መቅለሚያ ተግባር መጥራት
+                        trackCellShared(numVal); 
                     } 
                 }
                 grid.appendChild(cell);
