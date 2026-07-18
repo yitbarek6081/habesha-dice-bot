@@ -684,6 +684,7 @@ def claim_bingo():
         
     cards_to_check = p_data["cards"]
     
+    # እያንዳንዱን ካርተላ ከተጫዋቹ የራሱ ማርክ (marked_0 ለመጀመሪያው፣ marked_1 ለሁለተኛው) ጋር ለይቶ መፈተሽ
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
         
@@ -707,6 +708,7 @@ def claim_bingo():
             if max_drawn_index != -1 and (total_drawn - 1 - max_drawn_index) >= 3:
                 return jsonify({"success": False, "msg": "⚠️ አልፎሃል! ቢንጎ ያሰኘህ ቁጥር ከወጣ 3 ኳስ አልፎታል። አራተኛው ኳስ ሳይጠራ መናገር ነበረብህ!"})
 
+            # ቢንጎ ከተረጋገጠ ትክክለኛውን ያሸነፈበትን የካርተላ ቁጥር (t_num) መመዝገብ
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
