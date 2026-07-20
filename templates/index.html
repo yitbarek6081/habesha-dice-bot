@@ -370,7 +370,7 @@
                 <div class="winner-grid-modern" id="w-grid-cells"></div>
             </div>
         </div>
-        <div class="next-round-bar">Next Round: <span id="w-next-timer">10s</span></div>
+        <div class="next-round-bar">Next Round: <span id="w-next-timer">6s</span></div>
     </div>
 
     <script>
@@ -692,7 +692,7 @@
                             let cell = document.createElement('div'); 
                             let cleanNum = sanitizeText(n);
                             
-                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                            if(idx === 12 || cleanNum === "BESH" || cleanNum === "★" || parseInt(cleanNum) === 0) {
                                 cell.className = "w-cell-modern free"; 
                                 cell.innerText = "★";
                                 if(winIdxs.has(idx)) cell.className += " hit";
@@ -851,7 +851,7 @@
             
             card.forEach((n, i) => {
                 const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
-                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
+                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="BESH"; } 
                 else { 
                     let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
                     cell.onclick = () => { handleCellClickCrossMatch(numVal); } 
