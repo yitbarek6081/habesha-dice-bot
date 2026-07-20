@@ -757,7 +757,7 @@ def claim_bingo():
             broadcast_game_state() 
 
             def countdown_and_reset():
-                for t in range(10, -1, -1):
+                for t in range(6, -1, -1):
                     game_state["timer"] = t
                     broadcast_game_state()
                     socketio.sleep(1)
