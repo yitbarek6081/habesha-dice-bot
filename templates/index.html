@@ -31,7 +31,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 0vh;
+            min-height: 100vh;
             padding: 20px;
             box-sizing: border-box;
             background: radial-gradient(circle at center, #1e293b, #050a18);
@@ -41,26 +41,26 @@
             border: 2px solid var(--gold);
             border-radius: 20px;
             padding: 30px 20px;
-            width: 0%;
+            width: 100%;
             max-width: 360px;
             box-sizing: border-box;
             box-shadow: 0 20px 40px rgba(0,0,0,0.5);
         }
         .auth-card h2 { color: var(--gold); margin-top: 0; font-size: 1.6rem; letter-spacing: 1px; }
         .auth-card p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
-        .input-group { width: 0%; text-align: left; margin-bottom: 15px; }
+        .input-group { width: 100%; text-align: left; margin-bottom: 15px; }
         .input-group label { display: block; font-size: 0.85rem; color: var(--gold); margin-bottom: 5px; font-weight: bold; }
-        .auth-input { padding: 14px; width: 0%; border-radius: px; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; font-size: 1rem; background: #fff; color: #000; font-weight: bold; }
+        .auth-input { padding: 14px; width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; font-size: 1rem; background: #fff; color: #000; font-weight: bold; }
         .auth-input:focus { border-color: var(--gold); outline: none; }
-        .btn-login { width: 0%; padding: 14px; background: linear-gradient(135deg, var(--green), #00cc6a); color: #000; border: none; border-radius: px; font-weight: 900; font-size: 1.1rem; cursor: pointer; text-transform: uppercase; margin-top: px; box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3); transition: 0.2s; }
+        .btn-login { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--green), #00cc6a); color: #000; border: none; border-radius: 10px; font-weight: 900; font-size: 1.1rem; cursor: pointer; text-transform: uppercase; margin-top: 10px; box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3); transition: 0.2s; }
         .btn-login:disabled { background: #555; cursor: not-allowed; opacity: 0.6; box-shadow: none; }
         .btn-login:active { transform: scale(0.98); }
 
         #main-app-content {
             display: flex;
             flex-direction: column;
-            height: 0vh;
-            width: 0vw;
+            height: 100vh;
+            width: 100vw;
             box-sizing: border-box;
             overflow: hidden;
         }
@@ -86,7 +86,7 @@
             border-radius: 6px;
             font-size: 0.9rem;
             font-weight: bold;
-            padding: 4px px;
+            padding: 4px 10px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -102,16 +102,16 @@
         
         #lobby-ui { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
         .action-bar { display: flex; justify-content: center; gap: 6px; padding: 4px 8px; }
-        .btn-main { flex: 1; padding: px 5px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; text-transform: uppercase; font-size: 0.75rem; transition: 0.3s; }
+        .btn-main { flex: 1; padding: 10px 5px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; text-transform: uppercase; font-size: 0.75rem; transition: 0.3s; }
         .btn-deposit { background: var(--green); color: #000; }
         .btn-withdraw { background: var(--orange); color: white; }
         .btn-how-to { background: #3b82f6; color: white; border: 1px solid #60a5fa; }
 
-        .timer-container { display: flex; align-items: center; justify-content: center; gap: 15px; margin: px auto; width: 90%; max-width: 400px; background: rgba(255, 255, 255, 0.02); padding: 6px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .timer-container { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 10px auto; width: 90%; max-width: 400px; background: rgba(255, 255, 255, 0.02); padding: 6px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
         #timer { font-size: 2rem; font-weight: 900; color: var(--gold); text-align: center; line-height: 1; }
         .buy-notice { font-size: 0.95rem; font-weight: 900; color: var(--green); background: rgba(0, 255, 136, 0.1); padding: 8px 12px; border-radius: 8px; border: 2px dashed var(--green); text-align: center; min-width: 140px; box-sizing: border-box; }
 
-        .grid-500 { display: grid; grid-template-columns: repeat(, 1fr); gap: 4px; flex: 1; overflow-y: auto; background: #000; padding: px; margin: 5px px 10px 10px; border-radius: 10px; box-sizing: border-box; }
+        .grid-500 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; flex: 1; overflow-y: auto; background: #000; padding: 10px; margin: 5px 10px 10px 10px; border-radius: 10px; box-sizing: border-box; }
         .t-box { background: #fff; color: #000; font-size: 0.75rem; padding: 8px 0; font-weight: bold; border-radius: 4px; cursor: pointer; box-sizing: border-box; border: 1px solid transparent; }
         .t-box.mine { background: var(--gold) !important; color: #000 !important; box-shadow: inset 0 0 0 2px #ffffff; }
         .t-box.sold { background: #333; color: #666; cursor: not-allowed; }
@@ -370,7 +370,7 @@
                 <div class="winner-grid-modern" id="w-grid-cells"></div>
             </div>
         </div>
-        <div class="next-round-bar">Next Round: <span id="w-next-timer">6s</span></div>
+        <div class="next-round-bar">Next Round: <span id="w-next-timer">5s</span></div>
     </div>
 
     <script>
@@ -659,7 +659,7 @@
                     document.getElementById('w-card-owner').innerText = winnerName;
                     
                     let timerVal = parseInt(d.timer);
-                    document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "6s" : timerVal + "s";
+                    document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
 
                     let patternNameEl = document.getElementById('w-pattern-name');
                     if (patternNameEl) {
@@ -692,7 +692,7 @@
                             let cell = document.createElement('div'); 
                             let cleanNum = sanitizeText(n);
                             
-                            if(idx === 12 || cleanNum === "BESH" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
                                 cell.className = "w-cell-modern free"; 
                                 cell.innerText = "★";
                                 if(winIdxs.has(idx)) cell.className += " hit";
@@ -851,7 +851,7 @@
             
             card.forEach((n, i) => {
                 const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
-                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="BESH"; } 
+                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
                 else { 
                     let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
                     cell.onclick = () => { handleCellClickCrossMatch(numVal); } 
