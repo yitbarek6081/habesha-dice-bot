@@ -710,7 +710,7 @@ def claim_bingo():
 
             # ቢንጎ ከተረጋገጠ ትክክለኛውን ያሸነፈበትን የካርተላ ቁጥር (t_num) መመዝገብ
             game_state["status"] = "result"
-            game_state["timer"] = 10
+            game_state["timer"] = 6
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
