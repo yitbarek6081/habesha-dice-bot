@@ -73,6 +73,7 @@ def set_webhook():
         print(f"Webhook set failed: {e}")
 
 def broadcast_game_state():
+    # 🔥 OPTIMIZATION: Heavy database scan for all user balances removed from 1-second ticks
     state_payload = {
         "status": game_state["status"],
         "timer": game_state["timer"],
@@ -92,6 +93,7 @@ def broadcast_game_state():
     socketio.emit('game_update', state_payload)
 
 def notify_user_balance_update(phone_num, new_balance):
+    # Sends real-time balance update only to the specific user
     socketio.emit('balance_update', {"phone": phone_num, "balance": new_balance})
 
 @app.route('/webhook', methods=['POST'])
@@ -200,27 +202,7 @@ def webhook():
                 return "OK", 200
 
         if chat_id == ADMIN_ID:
-            # --- 📢 BROADCAST COMMAND ADDED HERE ---
-            if msg.startswith("/broadcast "):
-                try:
-                    broadcast_text = msg.replace("/broadcast", "").strip()
-                    if broadcast_text:
-                        all_users = list(wallets.find({}))
-                        success_count = 0
-                        for user in all_users:
-                            t_id = user.get("telegram_id") or (user.get("phone") if str(user.get("phone")).isdigit() else None)
-                            if t_id and not str(t_id).startswith("TEMP_"):
-                                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                                resp = requests.post(url, json={"chat_id": t_id, "text": broadcast_text, "parse_mode": "Markdown"}, timeout=5)
-                                if resp.status_code == 200:
-                                    success_count += 1
-                        send_telegram(f"📢 *ብሮድካስት ተጠናቋል!*\nመልዕክቱ ለ `{success_count}` ተጠቃሚዎች በተሳካ ሁኔታ ተልኳል።")
-                    else:
-                        send_telegram("❌ ስህተት! የሚላኩትን መልዕክት አብረው ይጻፉ። ፎርማቱ: `/broadcast የጽሁፍ መልዕክትዎ`")
-                except Exception as e:
-                    send_telegram(f"❌ ብሮድካስት በሚላክበት ጊዜ ስህተት አጋጥሟል: {e}")
-
-            elif msg == "/security_check":
+            if msg == "/security_check":
                 try:
                     high_balance_users = list(wallets.find({"balance": {"$gt": 5000}}))
                     sec_report = ["🛡️ *ወቅታዊ የሲስተም የደሁንነት ፍተሻ ሪፖርት:*\n"]
@@ -718,6 +700,7 @@ def claim_bingo():
         
     cards_to_check = p_data["cards"]
     
+    # እያንዳንዱን ካርተላ ከተጫዋቹ የራሱ ማርክ (marked_0 ለመጀመሪያው፣ marked_1 ለሁለተኛው) ጋር ለይቶ መፈተሽ
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
         
@@ -741,6 +724,7 @@ def claim_bingo():
             if max_drawn_index != -1 and (total_drawn - 1 - max_drawn_index) >= 3:
                 return jsonify({"success": False, "msg": "⚠️ አልፎሃል! ቢንጎ ያሰኘህ ቁጥር ከወጣ 3 ኳስ አልፎታል። አራተኛው ኳስ ሳይጠራ መናገር ነበረብህ!"})
 
+            # ቢንጎ ከተረጋገጠ ትክክለኛውን ያሸነፈበትን የካርተላ ቁጥር (t_num) መመዝገብ
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
