@@ -254,7 +254,6 @@
         .w-cell-modern.free { background: var(--gold); color: #1e293b; font-size: 1rem; border-color: var(--gold); }
         .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 12px; width: 92%; max-width: 360px; margin-top: 10px; border-radius: 15px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 
-        /* 🔥 የመጠበቂያ ቦታ ላይ ያሉ Deposit/Withdraw ቁልፎች ዲዛይን */
         .waiting-box {
             color: var(--gold);
             font-weight: bold;
@@ -302,7 +301,6 @@
     <div id="main-app-content" style="display: none;">
         <audio id="win-horn" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
         
-        <!-- 🔄 Header Container with side-by-side title and refresh button -->
         <div class="header-banner">
             <h1>BESH BINGO</h1>
             <button class="btn-top-refresh" onclick="forceRecoveryRefresh()">🔄 Refresh</button>
@@ -370,7 +368,7 @@
                 <div class="winner-grid-modern" id="w-grid-cells"></div>
             </div>
         </div>
-        <div class="next-round-bar">Next Round: <span id="w-next-timer">5s</span></div>
+        <div class="next-round-bar">Next Round: <span id="w-next-timer">10s</span></div>
     </div>
 
     <script>
@@ -396,18 +394,6 @@
             let clean1 = String(p1).replace(/[^0-9]/g, '').slice(-9);
             let clean2 = String(p2).replace(/[^0-9]/g, '').slice(-9);
             return clean1 === clean2 && clean1.length > 0;
-        }
-
-        function getValueByPhone(dict, targetPhone) {
-            if (!dict || !targetPhone) return null;
-            let targetClean = String(targetPhone).replace(/[^0-9]/g, '').slice(-9);
-            for (let key in dict) {
-                let keyClean = String(key).replace(/[^0-9]/g, '').slice(-9);
-                if (keyClean === targetClean) {
-                    return dict[key];
-                }
-            }
-            return null;
         }
 
         function registerUser() {
@@ -466,11 +452,9 @@
             }).catch(() => {});
         }
 
-        // 🔄 🔥 Force recovery and un-freeze screen (Hard Refresh)
         function forceRecoveryRefresh() {
             if (!phone) return;
             
-            // 1. Reconnect Socket if dead or stuck
             if(socket) {
                 try {
                     socket.disconnect();
@@ -480,7 +464,6 @@
                 initWebSocket();
             }
 
-            // 2. Fetch ground truth state from HTTP endpoint
             fetch(`/get_status?phone=${encodeURIComponent(phone)}`)
             .then(r => r.json())
             .then(d => {
@@ -521,7 +504,6 @@
                             cardArea.innerHTML = "";
                             updatedCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
                         } else {
-                            // 💡 የዴፖዚት እና ዊዝድሮው ቁልፍ የያዘ የመጠበቂያ ቦክስ
                             cardArea.innerHTML = `
                                 <div class="waiting-box">
                                     <span>ጨዋታዉ ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ</span>
@@ -547,19 +529,18 @@
         function initWebSocket() {
             socket = io("https://habesha-dice-bot.onrender.com");
 
+            socket.on('balance_update', function(data) {
+                if (data && phoneMatches(data.phone, phone)) {
+                    clientBalance = parseFloat(data.balance) || 0;
+                    document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                }
+            });
+
             socket.on('game_update', function(d) {
                 let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
                 document.getElementById('prize').innerText = finalPrize + " ETB";
                 document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
                 document.getElementById('timer').innerText = sanitizeText(d.timer);
-                
-                if (d.balances) {
-                    let myBalance = getValueByPhone(d.balances, phone);
-                    if (myBalance !== null) {
-                        clientBalance = parseFloat(myBalance) || 0;
-                        document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
-                    }
-                }
 
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
@@ -634,7 +615,6 @@
                                 }); 
                             }
                         } else {
-                            // 🔥 በመጠበቂያው ላይ Deposit እና Withdraw ቁልፎች አብረው ተካተዋል
                             if (!cardArea.querySelector('.waiting-box')) {
                                 cardArea.innerHTML = `
                                     <div class="waiting-box">
@@ -659,7 +639,7 @@
                     document.getElementById('w-card-owner').innerText = winnerName;
                     
                     let timerVal = parseInt(d.timer);
-                    document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "6s" : timerVal + "s";
+                    document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
 
                     let patternNameEl = document.getElementById('w-pattern-name');
                     if (patternNameEl) {
@@ -692,7 +672,7 @@
                             let cell = document.createElement('div'); 
                             let cleanNum = sanitizeText(n);
                             
-                            if(idx === 12 || cleanNum === "BESH" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
                                 cell.className = "w-cell-modern free"; 
                                 cell.innerText = "★";
                                 if(winIdxs.has(idx)) cell.className += " hit";
@@ -765,7 +745,16 @@
             fetch('/buy_specific_ticket', {
                 method:'POST', headers:{'Content-Type':'application/json'}, 
                 body:JSON.stringify({phone: phone, ticket_num: target, username: username})
-            }).then(() => { isProcessingBuy = false; fetchBalanceOnly(); }).catch(() => { isProcessingBuy = false; }); 
+            })
+            .then(res => res.json())
+            .then(d => { 
+                isProcessingBuy = false; 
+                if (d.success && d.balance !== undefined) {
+                    clientBalance = parseFloat(d.balance);
+                    document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                }
+            })
+            .catch(() => { isProcessingBuy = false; }); 
         }
 
         function refund(n) { 
@@ -805,6 +794,12 @@
                         ballFound = true; matchedBallIndex = k; break;
                     }
                 }
+            }
+
+            // 🛑 ጨዋታው ላይ ኳሱ ገና ያልወጣ ከሆነ ማሳሰቢያ ይሰጣል
+            if (!ballFound) {
+                alert("ሳይወጣ ማቅለም አይቻልም!");
+                return;
             }
 
             if (ballFound) {
@@ -851,7 +846,7 @@
             
             card.forEach((n, i) => {
                 const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
-                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="BESH"; } 
+                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
                 else { 
                     let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
                     cell.onclick = () => { handleCellClickCrossMatch(numVal); } 
