@@ -5,6 +5,7 @@ monkey.patch_all()
 import random
 import requests
 import re
+import gevent
 from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
@@ -55,11 +56,13 @@ def sanitize_input(text):
     return re.sub(r'[^\w\s\-\+\.@]', '', str(text)).strip()
 
 def send_telegram(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
-    except Exception as e:
-        print(f"Telegram Error: {e}")
+    def _send():
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        try:
+            requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
+        except Exception as e:
+            print(f"Telegram Error: {e}")
+    gevent.spawn(_send)
 
 def set_webhook():
     webhook_url = f"{WEB_APP_URL}/webhook"
@@ -70,14 +73,7 @@ def set_webhook():
         print(f"Webhook set failed: {e}")
 
 def broadcast_game_state():
-    all_balances = {}
-    try:
-        for u in wallets.find({}, {"phone": 1, "balance": 1}):
-            if "phone" in u:
-                all_balances[u["phone"]] = u.get("balance", 0)
-    except Exception:
-        pass
-
+    # 🔥 OPTIMIZATION: Heavy database scan for all user balances removed from 1-second ticks
     state_payload = {
         "status": game_state["status"],
         "timer": game_state["timer"],
@@ -92,10 +88,13 @@ def broadcast_game_state():
         "winning_indices": game_state.get("winning_indices"),
         "winning_line_name": game_state.get("winning_line_name"), 
         "all_cards": game_state.get("all_cards", {}), 
-        "active_players": len(game_state["players"]),
-        "balances": all_balances  
+        "active_players": len(game_state["players"])
     }
     socketio.emit('game_update', state_payload)
+
+def notify_user_balance_update(phone_num, new_balance):
+    # Sends real-time balance update only to the specific user
+    socketio.emit('balance_update', {"phone": phone_num, "balance": new_balance})
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -280,13 +279,19 @@ def webhook():
                         if amount > 0:
                             user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
                             if user:
-                                wallets.update_one({"_id": user["_id"]}, {"$inc": {"balance": amount}})
+                                updated = wallets.find_one_and_update(
+                                    {"_id": user["_id"]}, 
+                                    {"$inc": {"balance": amount}},
+                                    return_document=True
+                                )
+                                notify_user_balance_update(target_phone, updated.get("balance", 0))
                             else:
                                 wallets.insert_one({
                                     "phone": target_phone, 
                                     "balance": amount, 
                                     "username": f"User_{target_phone[-4:]}"
                                 })
+                                notify_user_balance_update(target_phone, amount)
                             send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
                             broadcast_game_state() 
                 except:
@@ -298,7 +303,13 @@ def webhook():
                     if len(parts) == 3:
                         target_phone, amount = sanitize_input(parts[1]), float(parts[2])
                         if amount > 0:
-                            wallets.update_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, {"$inc": {"balance": -amount}})
+                            updated = wallets.find_one_and_update(
+                                {"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, 
+                                {"$inc": {"balance": -amount}},
+                                return_document=True
+                            )
+                            if updated:
+                                notify_user_balance_update(target_phone, updated.get("balance", 0))
                             send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
                             broadcast_game_state() 
                 except:
@@ -574,8 +585,9 @@ def buy_ticket():
         else:
             game_state["players"][db_phone]["cards"][t_num] = flat
                 
+        notify_user_balance_update(db_phone, res.get("balance", 0))
         broadcast_game_state() 
-        return jsonify({"success": True})
+        return jsonify({"success": True, "balance": res.get("balance", 0)})
     
     if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
         del game_state["sold_tickets"][t_num]
@@ -596,7 +608,7 @@ def cancel_ticket():
         return jsonify({"success": False, "msg": "ጨዋታው ስለተጀመረ መሰረዝ አይቻልም!"})
 
     if game_state["sold_tickets"].get(t_num) == db_phone:
-        wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}}) 
+        res = wallets.find_one_and_update({"phone": db_phone}, {"$inc": {"balance": 10}}, return_document=True)
         game_state["pot"] -= 10
         del game_state["sold_tickets"][t_num]
         
@@ -608,6 +620,9 @@ def cancel_ticket():
                 del game_state["players"][db_phone]["cards"][t_num]
             if not game_state["players"][db_phone]["cards"]: 
                 del game_state["players"][db_phone]
+        
+        if res:
+            notify_user_balance_update(db_phone, res.get("balance", 0))
         broadcast_game_state() 
         return jsonify({"success": True})
             
@@ -659,6 +674,7 @@ def withdraw():
     if res:
         msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` teqedem."
         send_telegram(msg)
+        notify_user_balance_update(db_phone, res.get("balance", 0))
         broadcast_game_state() 
         return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
@@ -710,7 +726,7 @@ def claim_bingo():
 
             # ቢንጎ ከተረጋገጠ ትክክለኛውን ያሸነፈበትን የካርተላ ቁጥር (t_num) መመዝገብ
             game_state["status"] = "result"
-            game_state["timer"] = 6
+            game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
             game_state["winning_card"] = card  
             game_state["winning_ticket_num"] = str(t_num) 
@@ -718,13 +734,17 @@ def claim_bingo():
             game_state["winning_line_name"] = line_type 
 
             win_amt = game_state["pot"] * 0.8
-            wallets.update_one({"phone": db_phone}, {"$inc": {"balance": win_amt}})
+            win_res = wallets.find_one_and_update({"phone": db_phone}, {"$inc": {"balance": win_amt}}, return_document=True)
+            if win_res:
+                notify_user_balance_update(db_phone, win_res.get("balance", 0))
             
             agent_msg = ""
             if user_info and "referred_by" in user_info:
                 agent_phone = user_info["referred_by"]
                 agent_commission = win_amt * 0.05
-                wallets.update_one({"phone": agent_phone}, {"$inc": {"balance": agent_commission}})
+                ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
+                if ag_res:
+                    notify_user_balance_update(agent_phone, ag_res.get("balance", 0))
                 agent_msg = f"\n🤝 *Agent Bonus:* ኤጀንት `📞 {agent_phone}` የ *{agent_commission:.2f} ETB* ኮሚሽን ገቢ ተደርጎለታል።"
             
             card_rows = []
@@ -757,7 +777,7 @@ def claim_bingo():
             broadcast_game_state() 
 
             def countdown_and_reset():
-                for t in range(6, -1, -1):
+                for t in range(10, -1, -1):
                     game_state["timer"] = t
                     broadcast_game_state()
                     socketio.sleep(1)
