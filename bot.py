@@ -73,7 +73,6 @@ def set_webhook():
         print(f"Webhook set failed: {e}")
 
 def broadcast_game_state():
-    # 🔥 OPTIMIZATION: Heavy database scan for all user balances removed from 1-second ticks
     state_payload = {
         "status": game_state["status"],
         "timer": game_state["timer"],
@@ -93,7 +92,6 @@ def broadcast_game_state():
     socketio.emit('game_update', state_payload)
 
 def notify_user_balance_update(phone_num, new_balance):
-    # Sends real-time balance update only to the specific user
     socketio.emit('balance_update', {"phone": phone_num, "balance": new_balance})
 
 @app.route('/webhook', methods=['POST'])
@@ -202,76 +200,7 @@ def webhook():
                 return "OK", 200
 
         if chat_id == ADMIN_ID:
-            if msg == "/security_check":
-                try:
-                    high_balance_users = list(wallets.find({"balance": {"$gt": 5000}}))
-                    sec_report = ["🛡️ *ወቅታዊ የሲስተም የደሁንነት ፍተሻ ሪፖርት:*\n"]
-                    if high_balance_users:
-                        sec_report.append("⚠️ *ከፍተኛ ባላንስ ያላቸው ተጠቃሚዎች (ሊያጠራጥሩ የሚችሉ):*")
-                        for u in high_balance_users:
-                            sec_report.append(f"• 👤 `{u.get('username')}` | 📞 `{u.get('phone')}` | 💵 *{u.get('balance')} ETB*")
-                    else:
-                        sec_report.append("✅ ከተለመደው በላይ በጣም ከፍተኛ ባላንስ ያለው ተጠቃሚ አልተገኘም።")
-                    send_telegram("\n".join(sec_report))
-                except Exception as e:
-                    send_telegram(f"❌ በደህንነት ፍተሻው ላይ ስህተት አጋጥሟል: {e}")
-
-            elif msg.startswith("/check_balance") or msg.startswith("/check"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
-                        user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
-                        if user:
-                            uname = user.get("username", "የማይታወቅ")
-                            bal = user.get("balance", 0)
-                            invited_by = user.get("referred_by", "በቀጥታ የመጣ (የለውም)")
-                            send_telegram(f"🔍 *የተጠቃሚ ወቅታዊ መረጃ:*\n\n👤 ስም: `{uname}`\n📞 ስልክ/ID: `{user.get('phone')}`\n💵 ባላንስ: *{bal} ETB*\n🔗 ያመጣው ኤጀንት: `{invited_by}`")
-                        else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` በዳታቤዝ ውስጥ የለውም።")
-                except Exception as e:
-                    send_telegram("❌ ስህተት! ፎርማቱ: `/check_balance ስልክ`")
-
-            elif msg in ["/all_balances", "/all"]:
-                try:
-                    all_users = list(wallets.find({}))
-                    if not all_users:
-                        send_telegram("📭 በዳታቤዝ ውስጥ ምንም ተጠቃሚ አልተገኘም።")
-                    else:
-                        report_lines = ["📋 *የሁሉንም ተጠቃሚዎች ባላንስ ዝርዝር:*\n"]
-                        total_system_balance = 0
-                        for idx, user in enumerate(all_users, 1):
-                            phone = user.get("phone", "N/A")
-                            uname = user.get("username", "የማይታወቅ")
-                            bal = user.get("balance", 0)
-                            total_system_balance += bal
-                            report_lines.append(f"{idx}. 👤 `{uname}` | 📞 `{phone}` | 💵 *{bal} ETB*")
-                        report_lines.append(f"\n💰 *በሲስተሙ ላይ ያለ ጠቅላላ የብር ድምር:* `{total_system_balance} ETB`")
-                        
-                        full_report = "\n".join(report_lines)
-                        if len(full_report) > 4000:
-                            for chunk in [full_report[i:i+4000] for i in range(0, len(full_report), 4000)]:
-                                send_telegram(chunk)
-                        else:
-                            send_telegram(full_report)
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: ሪፖርቱን ማውጣት አልተቻለም! {e}")
-
-            elif msg.startswith("/remove"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
-                        result = wallets.delete_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
-                        if result.deleted_count > 0:
-                            send_telegram(f"🗑️ ተጠቃሚው 📞 `{target_phone}` ከዳታቤዝ ላይ ሙሉ በሙሉ ተሰርዟል።")
-                            broadcast_game_state()
-                        else:
-                            send_telegram(f"❌ ስህተት! `{target_phone}` የተባለ ስልክ ቁጥር አልተገኘም።")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት መረጃ! ፎርማቱ: `/remove ስልክ` ({e})")
-
-            elif msg.startswith("/add"):
+            if msg.startswith("/add"):
                 try:
                     parts = msg.split()
                     if len(parts) == 3:
@@ -700,7 +629,6 @@ def claim_bingo():
         
     cards_to_check = p_data["cards"]
     
-    # እያንዳንዱን ካርተላ ከተጫዋቹ የራሱ ማርክ (marked_0 ለመጀመሪያው፣ marked_1 ለሁለተኛው) ጋር ለይቶ መፈተሽ
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
         
@@ -724,7 +652,6 @@ def claim_bingo():
             if max_drawn_index != -1 and (total_drawn - 1 - max_drawn_index) >= 3:
                 return jsonify({"success": False, "msg": "⚠️ አልፎሃል! ቢንጎ ያሰኘህ ቁጥር ከወጣ 3 ኳስ አልፎታል። አራተኛው ኳስ ሳይጠራ መናገር ነበረብህ!"})
 
-            # ቢንጎ ከተረጋገጠ ትክክለኛውን ያሸነፈበትን የካርተላ ቁጥር (t_num) መመዝገብ
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
