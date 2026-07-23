@@ -635,23 +635,6 @@ def claim_bingo():
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=current_marked)
         
         if win_indices is not None:
-            winning_numbers_in_card = [card[idx] for idx in win_indices if idx != 12 and card[idx] != 0]
-            
-            max_drawn_index = -1
-            for num in winning_numbers_in_card:
-                for idx_drawn, ball_str in enumerate(game_state["drawn_balls"]):
-                    try:
-                        b_num = int(ball_str[1:])
-                        if b_num == num:
-                            if idx_drawn > max_drawn_index:
-                                max_drawn_index = idx_drawn
-                    except ValueError:
-                        pass
-            
-            total_drawn = len(game_state["drawn_balls"])
-            if max_drawn_index != -1 and (total_drawn - 1 - max_drawn_index) >= 3:
-                return jsonify({"success": False, "msg": "⚠️ አልፎሃል! ቢንጎ ያሰኘህ ቁጥር ከወጣ 3 ኳስ አልፎታል። አራተኛው ኳስ ሳይጠራ መናገር ነበረብህ!"})
-
             game_state["status"] = "result"
             game_state["timer"] = 10
             game_state["winner"] = p_data["username"]
