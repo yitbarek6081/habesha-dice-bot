@@ -49,7 +49,9 @@ game_state = {
     "winning_ticket_num": None,
     "winning_indices": None,
     "winning_line_name": None,  
-    "all_cards": {}  
+    "all_cards": {},
+    "winners_list": [],
+    "telegram_msg_id": None  # የመልእክት መለያ (ID) ለአንድ ጊዜ ብቻ እንዲስተካከል ወይም እንዳይደጋገም
 }
 
 loop_started = False
@@ -63,10 +65,34 @@ def send_telegram(text):
     def _send():
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         try:
-            requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
+            res = requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
+            if res.status_code == 200:
+                resp_json = res.json()
+                if "result" in resp_json and "message_id" in resp_json["result"]:
+                    game_state["telegram_msg_id"] = resp_json["result"]["message_id"]
         except Exception as e:
             print(f"Telegram Error: {e}")
     gevent.spawn(_send)
+
+def update_telegram_message(text):
+    def _update():
+        if not game_state.get("telegram_msg_id"):
+            send_telegram(text)
+            return
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+        try:
+            res = requests.post(url, json={
+                "chat_id": ADMIN_ID, 
+                "message_id": game_state["telegram_msg_id"], 
+                "text": text, 
+                "parse_mode": "Markdown"
+            }, timeout=5)
+            # መልእክቱ ከተሰረዘ ወይም ኤዲት ማድረግ ካልተቻለ አዲስ ይልካል
+            if res.status_code != 200:
+                send_telegram(text)
+        except Exception as e:
+            print(f"Telegram Edit Error: {e}")
+    gevent.spawn(_update)
 
 def set_webhook():
     webhook_url = f"{WEB_APP_URL}/webhook"
@@ -454,7 +480,8 @@ def reset_game():
         game_state.update({
             "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, 
             "winning_indices": None, "winning_line_name": None, "pot": 0, "players": {}, 
-            "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}, "winners_list": []
+            "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, 
+            "all_cards": {}, "winners_list": [], "telegram_msg_id": None
         })
         broadcast_game_state() 
 
@@ -721,7 +748,6 @@ def claim_bingo():
             return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
         db_phone = user_info["phone"]
 
-        # ጨዋታው በ playing ወይም በ result ሁኔታ ውስጥ እያለ (ሁለተኛው ተጫዋች ትንሽ ዘግይቶ ቢጫንም) እንዲቀበል ተደርጓል
         if game_state["status"] not in ["playing", "result"]:
             return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም!"})
             
@@ -751,6 +777,7 @@ def claim_bingo():
                 game_state["status"] = "result"
                 game_state["timer"] = 10
                 game_state["winners_list"] = []
+                game_state["telegram_msg_id"] = None
 
             winner_entry = {
                 "username": p_data["username"],
@@ -764,20 +791,20 @@ def claim_bingo():
             if not any(w["phone"] == db_phone for w in game_state["winners_list"]):
                 game_state["winners_list"].append(winner_entry)
 
-            # ሁሉንም አሸናፊዎች ስም እና ቲኬቶቻቸውን በአግባቡ ማቀናጀት
-            winner_summary_parts = []
+            # ሁለቱንም አሸናፊዎች ስም፣ ስልክ ቁጥር እና ቲኬቶቻቸውን በአግባቡ በአንድ ላይ ማቀናጀት
+            winners_details_text = []
             for w in game_state["winners_list"]:
                 t_nums = [detail["ticket_num"] for detail in w["winning_details"]]
-                winner_summary_parts.append(f"{w['username']} (Ticket: {', '.join(t_nums)})")
+                winners_details_text.append(f"{w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)})")
             
-            game_state["winner"] = " & ".join(winner_summary_parts)
+            game_state["winner"] = " & ".join([w['username'] for w in game_state["winners_list"]])
             
             game_state["winning_card"] = winning_details_list[0]["card"]
             game_state["winning_ticket_num"] = winning_details_list[0]["ticket_num"]
             game_state["winning_indices"] = winning_details_list[0]["win_indices"]
             game_state["winning_line_name"] = winning_details_list[0]["line_type"]
 
-            # አሸናፊዎችን ክፍፍል በትክክል መስራት (ጠቅላላ አሸናፊዎች ብዛት በካርታ ወይም በተጫዋች ብዛት)
+            # አሸናፊዎችን ክፍፍል በትክክል መስራት
             total_winning_cards_count = sum(len(w["winning_details"]) for w in game_state["winners_list"])
             total_prize = game_state["pot"] * 0.8
             split_win_amt = total_prize / total_winning_cards_count if total_winning_cards_count > 0 else total_prize
@@ -814,14 +841,15 @@ def claim_bingo():
             
             success_msg = (
                 f"🏆 *JOINT WINNERS! (እኩል አሸናፊዎች)* \n"
-                f"👤 አሸናፊዎች: {game_state['winner']} \n"
+                f"👤 አሸናፊዎች:\n• " + "\n• ".join(winners_details_text) + "\n\n"
                 f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {total_prize} ETB)\n"
                 f"🎯 መስመር: *{winning_details_list[0]['line_type']}*\n\n"
                 f"📊 *Winning Card:* \n"
                 f"`{card_text}`"
             )
             
-            send_telegram(success_msg)
+            # የመጀመሪያው መልእክት ከነበረ ይስተካከላል (edit), ካልነበረ አዲስ ይላካል (duplicate እንዳይፈጠር)
+            update_telegram_message(success_msg)
             broadcast_game_state() 
 
             def countdown_and_reset():
