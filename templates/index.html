@@ -218,7 +218,7 @@
         .winner-box { background: #ffffff; color: #1e293b; width: 92%; max-width: 360px; border-radius: 28px; padding: 20px 15px; box-sizing: border-box; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 4px solid var(--gold); text-align: center; }
         .trophy-icon { font-size: 2.5rem; margin-bottom: 5px; animation: bounce 1s infinite alternate; }
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
-        .winner-name-text { font-size: 1.3rem; font-weight: 900; margin: 5px 0; color: #10b981; font-style: italic; }
+        .winner-name-text { font-size: 1.5rem; font-weight: 900; margin: 5px 0; color: #10b981; font-style: italic; }
         .winner-name-text span { color: #1e293b; font-style: normal; }
         .prize-pool-card { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 15px; padding: 8px 12px; margin: 10px auto; width: 85%; }
         .prize-pool-card span { display: block; font-weight: 800; color: #64748b; letter-spacing: 1px; text-transform: uppercase; font-size: 0.8rem; border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 2px; }
@@ -525,7 +525,7 @@
         }
 
         function initWebSocket() {
-            socket = io("https://habesha-dice-bot.onrender.com");
+            socket = io();
 
             socket.on('balance_update', function(data) {
                 if (data && phoneMatches(data.phone, phone)) {
@@ -628,31 +628,26 @@
                 } 
                 else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
-                    
-                    let winnersList = d.winners || [];
-                    let primaryWinner = winnersList.length > 0 ? winnersList[0] : null;
-                    
-                    let winnerNames = winnersList.length > 0 ? winnersList.map(w => w.username).join(" & ") : sanitizeText(d.winner || "Player");
-                    document.getElementById('w-player-name').innerHTML = `${winnerNames} <span>has won!</span>`;
+                    let winnerName = sanitizeText(d.winner || "Player");
+                    document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                     
-                    let ticketNum = primaryWinner && primaryWinner.ticket_num ? String(primaryWinner.ticket_num) : (d.winning_ticket_num ? String(d.winning_ticket_num) : "100");
+                    let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
                     document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
-                    document.getElementById('w-card-owner').innerText = winnerNames;
+                    document.getElementById('w-card-owner').innerText = winnerName;
                     
                     let timerVal = parseInt(d.timer);
                     document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
 
                     let patternNameEl = document.getElementById('w-pattern-name');
                     if (patternNameEl) {
-                        let lineName = primaryWinner && primaryWinner.line_type ? primaryWinner.line_type : d.winning_line_name;
-                        patternNameEl.innerText = lineName ? `🎉 ያሸነፈበት መስመር፦ ${sanitizeText(lineName)}` : "🎉 BINGO!";
+                        patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${sanitizeText(d.winning_line_name)}` : "🎉 BINGO!";
                     }
 
                     const gridCells = document.getElementById('w-grid-cells');
                     gridCells.innerHTML = ""; 
 
-                    let winCard = primaryWinner ? primaryWinner.card : d.winning_card;
+                    let winCard = d.winning_card;
                     if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
                         winCard = d.all_cards[ticketNum];
                     }
@@ -667,9 +662,8 @@
                         }
                         
                         let winIdxs = new Set();
-                        let activeIndices = primaryWinner ? primaryWinner.indices : d.winning_indices;
-                        if (activeIndices && Array.isArray(activeIndices)) {
-                            activeIndices.forEach(idx => winIdxs.add(idx));
+                        if (d.winning_indices && Array.isArray(d.winning_indices)) {
+                            d.winning_indices.forEach(idx => winIdxs.add(idx));
                         }
 
                         winCard.forEach((n, idx) => {
