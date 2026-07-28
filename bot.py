@@ -454,7 +454,7 @@ def reset_game():
         game_state.update({
             "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, 
             "winning_indices": None, "winning_line_name": None, "pot": 0, "players": {}, 
-            "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}
+            "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 3, "all_cards": {}, "winners_list": []
         })
         broadcast_game_state() 
 
@@ -721,7 +721,8 @@ def claim_bingo():
             return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
         db_phone = user_info["phone"]
 
-        if game_state["status"] != "playing":
+        # ጨዋታው በ playing ወይም በ result ሁኔታ ውስጥ እያለ (ሁለተኛው ተጫዋች ትንሽ ዘግይቶ ቢጫንም) እንዲቀበል ተደርጓል
+        if game_state["status"] not in ["playing", "result"]:
             return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም!"})
             
         p_data = game_state["players"].get(db_phone)
@@ -763,28 +764,36 @@ def claim_bingo():
             if not any(w["phone"] == db_phone for w in game_state["winners_list"]):
                 game_state["winners_list"].append(winner_entry)
 
-            all_winner_names = [w["username"] for w in game_state["winners_list"]]
-            game_state["winner"] = " & ".join(all_winner_names)
+            # ሁሉንም አሸናፊዎች ስም እና ቲኬቶቻቸውን በአግባቡ ማቀናጀት
+            winner_summary_parts = []
+            for w in game_state["winners_list"]:
+                t_nums = [detail["ticket_num"] for detail in w["winning_details"]]
+                winner_summary_parts.append(f"{w['username']} (Ticket: {', '.join(t_nums)})")
+            
+            game_state["winner"] = " & ".join(winner_summary_parts)
             
             game_state["winning_card"] = winning_details_list[0]["card"]
             game_state["winning_ticket_num"] = winning_details_list[0]["ticket_num"]
             game_state["winning_indices"] = winning_details_list[0]["win_indices"]
             game_state["winning_line_name"] = winning_details_list[0]["line_type"]
 
-            total_winners = len(game_state["winners_list"])
+            # አሸናፊዎችን ክፍፍል በትክክል መስራት (ጠቅላላ አሸናፊዎች ብዛት በካርታ ወይም በተጫዋች ብዛት)
+            total_winning_cards_count = sum(len(w["winning_details"]) for w in game_state["winners_list"])
             total_prize = game_state["pot"] * 0.8
-            split_win_amt = total_prize / total_winners
+            split_win_amt = total_prize / total_winning_cards_count if total_winning_cards_count > 0 else total_prize
 
             for w_info in game_state["winners_list"]:
                 w_phone = w_info["phone"]
-                win_res = wallets.find_one_and_update({"phone": w_phone}, {"$inc": {"balance": split_win_amt}}, return_document=True)
+                user_win_share = split_win_amt * len(w_info["winning_details"])
+                
+                win_res = wallets.find_one_and_update({"phone": w_phone}, {"$inc": {"balance": user_win_share}}, return_document=True)
                 if win_res:
                     notify_user_balance_update(w_phone, win_res.get("balance", 0))
                 
                 u_doc = wallets.find_one({"phone": w_phone})
                 if u_doc and "referred_by" in u_doc:
                     agent_phone = u_doc["referred_by"]
-                    agent_commission = split_win_amt * 0.05
+                    agent_commission = user_win_share * 0.05
                     ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
                     if ag_res:
                         notify_user_balance_update(agent_phone, ag_res.get("balance", 0))
@@ -820,8 +829,6 @@ def claim_bingo():
                     game_state["timer"] = t
                     broadcast_game_state()
                     socketio.sleep(1)
-                if "winners_list" in game_state:
-                    del game_state["winners_list"]
                 reset_game()
 
             socketio.start_background_task(countdown_and_reset)
