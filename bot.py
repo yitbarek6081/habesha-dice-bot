@@ -51,7 +51,7 @@ game_state = {
     "winning_line_name": None,  
     "all_cards": {},
     "winners_list": [],
-    "telegram_msg_id": None  # የመልእክት መለያ (ID) ለአንድ ጊዜ ብቻ እንዲስተካከል ወይም እንዳይደጋገም
+    "telegram_msg_id": None
 }
 
 loop_started = False
@@ -699,6 +699,7 @@ def claim_bingo():
 
             total_winners_count = len(game_state["winners_list"])
             total_prize = game_state["pot"] * 0.8
+            # እኩል የክፍፍል ስሌት (ካሉት አሸናፊዎች ብዛት አንፃር ድርሻውን በእኩል ይከፍላል)
             split_win_amt = total_prize / total_winners_count if total_winners_count > 0 else total_prize
 
             game_state["winning_card"] = winning_details_list[0]["card"]
