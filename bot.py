@@ -672,15 +672,15 @@ def claim_bingo():
             card_text = "\n".join(card_rows)
             
             success_msg = (
-                f"🏆 *WINNER!* \n"
-                f"👤 Name: {p_data['username']} \n"
-                f"📞 Phone: `{db_phone}` \n"
-                f"🎫 Ticket No: {t_num} \n"
+                f"🏆 *BESH BINGO WINNER!* 🏆\n\n"
+                f"👤 አሸናፊ: *{p_data['username']}* \n"
+                f"🎫 የካርታ ቁጥር: *CARD #{t_num}* \n"
                 f"🎯 ያሸነፈበት መስመር: *{line_type}*\n"
-                f"💰 Prize: {win_amt} ETB\n"
+                f"💰 ያሸነፈው ሽልማት: *{win_amt} ETB*\n"
                 f"{agent_msg}\n\n"
                 f"📊 *Winning Card:* \n"
-                f"`{card_text}`"
+                f"`{card_text}`\n\n"
+                f"🎮 @TombolaEthiopia"
             )
             
             send_telegram(success_msg)
