@@ -563,12 +563,19 @@ def buy_ticket():
 
     if game_state["status"] != "lobby":
         return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
+    
     if t_num in game_state["sold_tickets"]:
         return jsonify({"success": False, "msg": "ይህ ካርተላ ቀድሞ ተይዟል!"})
-    if db_phone in game_state["players"] and len(game_state["players"][db_phone]["cards"]) >= 2:
+        
+    player_cards_count = 0
+    for t, p in game_state["sold_tickets"].items():
+        if p == db_phone:
+            player_cards_count += 1
+            
+    if player_cards_count >= 2:
         return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
     
-    game_state["sold_tickets"][t_num] = "RESERVED_LOCK"
+    game_state["sold_tickets"][t_num] = db_phone
 
     res = wallets.find_one_and_update(
         {"phone": db_phone, "balance": {"$gte": 10}}, 
@@ -577,28 +584,11 @@ def buy_ticket():
     )
     
     if res:
-        columns = []
-        for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
-            shuffled_pool = random.sample(range(r[0], r[1]+1), 5)
-            columns.append(shuffled_pool)
-            
-        flat = []
-        for row_idx in range(5):
-            for col_idx in range(5):
-                flat.append(columns[col_idx][row_idx])
-                
+        columns = [random.sample(range(r[0], r[1]+1), 5) for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]]
+        flat = [columns[col_idx][row_idx] for row_idx in range(5) for col_idx in range(5)]
         flat[12] = 0  
         
-        if game_state["status"] != "lobby":
-            if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
-                del game_state["sold_tickets"][t_num]
-            wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}})
-            broadcast_game_state()
-            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
-            
-        game_state["sold_tickets"][t_num] = db_phone
         game_state["pot"] += 10
-        
         if "all_cards" not in game_state:
             game_state["all_cards"] = {}
         game_state["all_cards"][t_num] = flat
@@ -613,7 +603,7 @@ def buy_ticket():
         broadcast_game_state() 
         return jsonify({"success": True, "balance": res.get("balance", 0)})
     
-    if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
+    if game_state["sold_tickets"].get(t_num) == db_phone:
         del game_state["sold_tickets"][t_num]
             
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
