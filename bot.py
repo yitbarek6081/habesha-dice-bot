@@ -244,6 +244,101 @@ def webhook():
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
 
+            elif msg in ["/all", "/all_balances"]:
+                try:
+                    all_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}} }))
+                    if not all_users:
+                        send_telegram("ℹ️ ምንም የተመዘገበ ተጠቃሚ የለም።")
+                    else:
+                        msg_text = "📋 *የተጠቃሚዎች ባላንስ ዝርዝር:*\n\n"
+                        for u in all_users:
+                            msg_text += f"👤 {u.get('username', 'N/A')} | 📞 `{u.get('phone')}` | 💰 {u.get('balance', 0)} ETB\n"
+                            if len(msg_text) > 3500:
+                                send_telegram(msg_text)
+                                msg_text = ""
+                        if msg_text:
+                            send_telegram(msg_text)
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት ተፈጥሯል: {str(e)}")
+
+            elif msg.startswith("/check_balance"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 2:
+                        target_phone = sanitize_input(parts[1])
+                        user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
+                        if user:
+                            ref = user.get("referred_by", "የለውም (No Agent)")
+                            send_telegram(f"👤 ስም: `{user.get('username', 'N/A')}`\n📞 ስልክ: `{user.get('phone')}`\n💰 ባላንስ: `{user.get('balance', 0)} ETB`\n🔗 ጋባዥ (Agent): `{ref}`")
+                        else:
+                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                    else:
+                        send_telegram("❌ ፎርማቱ: /check_balance ስልክ ቁጥር")
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት: {str(e)}")
+
+            elif msg.startswith("/security_check"):
+                try:
+                    top_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}} }).sort("balance", -1).limit(10))
+                    if not top_users:
+                        send_telegram("ℹ️ ዳታቤዙ ባዶ ነው።")
+                    else:
+                        text = "🔒 *Security Check ( ከፍተኛ ባላንስ ያላቸው 10 ሰዎች ):*\n\n"
+                        for idx, u in enumerate(top_users, 1):
+                            text += f"{idx}. {u.get('username')} (`{u.get('phone')}`) - 💰 **{u.get('balance', 0)} ETB**\n"
+                        send_telegram(text)
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት: {str(e)}")
+
+            elif msg.startswith("/remove"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 2:
+                        target_phone = sanitize_input(parts[1])
+                        res = wallets.delete_one({"phone": target_phone})
+                        if res.deleted_count > 0:
+                            send_telegram(f"🗑️ ተጠቃሚው `{target_phone}` ከዳታቤዝ ተሰርዟል።")
+                            broadcast_game_state()
+                        else:
+                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                    else:
+                        send_telegram("❌ ፎርማቱ: /remove ስልክ ቁጥር")
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት: {str(e)}")
+
+            elif msg.startswith("/agent_players"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 2:
+                        agent_phone = sanitize_input(parts[1])
+                        referred_users = list(wallets.find({"referred_by": agent_phone}))
+                        if not referred_users:
+                            send_telegram(f"ℹ️ በኤጀንት `📞 {agent_phone}` የተመዘገበ ተጫዋች የለም።")
+                        else:
+                            text = f"🤝 *በኤጀንት ({agent_phone}) የተመዘገቡ ተጫዋቾች:*\n\n"
+                            for idx, u in enumerate(referred_users, 1):
+                                text += f"{idx}. {u.get('username')} (`{u.get('phone')}`) - ባላንስ: {u.get('balance', 0)} ETB\n"
+                            send_telegram(text)
+                    else:
+                        send_telegram("❌ ፎርማቱ: /agent_players ስልክ ቁጥር")
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት: {str(e)}")
+
+            elif msg.startswith("/remove_agent"):
+                try:
+                    parts = msg.split()
+                    if len(parts) == 2:
+                        target_phone = sanitize_input(parts[1])
+                        res = wallets.update_one({"phone": target_phone}, {"$unset": {"referred_by": ""}})
+                        if res.modified_count > 0:
+                            send_telegram(f"✅ የተጠቃሚው `{target_phone}` ኤጀንት (ጋባዥ) ተሰርዟል/ተቋርጧል።")
+                        else:
+                            send_telegram("❌ ተጠቃሚው አልተገኘም ወይም ኤጀንት የለውም!")
+                    else:
+                        send_telegram("❌ ፎርማቱ: /remove_agent ስልክ ቁጥር")
+                except Exception as e:
+                    send_telegram(f"❌ ስህተት: {str(e)}")
+
     return "OK", 200
 
 @app.route('/register_or_login', methods=['POST'])
