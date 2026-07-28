@@ -244,101 +244,6 @@ def webhook():
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: /sub ስልክ መጠን")
 
-            elif msg in ["/all", "/all_balances"]:
-                try:
-                    all_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}} }))
-                    if not all_users:
-                        send_telegram("ℹ️ ምንም የተመዘገበ ተጠቃሚ የለም።")
-                    else:
-                        msg_text = "📋 *የተጠቃሚዎች ባላንስ ዝርዝር:*\n\n"
-                        for u in all_users:
-                            msg_text += f"👤 {u.get('username', 'N/A')} | 📞 `{u.get('phone')}` | 💰 {u.get('balance', 0)} ETB\n"
-                            if len(msg_text) > 3500:
-                                send_telegram(msg_text)
-                                msg_text = ""
-                        if msg_text:
-                            send_telegram(msg_text)
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት ተፈጥሯል: {str(e)}")
-
-            elif msg.startswith("/check_balance"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
-                        user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
-                        if user:
-                            ref = user.get("referred_by", "የለውም (No Agent)")
-                            send_telegram(f"👤 ስም: `{user.get('username', 'N/A')}`\n📞 ስልክ: `{user.get('phone')}`\n💰 ባላንስ: `{user.get('balance', 0)} ETB`\n🔗 ጋባዥ (Agent): `{ref}`")
-                        else:
-                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
-                    else:
-                        send_telegram("❌ ፎርማቱ: /check_balance ስልክ ቁጥር")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/security_check"):
-                try:
-                    top_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}} }).sort("balance", -1).limit(10))
-                    if not top_users:
-                        send_telegram("ℹ️ ዳታቤዙ ባዶ ነው።")
-                    else:
-                        text = "🔒 *Security Check ( ከፍተኛ ባላንስ ያላቸው 10 ሰዎች ):*\n\n"
-                        for idx, u in enumerate(top_users, 1):
-                            text += f"{idx}. {u.get('username')} (`{u.get('phone')}`) - 💰 **{u.get('balance', 0)} ETB**\n"
-                        send_telegram(text)
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/remove"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
-                        res = wallets.delete_one({"phone": target_phone})
-                        if res.deleted_count > 0:
-                            send_telegram(f"🗑️ ተጠቃሚው `{target_phone}` ከዳታቤዝ ተሰርዟል።")
-                            broadcast_game_state()
-                        else:
-                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
-                    else:
-                        send_telegram("❌ ፎርማቱ: /remove ስልክ ቁጥር")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/agent_players"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 2:
-                        agent_phone = sanitize_input(parts[1])
-                        referred_users = list(wallets.find({"referred_by": agent_phone}))
-                        if not referred_users:
-                            send_telegram(f"ℹ️ በኤጀንት `📞 {agent_phone}` የተመዘገበ ተጫዋች የለም።")
-                        else:
-                            text = f"🤝 *በኤጀንት ({agent_phone}) የተመዘገቡ ተጫዋቾች:*\n\n"
-                            for idx, u in enumerate(referred_users, 1):
-                                text += f"{idx}. {u.get('username')} (`{u.get('phone')}`) - ባላንስ: {u.get('balance', 0)} ETB\n"
-                            send_telegram(text)
-                    else:
-                        send_telegram("❌ ፎርማቱ: /agent_players ስልክ ቁጥር")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/remove_agent"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 2:
-                        target_phone = sanitize_input(parts[1])
-                        res = wallets.update_one({"phone": target_phone}, {"$unset": {"referred_by": ""}})
-                        if res.modified_count > 0:
-                            send_telegram(f"✅ የተጠቃሚው `{target_phone}` ኤጀንት (ጋባዥ) ተሰርዟል/ተቋርጧል።")
-                        else:
-                            send_telegram("❌ ተጠቃሚው አልተገኘም ወይም ኤጀንት የለውም!")
-                    else:
-                        send_telegram("❌ ፎርማቱ: /remove_agent ስልክ ቁጥር")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
     return "OK", 200
 
 @app.route('/register_or_login', methods=['POST'])
@@ -563,19 +468,12 @@ def buy_ticket():
 
     if game_state["status"] != "lobby":
         return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
-    
     if t_num in game_state["sold_tickets"]:
         return jsonify({"success": False, "msg": "ይህ ካርተላ ቀድሞ ተይዟል!"})
-        
-    player_cards_count = 0
-    for t, p in game_state["sold_tickets"].items():
-        if p == db_phone:
-            player_cards_count += 1
-            
-    if player_cards_count >= 2:
+    if db_phone in game_state["players"] and len(game_state["players"][db_phone]["cards"]) >= 2:
         return jsonify({"success": False, "msg": "ከ 2 ካርተላ በላይ መግዛት አይቻልም!"})
     
-    game_state["sold_tickets"][t_num] = db_phone
+    game_state["sold_tickets"][t_num] = "RESERVED_LOCK"
 
     res = wallets.find_one_and_update(
         {"phone": db_phone, "balance": {"$gte": 10}}, 
@@ -584,11 +482,28 @@ def buy_ticket():
     )
     
     if res:
-        columns = [random.sample(range(r[0], r[1]+1), 5) for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]]
-        flat = [columns[col_idx][row_idx] for row_idx in range(5) for col_idx in range(5)]
+        columns = []
+        for r in [(1,15), (16,30), (31,45), (46,60), (61,75)]:
+            shuffled_pool = random.sample(range(r[0], r[1]+1), 5)
+            columns.append(shuffled_pool)
+            
+        flat = []
+        for row_idx in range(5):
+            for col_idx in range(5):
+                flat.append(columns[col_idx][row_idx])
+                
         flat[12] = 0  
         
+        if game_state["status"] != "lobby":
+            if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
+                del game_state["sold_tickets"][t_num]
+            wallets.update_one({"phone": db_phone}, {"$inc": {"balance": 10}})
+            broadcast_game_state()
+            return jsonify({"success": False, "msg": "ጨዋታ ተጀምሯል!"})
+            
+        game_state["sold_tickets"][t_num] = db_phone
         game_state["pot"] += 10
+        
         if "all_cards" not in game_state:
             game_state["all_cards"] = {}
         game_state["all_cards"][t_num] = flat
@@ -603,7 +518,7 @@ def buy_ticket():
         broadcast_game_state() 
         return jsonify({"success": True, "balance": res.get("balance", 0)})
     
-    if game_state["sold_tickets"].get(t_num) == db_phone:
+    if game_state["sold_tickets"].get(t_num) == "RESERVED_LOCK":
         del game_state["sold_tickets"][t_num]
             
     return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
