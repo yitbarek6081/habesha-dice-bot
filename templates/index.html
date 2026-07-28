@@ -218,7 +218,7 @@
         .winner-box { background: #ffffff; color: #1e293b; width: 92%; max-width: 360px; border-radius: 28px; padding: 20px 15px; box-sizing: border-box; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 4px solid var(--gold); text-align: center; }
         .trophy-icon { font-size: 2.5rem; margin-bottom: 5px; animation: bounce 1s infinite alternate; }
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
-        .winner-name-text { font-size: 1.5rem; font-weight: 900; margin: 5px 0; color: #10b981; font-style: italic; }
+        .winner-name-text { font-size: 1.3rem; font-weight: 900; margin: 5px 0; color: #10b981; font-style: italic; }
         .winner-name-text span { color: #1e293b; font-style: normal; }
         .prize-pool-card { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 15px; padding: 8px 12px; margin: 10px auto; width: 85%; }
         .prize-pool-card span { display: block; font-weight: 800; color: #64748b; letter-spacing: 1px; text-transform: uppercase; font-size: 0.8rem; border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 2px; }
@@ -349,7 +349,7 @@
         </div>
     </div>
 
-    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች ሲወጡ ፈጥነው ይንኩ። ኳስ ከወጣ በኋላ 3 ተከታታይ ኳሶች ካለፉት ቁጥሩ ይቃጠላል!<br>4. መስመር ሲሞላ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች ሲወጡ በማንኛውም ጊዜ መቅለም ይችላሉ።<br>4. መስመር ሲሞላ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
     <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
     <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
@@ -628,26 +628,31 @@
                 } 
                 else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
-                    let winnerName = sanitizeText(d.winner || "Player");
-                    document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
+                    
+                    let winnersList = d.winners || [];
+                    let primaryWinner = winnersList.length > 0 ? winnersList[0] : null;
+                    
+                    let winnerNames = winnersList.length > 0 ? winnersList.map(w => w.username).join(" & ") : sanitizeText(d.winner || "Player");
+                    document.getElementById('w-player-name').innerHTML = `${winnerNames} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                     
-                    let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
+                    let ticketNum = primaryWinner && primaryWinner.ticket_num ? String(primaryWinner.ticket_num) : (d.winning_ticket_num ? String(d.winning_ticket_num) : "100");
                     document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
-                    document.getElementById('w-card-owner').innerText = winnerName;
+                    document.getElementById('w-card-owner').innerText = winnerNames;
                     
                     let timerVal = parseInt(d.timer);
                     document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
 
                     let patternNameEl = document.getElementById('w-pattern-name');
                     if (patternNameEl) {
-                        patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${sanitizeText(d.winning_line_name)}` : "🎉 BINGO!";
+                        let lineName = primaryWinner && primaryWinner.line_type ? primaryWinner.line_type : d.winning_line_name;
+                        patternNameEl.innerText = lineName ? `🎉 ያሸነፈበት መስመር፦ ${sanitizeText(lineName)}` : "🎉 BINGO!";
                     }
 
                     const gridCells = document.getElementById('w-grid-cells');
                     gridCells.innerHTML = ""; 
 
-                    let winCard = d.winning_card;
+                    let winCard = primaryWinner ? primaryWinner.card : d.winning_card;
                     if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
                         winCard = d.all_cards[ticketNum];
                     }
@@ -662,8 +667,9 @@
                         }
                         
                         let winIdxs = new Set();
-                        if (d.winning_indices && Array.isArray(d.winning_indices)) {
-                            d.winning_indices.forEach(idx => winIdxs.add(idx));
+                        let activeIndices = primaryWinner ? primaryWinner.indices : d.winning_indices;
+                        if (activeIndices && Array.isArray(activeIndices)) {
+                            activeIndices.forEach(idx => winIdxs.add(idx));
                         }
 
                         winCard.forEach((n, idx) => {
@@ -783,13 +789,11 @@
             if(isNaN(targetNumVal)) return;
             
             let ballFound = false;
-            let matchedBallIndex = -1;
-
             if (latestDrawnBallsGlobal && latestDrawnBallsGlobal.length > 0) {
                 for (let k = 0; k < latestDrawnBallsGlobal.length; k++) {
                     let bNum = parseInt(latestDrawnBallsGlobal[k].replace(/[^0-9]/g, ''));
                     if (bNum === targetNumVal) {
-                        ballFound = true; matchedBallIndex = k; break;
+                        ballFound = true; break;
                     }
                 }
             }
@@ -797,14 +801,6 @@
             if (!ballFound) {
                 alert("ሳይወጣ ማቅለም አይቻልም!");
                 return;
-            }
-
-            if (ballFound) {
-                let totalDrawn = latestDrawnBallsGlobal.length;
-                if ((totalDrawn - 1 - matchedBallIndex) >= 3) {
-                    alert("⚠️ አልፎሃል! ይህ ቁጥር ከወጣ 3 ኳስ ስለአለፈው መቅለም አትችልም!");
-                    return; 
-                }
             }
 
             const allGrids = document.querySelectorAll('.bingo-card');
