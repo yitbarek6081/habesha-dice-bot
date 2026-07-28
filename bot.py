@@ -117,7 +117,7 @@ def webhook():
                 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                 requests.post(url, json={
                     "chat_id": chat_id, 
-                    "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ስልክ ቁጥርዎ፦ {already_registered.get('phone', 'N/A')} | ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው። በቀጥታ መጫወት ይችላሉ!", 
+                    "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው። በቀጥታ መጫወት ይችላሉ!", 
                     "reply_markup": webapp_keyboard
                 })
                 return "OK", 200
@@ -272,20 +272,20 @@ def register_or_login():
             )
             updated_user = wallets.find_one({"_id": temp_user["_id"]})
             broadcast_game_state()
-            return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": updated_user.get("balance", 0), "phone": clean_phone})
+            return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": updated_user.get("balance", 0)})
         else:
             new_user = {"phone": clean_phone, "username": input_username, "balance": 0}
             wallets.insert_one(new_user)
             send_telegram(f"🌐 *አዲስ ተጫዋች በሊንክ (Web) ተመዘገበ!*\n👤 ስም: `{input_username}`\n📞 ስልክ: `{clean_phone}`")
             broadcast_game_state()
-            return jsonify({"success": True, "msg": "ምዝገባዎ ተጠናቋል!", "balance": 0, "phone": clean_phone})
+            return jsonify({"success": True, "msg": "ምዝገባዎ ተጠናቋል!", "balance": 0})
 
     except Exception as e:
         existing = wallets.find_one({"phone": clean_phone})
         if existing:
             wallets.update_one({"phone": clean_phone}, {"$set": {"username": input_username}})
             broadcast_game_state()
-            return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0), "phone": clean_phone})
+            return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
 def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
@@ -446,8 +446,7 @@ def get_status():
         "winning_line_name": game_state.get("winning_line_name"),
         "all_cards": game_state.get("all_cards", {}),
         "players": clean_players, 
-        "balance": user['balance'] if user else 0,
-        "phone": db_phone if user else "", 
+        "balance": user['balance'] if user else 0, 
         "my_cards": cards_list, 
         "active_players": len(game_state["players"]),
         "is_waiting": is_waiting 
@@ -673,15 +672,15 @@ def claim_bingo():
             card_text = "\n".join(card_rows)
             
             success_msg = (
-                f"🏆 *BESH BINGO WINNER!* 🏆\n\n"
-                f"👤 አሸናፊ: *{p_data['username']}* \n"
-                f"🎫 የካርታ ቁጥር: *CARD #{t_num}* \n"
+                f"🏆 *WINNER!* \n"
+                f"👤 Name: {p_data['username']} \n"
+                f"📞 Phone: `{db_phone}` \n"
+                f"🎫 Ticket No: {t_num} \n"
                 f"🎯 ያሸነፈበት መስመር: *{line_type}*\n"
-                f"💰 ያሸነፈው ሽልማት: *{win_amt} ETB*\n"
+                f"💰 Prize: {win_amt} ETB\n"
                 f"{agent_msg}\n\n"
                 f"📊 *Winning Card:* \n"
-                f"`{card_text}`\n\n"
-                f"🎮 @TombolaEthiopia"
+                f"`{card_text}`"
             )
             
             send_telegram(success_msg)
