@@ -370,7 +370,6 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            # ቢያንስ 2 ተጫዋቾች መሙላታቸውን ማረጋገጫ (Minimum 2 players requirement)
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
