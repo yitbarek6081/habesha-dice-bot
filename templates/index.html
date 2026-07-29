@@ -215,20 +215,20 @@
         input { padding: 12px; margin: 10px 0; width: 100%; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1rem; color: #000; }
 
         .winner-modal { display: none; position: fixed; inset: 0; background: linear-gradient(180deg, rgba(5,10,24,0.98), rgba(30,41,59,0.98)); z-index: 3000; flex-direction: column; align-items: center; justify-content: center; padding: 15px; }
-        .winner-box { background: #ffffff; color: #1e293b; width: 92%; max-width: 360px; border-radius: 28px; padding: 20px 15px; box-sizing: border-box; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 4px solid var(--gold); text-align: center; max-height: 85vh; overflow-y: auto; }
+        .winner-box { background: #ffffff; color: #1e293b; width: 92%; max-width: 360px; border-radius: 28px; padding: 20px 15px; box-sizing: border-box; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 4px solid var(--gold); text-align: center; }
         .trophy-icon { font-size: 2.5rem; margin-bottom: 5px; animation: bounce 1s infinite alternate; }
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
-        .winner-name-text { font-size: 1.3rem; font-weight: 900; margin: 5px 0; color: #10b981; font-style: italic; }
+        .winner-name-text { font-size: 1.5rem; font-weight: 900; margin: 5px 0; color: #10b981; font-style: italic; }
         .winner-name-text span { color: #1e293b; font-style: normal; }
         .prize-pool-card { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 15px; padding: 8px 12px; margin: 10px auto; width: 85%; }
         .prize-pool-card span { display: block; font-weight: 800; color: #64748b; letter-spacing: 1px; text-transform: uppercase; font-size: 0.8rem; border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 2px; }
-        .prize-pool-card b { font-size: 1.3rem; font-weight: 900; color: #10b981; }
+        .prize-pool-card b { font-size: 1.5rem; font-weight: 900; color: #10b981; }
         .winner-card-section { background: #ffffff; border: 2px solid #f1f5f9; border-radius: 20px; padding: 10px; margin-top: 10px; }
         .winner-card-info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 800; font-size: 0.85rem; }
-        .winner-card-num-lbl { color: #2563eb; font-style: italic; font-size: 0.9rem; }
+        .winner-card-num-lbl { color: #2563eb; font-style: italic; font-size: 1rem; }
         .winner-card-owner-lbl { color: #10b981; font-style: italic; }
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #f8fafc; padding: 6px; border-radius: 12px; border: 1px solid #e2e8f0; }
-        .w-cell-modern { background: #ffffff; color: #a0aec0; height: 26px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .w-cell-modern { background: #ffffff; color: #a0aec0; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; }
         
         .w-cell-modern.drawn { 
             background: #cbd5e1; 
@@ -241,16 +241,16 @@
             color: #ffffff !important; 
             border-color: #ef4444; 
             font-weight: 900; 
-            box-shadow: 0 0 10px #ef4444; 
+            box-shadow: 0 0 12px #ef4444; 
             animation: pulseWin 1s infinite alternate;
         }
         @keyframes pulseWin {
             from { transform: scale(1); }
-            to { transform: scale(1.05); box-shadow: 0 0 15px #ef4444; }
+            to { transform: scale(1.05); box-shadow: 0 0 18px #ef4444; }
         }
         
-        .w-cell-modern.free { background: var(--gold); color: #1e293b; font-size: 0.9rem; border-color: var(--gold); }
-        .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 10px; width: 92%; max-width: 360px; margin-top: 10px; border-radius: 15px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .w-cell-modern.free { background: var(--gold); color: #1e293b; font-size: 1rem; border-color: var(--gold); }
+        .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 12px; width: 92%; max-width: 360px; margin-top: 10px; border-radius: 15px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 
         .waiting-box {
             color: var(--gold);
@@ -355,10 +355,16 @@
 
     <div id="result-ui" class="winner-modal">
         <div class="winner-box">
-            <div class="trophy-icon">🏆</div>
-            <div class="winner-name-text" id="w-player-name">Player <span>has won!</span></div>
-            <div class="prize-pool-card"><span>Total Prize Pool (Split)</span><b id="w-prize-pool">0 ETB</b></div>
-            <div id="winners-cards-container"></div>
+            <div class="trophy-icon">🏆</div><div class="winner-name-text" id="w-player-name">Player <span>has won!</span></div>
+            <div class="prize-pool-card"><span>Total Prize Pool</span><b id="w-prize-pool">0 ETB</b></div>
+            <div class="winner-card-section">
+                <div class="winner-card-info-row">
+                    <div class="winner-card-num-lbl" id="w-card-number">CARD #0</div>
+                    <div class="winner-card-owner-lbl" id="w-card-owner">Player</div>
+                </div>
+                <div id="w-pattern-name" style="font-weight: 900; color: #dc2626; margin-bottom: 8px; font-size: 1rem; text-transform: uppercase;"></div>
+                <div class="winner-grid-modern" id="w-grid-cells"></div>
+            </div>
         </div>
         <div class="next-round-bar">Next Round: <span id="w-next-timer">10s</span></div>
     </div>
@@ -537,7 +543,7 @@
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
                     document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
-                    document.getElementById('winners-cards-container').innerHTML = ""; 
+                    document.getElementById('w-grid-cells').innerHTML = ""; 
                     document.getElementById('ball-prep-countdown').style.display = 'none';
                     document.getElementById('start-alert-msg').style.display = 'none';
                     document.getElementById("recent-balls-container").innerHTML = ""; 
@@ -622,84 +628,67 @@
                 } 
                 else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
-                    
-                    let winnersList = d.winners || [];
-                    if (winnersList.length === 0 && d.winner) {
-                        winnersList = [{ username: d.winner, ticket_num: d.winning_ticket_num, card: d.winning_card, line_name: d.winning_line_name, winning_indices: d.winning_indices }];
-                    }
-
-                    let winnerNamesStr = winnersList.map(w => sanitizeText(w.username)).join(" & ");
-                    document.getElementById('w-player-name').innerHTML = `${winnerNamesStr || "Player"} <span>has won!</span>`;
+                    let winnerName = sanitizeText(d.winner || "Player");
+                    document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
+                    
+                    let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
+                    document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
+                    document.getElementById('w-card-owner').innerText = winnerName;
                     
                     let timerVal = parseInt(d.timer);
                     document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
 
-                    const winnersContainer = document.getElementById('winners-cards-container');
-                    winnersContainer.innerHTML = "";
+                    let patternNameEl = document.getElementById('w-pattern-name');
+                    if (patternNameEl) {
+                        patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${sanitizeText(d.winning_line_name)}` : "🎉 BINGO!";
+                    }
 
-                    winnersList.forEach(wObj => {
-                        let sectionDiv = document.createElement('div');
-                        sectionDiv.className = 'winner-card-section';
+                    const gridCells = document.getElementById('w-grid-cells');
+                    gridCells.innerHTML = ""; 
+
+                    let winCard = d.winning_card;
+                    if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
+                        winCard = d.all_cards[ticketNum];
+                    }
+
+                    if (Array.isArray(winCard)) {
+                        let drawnSet = new Set();
+                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
+                            d.drawn_balls.forEach(b => { 
+                                let numOnly = String(b).replace(/[^0-9]/g, ''); 
+                                if(numOnly) drawnSet.add(parseInt(numOnly)); 
+                            }); 
+                        }
                         
-                        let ticketNum = wObj.ticket_num ? String(wObj.ticket_num) : "100";
-                        let winCard = wObj.card;
-                        if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
-                            winCard = d.all_cards[ticketNum];
+                        let winIdxs = new Set();
+                        if (d.winning_indices && Array.isArray(d.winning_indices)) {
+                            d.winning_indices.forEach(idx => winIdxs.add(idx));
                         }
 
-                        sectionDiv.innerHTML = `
-                            <div class="winner-card-info-row">
-                                <div class="winner-card-num-lbl">CARD #${ticketNum}</div>
-                                <div class="winner-card-owner-lbl">${sanitizeText(wObj.username)}</div>
-                            </div>
-                            <div style="font-weight: 900; color: #dc2626; margin-bottom: 8px; font-size: 0.9rem; text-transform: uppercase;">
-                                🎉 ያሸነፈበት መስመር፦ ${sanitizeText(wObj.line_name || "BINGO!")}
-                            </div>
-                            <div class="winner-grid-modern" id="w-grid-${ticketNum}"></div>
-                        `;
-                        winnersContainer.appendChild(sectionDiv);
-
-                        let gridCells = document.getElementById(`w-grid-${ticketNum}`);
-                        if (Array.isArray(winCard)) {
-                            let drawnSet = new Set();
-                            if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
-                                d.drawn_balls.forEach(b => { 
-                                    let numOnly = String(b).replace(/[^0-9]/g, ''); 
-                                    if(numOnly) drawnSet.add(parseInt(numOnly)); 
-                                }); 
-                            }
+                        winCard.forEach((n, idx) => {
+                            let cell = document.createElement('div'); 
+                            let cleanNum = sanitizeText(n);
                             
-                            let winIdxs = new Set();
-                            if (wObj.winning_indices && Array.isArray(wObj.winning_indices)) {
-                                wObj.winning_indices.forEach(idx => winIdxs.add(idx));
-                            }
-
-                            winCard.forEach((n, idx) => {
-                                let cell = document.createElement('div'); 
-                                let cleanNum = sanitizeText(n);
+                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                                cell.className = "w-cell-modern free"; 
+                                cell.innerText = "★";
+                                if(winIdxs.has(idx)) cell.className += " hit";
+                            } else {
+                                let numVal = parseInt(cleanNum); 
+                                cell.innerText = cleanNum;
                                 
-                                if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
-                                    cell.className = "w-cell-modern free"; 
-                                    cell.innerText = "★";
-                                    if(winIdxs.has(idx)) cell.className += " hit";
-                                } else {
-                                    let numVal = parseInt(cleanNum); 
-                                    cell.innerText = cleanNum;
-                                    
-                                    if (winIdxs.has(idx)) { 
-                                        cell.className = "w-cell-modern hit"; 
-                                    } else if (drawnSet.has(numVal)) { 
-                                        cell.className = "w-cell-modern drawn"; 
-                                    } else { 
-                                        cell.className = "w-cell-modern"; 
-                                    }
+                                if (winIdxs.has(idx)) { 
+                                    cell.className = "w-cell-modern hit"; 
+                                } else if (drawnSet.has(numVal)) { 
+                                    cell.className = "w-cell-modern drawn"; 
+                                } else { 
+                                    cell.className = "w-cell-modern"; 
                                 }
-                                gridCells.appendChild(cell);
-                            });
-                        }
-                    });
-
+                            }
+                            gridCells.appendChild(cell);
+                        });
+                    }
                     if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
                 }
             });
@@ -860,18 +849,14 @@
             
             const cardArea = document.getElementById('card-area');
             if (!cardArea || cardArea.children.length === 0) { return alert("ካርታዎ ስላልታየ BINGO ማለት አይችሉም!"); }
+            if (activeMarks0.length === 0 && activeMarks1.length === 0) { return alert("እባክዎ መጀመሪያ ቁጥሮቹን ያጥቁሩ!"); }
 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
             fetch('/claim_bingo', { 
                 method:'POST', headers:{ 'Content-Type':'application/json' }, 
                 body:JSON.stringify({phone: phone, marked_0: activeMarks0, marked_1: activeMarks1}) 
             })
-            .then(r => r.json()).then(d=>{ 
-                if(!d.success) { 
-                    alert(sanitizeText(d.msg)); 
-                    if(bBtn) bBtn.disabled = false; 
-                } 
-            }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
+            .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
         }
         
         function subD() {
