@@ -525,7 +525,7 @@
         }
 
         function initWebSocket() {
-            socket = io("https://habesha-dice-bot.onrender.com");
+            socket = io();
 
             socket.on('balance_update', function(data) {
                 if (data && phoneMatches(data.phone, phone)) {
@@ -735,14 +735,21 @@
         function buy(n) { 
             if (isProcessingBuy) return;
             const target = parseInt(n); if(isNaN(target)) return;
-            if (document.querySelectorAll('.t-box.mine').length >= 2) return alert("ከ 2 ካርተላ በላይ መግዛት አይቻልም!");
+            
+            const myMinesCount = document.querySelectorAll('.t-box.mine').length;
+            if (myMinesCount >= 2) return alert("ከ 2 ካርተላ በላይ መግዛት አይቻልም!");
+            
             isProcessingBuy = true;
             let box = document.getElementById('t-'+target);
-            if (box) { box.className = 't-box mine'; box.style.pointerEvents = 'none'; }
+            if (box) { 
+                box.className = 't-box mine'; 
+                box.style.pointerEvents = 'none'; 
+            }
             
             fetch('/buy_specific_ticket', {
-                method:'POST', headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({phone: phone, ticket_num: target, username: username})
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ phone: phone, ticket_num: target, username: username })
             })
             .then(res => res.json())
             .then(d => { 
@@ -750,9 +757,15 @@
                 if (d.success && d.balance !== undefined) {
                     clientBalance = parseFloat(d.balance);
                     document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                } else {
+                    alert(d.msg || "ግዢው አልተሳካም");
+                    if(box) { box.className = 't-box'; box.style.pointerEvents = 'auto'; }
                 }
             })
-            .catch(() => { isProcessingBuy = false; }); 
+            .catch(() => { 
+                isProcessingBuy = false; 
+                if(box) { box.className = 't-box'; box.style.pointerEvents = 'auto'; }
+            }); 
         }
 
         function refund(n) { 
