@@ -697,17 +697,15 @@ def claim_bingo():
             else:
                 game_state["winners_list"].append(winner_entry)
 
-            # --- የተስተካከለ የሽልማት ስሌት (80% ፖት እና ለሁለት ወይም ከዚያ በላይ አሸናፊዎች እኩል ክፍፍል) ---
-            total_pot = game_state["pot"]  # አጠቃላይ ገቢ
-            prize_pool = total_pot * 0.80  # የሽልማቱ 80% ብቻ
+            # --- የተስተካከለ የሽልማት ስሌት (1 ተጫዋች = 80%, 2 ወይም ከዚያ በላይ = 80%ቱን በእኩል ይካፈላሉ) ---
+            total_pot = game_state["pot"]  
+            prize_pool = total_pot * 0.80  
             total_winners_count = len(game_state["winners_list"])
 
             if total_winners_count == 1:
-                # 1 አሸናፊ ብቻ ሲኖር 80% ሙሉውን ይወስዳል
-                split_win_amt = prize_pool
+                split_win_amt = prize_pool  # 1 ተጫዋች 80% ሙሉውን ይወስዳል
             elif total_winners_count >= 2:
-                # 2 ወይም ከዚያ በላይ አሸናፊዎች ሲኖሩ 80%ቱን ለሁሉም አሸናፊዎች በእኩል ይካፈላሉ
-                split_win_amt = prize_pool / total_winners_count
+                split_win_amt = prize_pool / total_winners_count  # 2 እና ከዚያ በላይ ተጫዋቾች 80%ቱን በእኩል ይካፈላሉ
             else:
                 split_win_amt = 0
 
@@ -774,7 +772,7 @@ def claim_bingo():
                 success_msg = (
                     f"🏆 *JOINT WINNERS! (እኩል አሸናፊዎች)* \n"
                     f"👤 አሸናፊዎች:\n• " + "\n• ".join(winners_details_text) + "\n\n"
-                    f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {prize_pool} ETB 80% ድርሻ)\n"
+                    f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {prize_pool:.2f} ETB 80% ድርሻ)\n"
                     f"🎯 መስመር: *{winning_details_list[0]['line_type']}*\n\n"
                     f"📊 *Winning Card:* \n"
                     f"`{card_text}`"
