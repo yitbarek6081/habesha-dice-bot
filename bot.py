@@ -393,6 +393,81 @@ def game_loop():
                         break
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
+                    
+                    # -------------------------------------------------------------
+                    # AUTOMATIC BINGO CHECK FOR ALL PLAYERS ON EVERY BALL DRAWN
+                    # -------------------------------------------------------------
+                    active_wins = []
+                    for p_phone, p_info in game_state["players"].items():
+                        for t_num, card in p_info["cards"].items():
+                            win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
+                            if win_indices is not None:
+                                active_wins.append({
+                                    "phone": p_phone,
+                                    "username": p_info["username"],
+                                    "ticket_num": str(t_num),
+                                    "card": card,
+                                    "winning_indices": win_indices,
+                                    "winning_line_name": line_type
+                                })
+                    
+                    if active_wins:
+                        game_state["status"] = "result"
+                        game_state["timer"] = 10
+                        
+                        total_pot = game_state["pot"]
+                        base_prize = total_pot * 0.8
+                        
+                        unique_winners_map = {}
+                        for w in active_wins:
+                            if w["phone"] not in unique_winners_map:
+                                unique_winners_map[w["phone"]] = w
+                        
+                        game_state["winners"] = list(unique_winners_map.values())
+                        game_state["winner"] = ", ".join([w["username"] for w in game_state["winners"]])
+                        game_state["winning_card"] = game_state["winners"][0]["card"]
+                        game_state["winning_ticket_num"] = game_state["winners"][0]["ticket_num"]
+                        game_state["winning_indices"] = game_state["winners"][0]["winning_indices"]
+                        game_state["winning_line_name"] = game_state["winners"][0]["winning_line_name"]
+
+                        share_per_user = base_prize / len(game_state["winners"])
+
+                        for w in game_state["winners]:
+                            win_res = wallets.find_one_and_update({"phone": w["phone"]}, {"$inc": {"balance": share_per_user}}, return_document=True)
+                            if win_res:
+                                notify_user_balance_update(w["phone"], win_res.get("balance", 0))
+                            
+                            u_info = wallets.find_one({"phone": w["phone"]})
+                            if u_info and "referred_by" in u_info:
+                                agent_phone = u_info["referred_by"]
+                                agent_commission = share_per_user * 0.05
+                                ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
+                                if ag_res:
+                                    notify_user_balance_update(agent_phone, ag_res.get("balance", 0))
+
+                        winners_telegram_summary = []
+                        for w in game_state["winners"]:
+                            winners_telegram_summary.append(f"👤 Name: {w['username']} | 🎫 Ticket: {w['ticket_num']} | 🎯 Line: {w['winning_line_name']}")
+
+                        success_msg = (
+                            f"🏆 *WINNERS (Split Prize Auto)!* \n"
+                            f"💰 Total Pool: {base_prize} ETB (Each gets: {share_per_user:.2f} ETB)\n\n" +
+                            "\n".join(winners_telegram_summary)
+                        )
+                        send_telegram(success_msg)
+                        broadcast_game_state()
+                        
+                        def countdown_and_reset_auto():
+                            for t in range(10, -1, -1):
+                                game_state["timer"] = t
+                                broadcast_game_state()
+                                socketio.sleep(1)
+                            reset_game()
+
+                        socketio.start_background_task(countdown_and_reset_auto)
+                        break
+                    # -------------------------------------------------------------
+
                     broadcast_game_state() 
                     socketio.sleep(4) 
             
@@ -649,14 +724,12 @@ def claim_bingo():
     if not user_valid_wins:
         return jsonify({"success": False, "msg": "ቢንጎ አልሞላም! እባክዎ ቁጥሮቹን በትክክል ማቅለምዎን ያረጋግጡ።"})
 
-    # Initialize winners list if not already set by an overlapping claim in this round
     if not game_state.get("winners"):
         game_state["winners"] = []
 
     total_pot = game_state["pot"]
     base_prize = total_pot * 0.8
 
-    # Check if this user is already recorded as a winner in this round
     already_recorded = any(w["phone"] == db_phone for w in game_state["winners"])
     if not already_recorded:
         for win_info in user_valid_wins:
@@ -669,22 +742,17 @@ def claim_bingo():
                 "winning_line_name": win_info["winning_line_name"]
             })
 
-    # Switch state to result and handle split prize pool among all winners
     game_state["status"] = "result"
     game_state["timer"] = 10
     
-    total_winners_count = len(game_state["winners"])
-    split_prize = base_prize / total_winners_count if total_winners_count > 0 else base_prize
+    unique_phones = set(w["phone"] for w in game_state["winners"])
+    share_per_user = base_prize / len(unique_phones) if len(unique_phones) > 0 else base_prize
 
     game_state["winner"] = ", ".join([w["username"] for w in game_state["winners"]])
     game_state["winning_card"] = game_state["winners"][0]["card"] if game_state["winners"] else None
     game_state["winning_ticket_num"] = game_state["winners"][0]["ticket_num"] if game_state["winners"] else None
     game_state["winning_indices"] = game_state["winners"][0]["winning_indices"] if game_state["winners"] else None
     game_state["winning_line_name"] = game_state["winners"][0]["winning_line_name"] if game_state["winners"] else None
-
-    # Distribute money to all unique winners equally
-    unique_phones = set(w["phone"] for w in game_state["winners"])
-    share_per_user = base_prize / len(unique_phones)
 
     for u_phone in unique_phones:
         win_res = wallets.find_one_and_update({"phone": u_phone}, {"$inc": {"balance": share_per_user}}, return_document=True)
