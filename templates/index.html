@@ -525,7 +525,8 @@
         }
 
         function initWebSocket() {
-            socket = io("https://habesha-dice-bot.onrender.com");
+            // ከሰርቨር ጋር በቀጥታ እንዲገናኝ የዶሜን ስም ወይም አንጻራዊ ዩ አር ኤል መጠቀም ይቻላል
+            socket = io();
 
             socket.on('balance_update', function(data) {
                 if (data && phoneMatches(data.phone, phone)) {
@@ -547,7 +548,11 @@
                     document.getElementById('ball-prep-countdown').style.display = 'none';
                     document.getElementById('start-alert-msg').style.display = 'none';
                     document.getElementById("recent-balls-container").innerHTML = ""; 
-                    if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
+                    
+                    localStorage.removeItem('marked_0'); 
+                    localStorage.removeItem('marked_1'); 
+                    announced = false;
+                    
                     const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
                     lastBall = "--";
                     latestDrawnBallsGlobal = [];
@@ -750,9 +755,15 @@
                 if (d.success && d.balance !== undefined) {
                     clientBalance = parseFloat(d.balance);
                     document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                } else {
+                    if (d.msg) alert(d.msg);
+                    forceRecoveryRefresh();
                 }
             })
-            .catch(() => { isProcessingBuy = false; }); 
+            .catch(() => { 
+                isProcessingBuy = false; 
+                forceRecoveryRefresh();
+            }); 
         }
 
         function refund(n) { 
