@@ -370,7 +370,8 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            if game_state["status"] == "lobby" and len(game_state["players"]) >= 1:
+            # ቢያንስ 2 ተጫዋቾች መሙላታቸውን ማረጋገጫ (Minimum 2 players requirement)
+            if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
                 game_state["ball_timer"] = 3
@@ -594,7 +595,6 @@ def claim_bingo():
         if win_indices is not None:
             valid_win_found = True
             
-            # ጨዋታው በመጫወት ላይ እያለ የመጀመሪያው አሸናፊ ሲመጣ ወይም በተመሳሳይ ሰዓት ሌላም አሸናፊ ሲኖር
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
                 game_state["timer"] = 10
@@ -604,26 +604,20 @@ def claim_bingo():
                 game_state["winning_indices"] = win_indices
                 game_state["winning_line_name"] = line_type 
 
-                # አሸናፊዎችን ለመያዝ ዝርዝር (list) ማስጀመር
                 winners_list = [{"username": p_data["username"], "phone": db_phone, "ticket": t_num}]
-                
-                # በዚሁ ሰዓት ሌሎች ተጫዋቾችም ቢንጎ ሞልተው እንደሆን ማጣራት (Tie-breaker/Simultaneous Win)
                 total_pot_80 = game_state["pot"] * 0.8
                 
                 for other_phone, other_pdata in game_state["players"].items():
                     if other_phone == db_phone:
                         continue
                     for o_tnum, o_card in other_pdata["cards"].items():
-                        # የሌላውን ተጫዋች ካርተላ ማጣራት (ያለፉትን የተሳሉ ኳሶች መሰረት በማድረግ)
                         o_win_indices, _ = check_winning_line(o_card, game_state["drawn_balls"])
                         if o_win_indices is not None:
                             winners_list.append({"username": other_pdata["username"], "phone": other_phone, "ticket": o_tnum})
 
-                # ሽልማቱን ለሁሉም አሸናፊዎች በእኩል ማካፈል
                 num_winners = len(winners_list)
                 individual_prize = total_pot_80 / num_winners
 
-                # የድል ስሞችን በጋራ ማዘጋጀት
                 winner_names = [w["username"] for w in winners_list]
                 game_state["winner"] = " & ".join(winner_names)
 
@@ -655,10 +649,6 @@ def claim_bingo():
 
                 global reset_task_reference
                 reset_task_reference = socketio.start_background_task(countdown_and_reset)
-            
-            elif game_state["status"] == "result":
-                # ጨዋታው ወደ ሪሰልት ቀድሞውኑ ከተቀየረ ግን አሁን የገባው ተጫዋች አብሮ አሸናፊ ከሆነ (ቀድሞ የነበረውን አሸናፊ ዝርዝር ማስተካከል ይቻላል)
-                pass
             
             return jsonify({"success": True})
             
