@@ -682,28 +682,34 @@ def claim_bingo():
                 game_state["winners_list"] = []
                 game_state["telegram_msg_id"] = None
 
+            winner_entry = {
+                "username": p_data["username"],
+                "phone": db_phone,
+                "winning_details": winning_details_list
+            }
+            
             if "winners_list" not in game_state:
                 game_state["winners_list"] = []
                 
-            # ተጫዋቹ ቀድሞውኑ በአሸናፊዎች ዝርዝር ውስጥ መኖሩን እናረጋግጣለን (ድጋሚ እንዳይመዘገብ)
             existing_winner = next((w for w in game_state["winners_list"] if w["phone"] == db_phone), None)
-            
             if existing_winner:
                 existing_winner["winning_details"] = winning_details_list
             else:
-                winner_entry = {
-                    "username": p_data["username"],
-                    "phone": db_phone,
-                    "winning_details": winning_details_list
-                }
                 game_state["winners_list"].append(winner_entry)
 
-            # ትክክለኛው የአሸናፊዎች ብዛት (Unique Winners)
+            # --- የተስተካከለ የሽልማት ስሌት (80% ፖት እና ለሁለት ወይም ከዚያ በላይ አሸናፊዎች እኩል ክፍፍል) ---
+            total_pot = game_state["pot"]  # አጠቃላይ ገቢ
+            prize_pool = total_pot * 0.80  # የሽልማቱ 80% ብቻ
             total_winners_count = len(game_state["winners_list"])
-            total_prize = game_state["pot"] * 0.8
-            
-            # 1 ሰው ሲያሸንፍ 80%, 2 ሰዎች ሲያሸንፉ 40%-40%, ወዘተ በእኩል እንዲከፈል ይደረጋል
-            split_win_amt = total_prize / total_winners_count if total_winners_count > 0 else total_prize
+
+            if total_winners_count == 1:
+                # 1 አሸናፊ ብቻ ሲኖር 80% ሙሉውን ይወስዳል
+                split_win_amt = prize_pool
+            elif total_winners_count >= 2:
+                # 2 ወይም ከዚያ በላይ አሸናፊዎች ሲኖሩ 80%ቱን ለሁሉም አሸናፊዎች በእኩል ይካፈላሉ
+                split_win_amt = prize_pool / total_winners_count
+            else:
+                split_win_amt = 0
 
             game_state["winning_card"] = winning_details_list[0]["card"]
             game_state["winning_ticket_num"] = winning_details_list[0]["ticket_num"]
@@ -752,7 +758,7 @@ def claim_bingo():
                 success_msg = (
                     f"🏆 *BINGO WINNER!* \n"
                     f"👤 አሸናፊ: {w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)}) \n"
-                    f"💰 ሽልማት: {total_prize:.2f} ETB (ከጠቅላላው {game_state['pot']} ETB)\n"
+                    f"💰 ሽልማት: {prize_pool:.2f} ETB (ከጠቅላላው {game_state['pot']} ETB 80%)\n"
                     f"🎯 መስመር: *{winning_details_list[0]['line_type']}*\n\n"
                     f"📊 *Winning Card:* \n"
                     f"`{card_text}`"
@@ -768,7 +774,7 @@ def claim_bingo():
                 success_msg = (
                     f"🏆 *JOINT WINNERS! (እኩል አሸናፊዎች)* \n"
                     f"👤 አሸናፊዎች:\n• " + "\n• ".join(winners_details_text) + "\n\n"
-                    f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {total_prize} ETB)\n"
+                    f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {prize_pool} ETB 80% ድርሻ)\n"
                     f"🎯 መስመር: *{winning_details_list[0]['line_type']}*\n\n"
                     f"📊 *Winning Card:* \n"
                     f"`{card_text}`"
