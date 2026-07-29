@@ -200,9 +200,7 @@ def webhook():
                 gevent.spawn(broadcast_game_state) 
                 return "OK", 200
 
-        # --- ADMIN & AGENT COMMANDS ---
         if chat_id == ADMIN_ID:
-            
             if msg.startswith("/add"):
                 try:
                     parts = msg.split()
@@ -246,90 +244,6 @@ def webhook():
                             gevent.spawn(broadcast_game_state) 
                 except:
                     send_telegram("❌ ስህተት! ፎርማቱ: `/sub ስልክ መጠን`")
-
-            elif msg.startswith("/agent_players"):
-                try:
-                    parts = msg.split()
-                    if len(parts) > 1:
-                        agent_ph = sanitize_input(parts[1])
-                        referred_users = list(wallets.find({"referred_by": agent_ph}))
-                        if referred_users:
-                            res_text = f"📋 *በኤጀንት ({agent_ph}) የተመዘገቡ ተጫዋቾች ዝርዝር:*\n\n"
-                            for u in referred_users:
-                                res_text += f"• ስም: {u.get('username', 'N/A')} | ስልክ: `{u.get('phone')}` | ባላንስ: {u.get('balance', 0)} ETB\n"
-                            send_telegram(res_text)
-                        else:
-                            send_telegram(f"ℹ️ በኤጀንት `{agent_ph}` የተመዘገበ ተጫዋች አልተገኘም።")
-                    else:
-                        send_telegram("❌ እባክዎ የኤጀንቱን ስልክ ቁጥር ያስገቡ። ፎርማት: `/agent_players 0912345678`")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት አጋጥሟል: {str(e)}")
-
-            elif msg.startswith("/all") or msg.startswith("/all_balances"):
-                try:
-                    all_users = list(wallets.find({}))
-                    if all_users:
-                        res_text = f"📊 *የሁሉም ተጠቃሚዎች ባላንስ ዝርዝር (ጠቅላላ: {len(all_users)} ተጠቃሚዎች):*\n\n"
-                        for u in all_users:
-                            p_name = u.get('username', 'N/A')
-                            p_ph = u.get('phone', 'N/A')
-                            p_bal = u.get('balance', 0)
-                            res_text += f"• {p_name} (`{p_ph}`): *{p_bal} ETB*\n"
-                        if len(res_text) > 4000:
-                            res_text = res_text[:3900] + "\n\n...(መልእክቱ ስለረዘመ ተቋርጧል)..."
-                        send_telegram(res_text)
-                    else:
-                        send_telegram("ℹ️ በዳታቤዝ ውስጥ ምንም ተጠቃሚ የለም።")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/check_balance"):
-                try:
-                    parts = msg.split()
-                    if len(parts) > 1:
-                        target_ph = sanitize_input(parts[1])
-                        user = wallets.find_one({"$or": [{"phone": target_ph}, {"telegram_id": target_ph}]})
-                        if user:
-                            u_name = user.get('username', 'N/A')
-                            u_bal = user.get('balance', 0)
-                            u_agent = user.get('referred_by', 'የለውም (ቀጥተኛ)')
-                            u_tg = user.get('telegram_id', 'N/A')
-                            send_telegram(f"👤 *የተጫዋች መረጃ:*\n\n• ስም: {u_name}\n• ስልክ: `{user.get('phone')}`\n• ባላንስ: *{u_bal} ETB*\n• ጋባዥ/ኤጀንት: `{u_agent}`\n• ቴሌግራም ID: `{u_tg}`")
-                        else:
-                            send_telegram(f"❌ በስልክ ቁጥር `{target_ph}` የተመዘገበ ተጠቃሚ አልተገኘምም።")
-                    else:
-                        send_telegram("❌ ፎርማት: `/check_balance ስልክ_ቁጥር`")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/security_check"):
-                try:
-                    high_balance_users = list(wallets.find({"balance": {"$gte": 500}}).sort("balance", -1))
-                    res_text = "🛡️ *Security Check Report*\n\n*ከፍተኛ ባላንስ ያላቸው ተጠቃሚዎች (≥ 500 ETB):*\n"
-                    if high_balance_users:
-                        for u in high_balance_users:
-                            res_text += f"• {u.get('username')} (`{u.get('phone')}`): *{u.get('balance')} ETB*\n"
-                    else:
-                        res_text += "• ምንም ከፍተኛ ባላንስ ያለው ተጠቃሚ የለም።\n"
-                    send_telegram(res_text)
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
-
-            elif msg.startswith("/remove"):
-                try:
-                    parts = msg.split()
-                    if len(parts) > 1:
-                        target_ph = sanitize_input(parts[1])
-                        del_result = wallets.delete_one({"$or": [{"phone": target_ph}, {"telegram_id": target_ph}]})
-                        if del_result.deleted_count > 0:
-                            send_telegram(f"🗑️ ተጠቃሚው (`{target_ph}`) ከዳታቤዝ ሙሉ በሙሉ ተሰርዟል።")
-                            gevent.spawn(broadcast_game_state)
-                        else:
-                            send_telegram(f"❌ ተጠቃሚው (`{target_ph}`) ሊገኝ አልቻለም።")
-                    else:
-                        send_telegram("❌ ፎርማት: `/remove ስልክ_ቁጥር`")
-                except Exception as e:
-                    send_telegram(f"❌ ስህተት: {str(e)}")
 
     return "OK", 200
 
@@ -456,7 +370,7 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
+            if game_state["status"] == "lobby" and len(game_state["players"]) >= 1:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
                 game_state["ball_timer"] = 3
@@ -651,57 +565,6 @@ def cancel_ticket():
             
     return jsonify({"success": False, "msg": "ካርተላውን መሰረዝ አይቻልም!"})
 
-@app.route('/request_deposit', methods=['POST'])
-def request_deposit():
-    d = request.json or {}
-    ph = sanitize_input(str(d.get('phone')))
-    amt = d.get('amount')
-    t_id = sanitize_input(d.get('transaction_id', 'N/A'))
-    
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
-    db_phone = user["phone"] if user else ph
-    
-    if user and "referred_by" in user:
-        agent_phone = user["referred_by"]
-        msg = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
-               f"📝 ስም: `{user.get('username', 'N/A')}`\n"
-               f"🆔 ስልክ: `{db_phone}`\n"
-               f"💵 መጠን: `{amt}` ETB\n"
-               f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**\n\n"
-               f"👇 Approve ለማድረግ:\n`/add {db_phone} {amt}`")
-    else:
-        msg = (f"💰 *Deposit Request*\n"
-               f"📞 Phone: `{db_phone}`\n"
-               f"💵 Amount: `{amt}` ETB\n"
-               f"🆔 ID: `{t_id}`\n\n"
-               f"👇 Approve:\n`/add {db_phone} {amt}`")
-               
-    send_telegram(msg)
-    return jsonify({"success": True})
-
-@app.route('/request_withdrawal', methods=['POST']) 
-def withdraw():
-    d = request.json or {}
-    ph, amt = sanitize_input(d.get('phone')), float(d.get('amount'))
-    
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
-    if not user:
-        return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
-    db_phone = user["phone"]
-
-    res = wallets.find_one_and_update(
-        {"phone": db_phone, "balance": {"$gte": amt}},
-        {"$inc": {"balance": -amt}},
-        return_document=True
-    )
-    if res:
-        msg = f"📤 *Withdraw Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n\n⚠️ ብሩን በቴሌብር ላክና ባላንሱን ለመመለስ ካስፈለገ `/add` teqedem."
-        send_telegram(msg)
-        gevent.spawn(notify_user_balance_update, db_phone, res.get("balance", 0))
-        gevent.spawn(broadcast_game_state) 
-        return jsonify({"success": True, "msg": "የውዝድሮው ጥያቄዎ በተሳካ ሁኔታ ተልኳል!"})
-    return jsonify({"success": False, "msg": "በቂ ባላንስ የለም!"})
-
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
     d = request.json or {}
@@ -714,8 +577,6 @@ def claim_bingo():
         return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
     db_phone = user_info["phone"]
 
-    # ጨዋታው በሂደት ላይ መሆኑን ወይም ለአጭር ሰከንዶች የውጤት ማሳያ ላይ መሆኑን ማረጋገጥ 
-    # (በተመሳሳይ ሚክሮ-ሰከንድ ለሚመጡ ጥያቄዎች ክፍተት እንዲኖር)
     if game_state["status"] not in ["playing", "result"]:
         return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም!"})
         
@@ -728,13 +589,12 @@ def claim_bingo():
     
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
-        
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=current_marked)
         
         if win_indices is not None:
             valid_win_found = True
             
-            # ቀድሞ ሌላ አሸናፊ ካልተመዘገበ ብቻ ጨዋታውን ወደ result መቀየር
+            # ጨዋታው በመጫወት ላይ እያለ የመጀመሪያው አሸናፊ ሲመጣ ወይም በተመሳሳይ ሰዓት ሌላም አሸናፊ ሲኖር
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
                 game_state["timer"] = 10
@@ -744,48 +604,41 @@ def claim_bingo():
                 game_state["winning_indices"] = win_indices
                 game_state["winning_line_name"] = line_type 
 
-                win_amt = game_state["pot"] * 0.8
+                # አሸናፊዎችን ለመያዝ ዝርዝር (list) ማስጀመር
+                winners_list = [{"username": p_data["username"], "phone": db_phone, "ticket": t_num}]
                 
+                # በዚሁ ሰዓት ሌሎች ተጫዋቾችም ቢንጎ ሞልተው እንደሆን ማጣራት (Tie-breaker/Simultaneous Win)
+                total_pot_80 = game_state["pot"] * 0.8
+                
+                for other_phone, other_pdata in game_state["players"].items():
+                    if other_phone == db_phone:
+                        continue
+                    for o_tnum, o_card in other_pdata["cards"].items():
+                        # የሌላውን ተጫዋች ካርተላ ማጣራት (ያለፉትን የተሳሉ ኳሶች መሰረት በማድረግ)
+                        o_win_indices, _ = check_winning_line(o_card, game_state["drawn_balls"])
+                        if o_win_indices is not None:
+                            winners_list.append({"username": other_pdata["username"], "phone": other_phone, "ticket": o_tnum})
+
+                # ሽልማቱን ለሁሉም አሸናፊዎች በእኩል ማካፈል
+                num_winners = len(winners_list)
+                individual_prize = total_pot_80 / num_winners
+
+                # የድል ስሞችን በጋራ ማዘጋጀት
+                winner_names = [w["username"] for w in winners_list]
+                game_state["winner"] = " & ".join(winner_names)
+
                 def background_win_tasks():
-                    win_res = wallets.find_one_and_update({"phone": db_phone}, {"$inc": {"balance": win_amt}}, return_document=True)
-                    if win_res:
-                        gevent.spawn(notify_user_balance_update, db_phone, win_res.get("balance", 0))
+                    for winner in winners_list:
+                        win_res = wallets.find_one_and_update(
+                            {"phone": winner["phone"]}, 
+                            {"$inc": {"balance": individual_prize}}, 
+                            return_document=True
+                        )
+                        if win_res:
+                            gevent.spawn(notify_user_balance_update, winner["phone"], win_res.get("balance", 0))
                     
-                    agent_msg = ""
-                    if user_info and "referred_by" in user_info:
-                        agent_phone = user_info["referred_by"]
-                        agent_commission = win_amt * 0.05
-                        ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
-                        if ag_res:
-                            gevent.spawn(notify_user_balance_update, agent_phone, ag_res.get("balance", 0))
-                        agent_msg = f"\n🤝 *Agent Bonus:* ኤጀንት `📞 {agent_phone}` የ *{agent_commission:.2f} ETB* ኮሚሽን ገቢ ተደርጎለታል።"
-                    
-                    card_rows = []
-                    for r in range(5):
-                        row_vals = []
-                        for c in range(5):
-                            idx = r * 5 + c  
-                            val = card[idx]
-                            val_str = "FREE" if val == 0 else str(val)
-                            if idx in win_indices:
-                                row_vals.append(f"⭐{val_str}⭐")
-                            else:
-                                row_vals.append(val_str)
-                        card_rows.append(" | ".join(row_vals))
-                    card_text = "\n".join(card_rows)
-                    
-                    success_msg = (
-                        f"🏆 *WINNER!* \n"
-                        f"👤 Name: {p_data['username']} \n"
-                        f"📞 Phone: `{db_phone}` \n"
-                        f"🎫 Ticket No: {t_num} \n"
-                        f"🎯 ያሸነፈበት መስመር: *{line_type}*\n"
-                        f"💰 Prize: {win_amt} ETB\n"
-                        f"{agent_msg}\n\n"
-                        f"📊 *Winning Card:* \n"
-                        f"`{card_text}`"
-                    )
-                    
+                    winners_detail_str = "\n".join([f"👤 Name: {w['username']} | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket']}" for w in winners_list])
+                    success_msg = f"🏆 *WINNERS ({num_winners} Person/s)!* \n{winners_detail_str} \n💰 Total Prize Distributed: {total_pot_80} ETB ({individual_prize:.2f} ETB each)"
                     send_telegram(success_msg)
                     broadcast_game_state()
 
@@ -802,6 +655,10 @@ def claim_bingo():
 
                 global reset_task_reference
                 reset_task_reference = socketio.start_background_task(countdown_and_reset)
+            
+            elif game_state["status"] == "result":
+                # ጨዋታው ወደ ሪሰልት ቀድሞውኑ ከተቀየረ ግን አሁን የገባው ተጫዋች አብሮ አሸናፊ ከሆነ (ቀድሞ የነበረውን አሸናፊ ዝርዝር ማስተካከል ይቻላል)
+                pass
             
             return jsonify({"success": True})
             
