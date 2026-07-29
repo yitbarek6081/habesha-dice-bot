@@ -394,9 +394,6 @@ def game_loop():
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
                     
-                    # -------------------------------------------------------------
-                    # AUTOMATIC BINGO CHECK FOR ALL PLAYERS ON EVERY BALL DRAWN
-                    # -------------------------------------------------------------
                     active_wins = []
                     for p_phone, p_info in game_state["players"].items():
                         for t_num, card in p_info["cards"].items():
@@ -432,7 +429,7 @@ def game_loop():
 
                         share_per_user = base_prize / len(game_state["winners"])
 
-                        for w in game_state["winners]:
+                        for w in game_state["winners"]:
                             win_res = wallets.find_one_and_update({"phone": w["phone"]}, {"$inc": {"balance": share_per_user}}, return_document=True)
                             if win_res:
                                 notify_user_balance_update(w["phone"], win_res.get("balance", 0))
@@ -466,7 +463,6 @@ def game_loop():
 
                         socketio.start_background_task(countdown_and_reset_auto)
                         break
-                    # -------------------------------------------------------------
 
                     broadcast_game_state() 
                     socketio.sleep(4) 
