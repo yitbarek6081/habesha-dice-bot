@@ -658,6 +658,10 @@ def claim_bingo():
         if not p_data:
             return jsonify({"success": False, "msg": "ይገባኛል ጥያቄው ውድቅ ተደርጓል!"})
             
+        # ጨዋታው አስቀድሞ ወደ 'result' ተቀይሮ ከሆነ ተጫዋቾች ድጋሚ ሪኩዌስት እንዳያደርጉ እና አላስፈላጊ ሪዋርድ እንዳይሰጥ መከላከል
+        if game_state["status"] == "result":
+            return jsonify({"success": False, "msg": "ጨዋታው ተጠናቋል!"})
+            
         cards_to_check = p_data["cards"]
         has_won = False
         winning_details_list = []
@@ -676,43 +680,55 @@ def claim_bingo():
                 })
 
         if has_won:
-            if game_state["status"] != "result":
-                game_state["status"] = "result"
-                game_state["timer"] = 10
+            # ጨዋታውን ወደ 'result' መቀየር እና አንዴ ከተያዘ ዳግም እንዳይቀየር ማድረግ
+            game_state["status"] = "result"
+            game_state["timer"] = 10
+            game_state["telegram_msg_id"] = None
+            
+            if "winners_list" not in game_state:
                 game_state["winners_list"] = []
-                game_state["telegram_msg_id"] = None
+
+            # -------------------------------------------------------------
+            # እዚህ ላይ የተስተካከለው የባለብዙ መስመር (Multiple Lines) ውህደት 
+            # -------------------------------------------------------------
+            combined_win_indices = []
+            combined_line_types = []
+            
+            for detail in winning_details_list:
+                for idx in detail["win_indices"]:
+                    if idx not in combined_win_indices:
+                        combined_win_indices.append(idx)
+                if detail["line_type"] not in combined_line_types:
+                    combined_line_types.append(detail["line_type"])
 
             winner_entry = {
                 "username": p_data["username"],
                 "phone": db_phone,
-                "winning_details": winning_details_list
+                "winning_details": winning_details_list,
+                "combined_indices": combined_win_indices,
+                "combined_line_type": " + ".join(combined_line_types)
             }
             
-            if "winners_list" not in game_state:
-                game_state["winners_list"] = []
-                
+            # ተጫዋቹ አስቀድሞ በዝርዝሩ ውስጥ ካለ ዳግመኛ እንዳይጨመር መከላከል (የዱፕሊኬት እና የ80%+40% ስህተት ማስተካከያ)
             existing_winner = next((w for w in game_state["winners_list"] if w["phone"] == db_phone), None)
-            if existing_winner:
-                existing_winner["winning_details"] = winning_details_list
-            else:
+            if not existing_winner:
                 game_state["winners_list"].append(winner_entry)
 
-            # --- የተስተካከለ የሽልማት ስሌት (1 ተጫዋች = 80%, 2 ወይም ከዚያ በላይ = 80%ቱን በእኩል ይካፈላሉ) ---
             total_pot = game_state["pot"]  
             prize_pool = total_pot * 0.80  
             total_winners_count = len(game_state["winners_list"])
 
             if total_winners_count == 1:
-                split_win_amt = prize_pool  # 1 ተጫዋች 80% ሙሉውን ይወስዳል
+                split_win_amt = prize_pool  
             elif total_winners_count >= 2:
-                split_win_amt = prize_pool / total_winners_count  # 2 እና ከዚያ በላይ ተጫዋቾች 80%ቱን በእኩል ይካፈላሉ
+                split_win_amt = prize_pool / total_winners_count  
             else:
                 split_win_amt = 0
 
             game_state["winning_card"] = winning_details_list[0]["card"]
             game_state["winning_ticket_num"] = winning_details_list[0]["ticket_num"]
-            game_state["winning_indices"] = winning_details_list[0]["win_indices"]
-            game_state["winning_line_name"] = winning_details_list[0]["line_type"]
+            game_state["winning_indices"] = combined_win_indices  # ሁለቱንም መስመሮች አብሮ እንዲያሳይ
+            game_state["winning_line_name"] = " + ".join(combined_line_types)
 
             for w_info in game_state["winners_list"]:
                 w_phone = w_info["phone"]
@@ -741,7 +757,7 @@ def claim_bingo():
                     idx = r * 5 + c  
                     val = winning_details_list[0]["card"][idx]
                     val_str = "FREE" if val == 0 else str(val)
-                    if idx in winning_details_list[0]["win_indices"]:
+                    if idx in combined_win_indices:
                         row_vals.append(f"⭐{val_str}⭐")
                     else:
                         row_vals.append(val_str)
@@ -757,7 +773,7 @@ def claim_bingo():
                     f"🏆 *BINGO WINNER!* \n"
                     f"👤 አሸናፊ: {w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)}) \n"
                     f"💰 ሽልማት: {prize_pool:.2f} ETB (ከጠቅላላው {game_state['pot']} ETB 80%)\n"
-                    f"🎯 መስመር: *{winning_details_list[0]['line_type']}*\n\n"
+                    f"🎯 መስመር: *{w['combined_line_type']}*\n\n"
                     f"📊 *Winning Card:* \n"
                     f"`{card_text}`"
                 )
@@ -773,7 +789,7 @@ def claim_bingo():
                     f"🏆 *JOINT WINNERS! (እኩል አሸናፊዎች)* \n"
                     f"👤 አሸናፊዎች:\n• " + "\n• ".join(winners_details_text) + "\n\n"
                     f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {prize_pool:.2f} ETB 80% ድርሻ)\n"
-                    f"🎯 መስመር: *{winning_details_list[0]['line_type']}*\n\n"
+                    f"🎯 መስመር: *የየራሳቸው መስመር*\n\n"
                     f"📊 *Winning Card:* \n"
                     f"`{card_text}`"
                 )
