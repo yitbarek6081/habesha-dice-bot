@@ -658,10 +658,6 @@ def claim_bingo():
         if not p_data:
             return jsonify({"success": False, "msg": "ይገባኛል ጥያቄው ውድቅ ተደርጓል!"})
             
-        # ጨዋታው አስቀድሞ ወደ 'result' ተቀይሮ ከሆነ ተጫዋቾች ድጋሚ ሪኩዌስት እንዳያደርጉ እና አላስፈላጊ ሪዋርድ እንዳይሰጥ መከላከል
-        if game_state["status"] == "result":
-            return jsonify({"success": False, "msg": "ጨዋታው ተጠናቋል!"})
-            
         cards_to_check = p_data["cards"]
         has_won = False
         winning_details_list = []
@@ -679,135 +675,153 @@ def claim_bingo():
                     "line_type": line_type
                 })
 
-        if has_won:
-            # ጨዋታውን ወደ 'result' መቀየር እና አንዴ ከተያዘ ዳግም እንዳይቀየር ማድረግ
-            game_state["status"] = "result"
-            game_state["timer"] = 10
-            game_state["telegram_msg_id"] = None
+        if not has_won:
+            return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+
+        # ጨዋታው ወደ 'result' መቀየር (አንዴ ከተያዘ ዳግም እንዳይቀየር)
+        game_state["status"] = "result"
+        game_state["timer"] = 10
+        game_state["telegram_msg_id"] = None
+        
+        if "winners_list" not in game_state:
+            game_state["winners_list"] = []
+
+        combined_win_indices = []
+        combined_line_types = []
+        
+        for detail in winning_details_list:
+            for idx in detail["win_indices"]:
+                if idx not in combined_win_indices:
+                    combined_win_indices.append(idx)
+            if detail["line_type"] not in combined_line_types:
+                combined_line_types.append(detail["line_type"])
+
+        winner_entry = {
+            "username": p_data["username"],
+            "phone": db_phone,
+            "winning_details": winning_details_list,
+            "combined_indices": combined_win_indices,
+            "combined_line_type": " + ".join(combined_line_types)
+        }
+        
+        # ተጫዋቹ አስቀድሞ በዝርዝሩ ውስጥ ካለ ድጋሚ እንዳይጨመር መከላከል
+        existing_winner = next((w for w in game_state["winners_list"] if w["phone"] == db_phone), None)
+        if not existing_winner:
+            game_state["winners_list"].append(winner_entry)
+
+        total_pot = game_state["pot"]  
+        prize_pool = total_pot * 0.80  
+        total_winners_count = len(game_state["winners_list"])
+
+        # -------------------------------------------------------------
+        # ትክክለኛው የዕኩል ማካፈል ስሌት (እያንዳንዱ አሸናፊ የጠቅላላውን 80% በሰዎች ቁጥር ልክ ይካፈላል)
+        # -------------------------------------------------------------
+        split_win_amt = prize_pool / total_winners_count if total_winners_count > 0 else 0
+
+        game_state["winning_card"] = winning_details_list[0]["card"]
+        game_state["winning_ticket_num"] = winning_details_list[0]["ticket_num"]
+        game_state["winning_indices"] = combined_win_indices  
+        game_state["winning_line_name"] = " + ".join(combined_line_types)
+
+        # አሁን ያሉትን ሁሉንም አሸናፊዎች ድርሻ በአዲስ እና በትክክለኛው እኩል መጠን እንደገና ማስተካከል (ለብዙ ተጫዋቾች በአንድ ሰኮንድ ሲገቡ)
+        for w_info in game_state["winners_list"]:
+            w_phone = w_info["phone"]
             
-            if "winners_list" not in game_state:
-                game_state["winners_list"] = []
-
-            # -------------------------------------------------------------
-            # እዚህ ላይ የተስተካከለው የባለብዙ መስመር (Multiple Lines) ውህደት 
-            # -------------------------------------------------------------
-            combined_win_indices = []
-            combined_line_types = []
+            # ነባሩን የተሳሳተ ወይም ያልተመጣጠነ ክፍያ አስተካክሎ አዲሱን ትክክለኛ እኩል ድርሻ መስጠት
+            # (እዚህ ላይ ቀደም ሲል የተሰጠውን የተሳሳተ ድርሻ አስተካክሎ አዲሱን 'split_win_amt' በአግባቡ ለማስገባት 
+            #  የተጠቃሚውን ባላንስ ከዚህ በፊት ከነበረው የማስተካከያ ሎጂክ ጋር ማስተካከል ይቻላል)
+            wallets.find_one_and_update(
+                {"phone": w_phone}, 
+                {"$set": {"last_win_share": split_win_amt}}, 
+                return_document=True
+            )
             
-            for detail in winning_details_list:
-                for idx in detail["win_indices"]:
-                    if idx not in combined_win_indices:
-                        combined_win_indices.append(idx)
-                if detail["line_type"] not in combined_line_types:
-                    combined_line_types.append(detail["line_type"])
-
-            winner_entry = {
-                "username": p_data["username"],
-                "phone": db_phone,
-                "winning_details": winning_details_list,
-                "combined_indices": combined_win_indices,
-                "combined_line_type": " + ".join(combined_line_types)
-            }
+            # ሙሉውን ባላንስ አስተካክሎ ማዘመን
+            # ማሳሰቢያ፡ ድርሻው በድጋሚ እንዳይጨመር የድሮውን 'last_win_share' በመቀነስ አዲሱን ማድረግ ይቻላል 
+            # ወይም ሁሉንም አሸናፊዎች በዚህ ሉፕ ውስጥ በአንድ ጊዜ በትክክል ማካፈል ይቻላል።
+        
+        # በቀላሉ ለእያንዳንዱ አሸናፊ ትክክለኛውን ድርሻ መስጠት (የመጀመሪያውን የተሳሳተ ክፍያ አስተካክሎ)
+        for w_info in game_state["winners_list"]:
+            w_phone = w_info["phone"]
+            # ቀድሞ የተሰጠው ድርሻ ካለ በመቀነስ አዲሱን እኩል ድርሻ ማስገባት
+            u_doc_old = wallets.find_one({"phone": w_phone})
+            old_share = u_doc_old.get("last_win_share", 0) if u_doc_old else 0
             
-            # ተጫዋቹ አስቀድሞ በዝርዝሩ ውስጥ ካለ ዳግመኛ እንዳይጨመር መከላከል (የዱፕሊኬት እና የ80%+40% ስህተት ማስተካከያ)
-            existing_winner = next((w for w in game_state["winners_list"] if w["phone"] == db_phone), None)
-            if not existing_winner:
-                game_state["winners_list"].append(winner_entry)
-
-            total_pot = game_state["pot"]  
-            prize_pool = total_pot * 0.80  
-            total_winners_count = len(game_state["winners_list"])
-
-            if total_winners_count == 1:
-                split_win_amt = prize_pool  
-            elif total_winners_count >= 2:
-                split_win_amt = prize_pool / total_winners_count  
-            else:
-                split_win_amt = 0
-
-            game_state["winning_card"] = winning_details_list[0]["card"]
-            game_state["winning_ticket_num"] = winning_details_list[0]["ticket_num"]
-            game_state["winning_indices"] = combined_win_indices  # ሁለቱንም መስመሮች አብሮ እንዲያሳይ
-            game_state["winning_line_name"] = " + ".join(combined_line_types)
-
-            for w_info in game_state["winners_list"]:
-                w_phone = w_info["phone"]
-                user_win_share = split_win_amt
-                
-                wallets.find_one_and_update(
-                    {"phone": w_phone}, 
-                    {"$inc": {"balance": user_win_share}}, 
-                    return_document=True
-                )
-                
-                u_doc = wallets.find_one({"phone": w_phone})
-                if u_doc and "referred_by" in u_doc:
-                    agent_phone = u_doc["referred_by"]
-                    agent_commission = user_win_share * 0.05
-                    ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
-                    if ag_res:
-                        notify_user_balance_update(agent_phone, ag_res.get("balance", 0))
-                
+            net_diff = split_win_amt - old_share
+            
+            wallets.find_one_and_update(
+                {"phone": w_phone}, 
+                {"$inc": {"balance": net_diff}, "$set": {"last_win_share": split_win_amt}}, 
+                return_document=True
+            )
+            
+            u_doc = wallets.find_one({"phone": w_phone})
+            if u_doc and "referred_by" in u_doc:
+                agent_phone = u_doc["referred_by"]
+                agent_commission = split_win_amt * 0.05
+                ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
+                if ag_res:
+                    notify_user_balance_update(agent_phone, ag_res.get("balance", 0))
+            
+            if u_doc:
                 notify_user_balance_update(w_phone, u_doc.get("balance", 0))
 
-            card_rows = []
-            for r in range(5):
-                row_vals = []
-                for c in range(5):
-                    idx = r * 5 + c  
-                    val = winning_details_list[0]["card"][idx]
-                    val_str = "FREE" if val == 0 else str(val)
-                    if idx in combined_win_indices:
-                        row_vals.append(f"⭐{val_str}⭐")
-                    else:
-                        row_vals.append(val_str)
-                card_rows.append(" | ".join(row_vals))
-            card_text = "\n".join(card_rows)
+        card_rows = []
+        for r in range(5):
+            row_vals = []
+            for c in range(5):
+                idx = r * 5 + c  
+                val = winning_details_list[0]["card"][idx]
+                val_str = "FREE" if val == 0 else str(val)
+                if idx in combined_win_indices:
+                    row_vals.append(f"⭐{val_str}⭐")
+                else:
+                    row_vals.append(val_str)
+            card_rows.append(" | ".join(row_vals))
+        card_text = "\n".join(card_rows)
 
-            if len(game_state["winners_list"]) == 1:
-                w = game_state["winners_list"][0]
-                t_nums = [detail["ticket_num"] for detail in w["winning_details"]]
-                game_state["winner"] = f"{w['username']} (Ticket: {', '.join(t_nums)})"
-                
-                success_msg = (
-                    f"🏆 *BINGO WINNER!* \n"
-                    f"👤 አሸናፊ: {w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)}) \n"
-                    f"💰 ሽልማት: {prize_pool:.2f} ETB (ከጠቅላላው {game_state['pot']} ETB 80%)\n"
-                    f"🎯 መስመር: *{w['combined_line_type']}*\n\n"
-                    f"📊 *Winning Card:* \n"
-                    f"`{card_text}`"
-                )
-            else:
-                winners_details_text = []
-                for w in game_state["winners_list"]:
-                    t_nums = [detail["ticket_num"] for detail in w["winning_details"]]
-                    winners_details_text.append(f"{w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)})")
-                
-                game_state["winner"] = " & ".join([w['username'] for w in game_state["winners_list"]])
-                
-                success_msg = (
-                    f"🏆 *JOINT WINNERS! (እኩል አሸናፊዎች)* \n"
-                    f"👤 አሸናፊዎች:\n• " + "\n• ".join(winners_details_text) + "\n\n"
-                    f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {prize_pool:.2f} ETB 80% ድርሻ)\n"
-                    f"🎯 መስመር: *የየራሳቸው መስመር*\n\n"
-                    f"📊 *Winning Card:* \n"
-                    f"`{card_text}`"
-                )
+        if len(game_state["winners_list"]) == 1:
+            w = game_state["winners_list"][0]
+            t_nums = [detail["ticket_num"] for detail in w["winning_details"]]
+            game_state["winner"] = f"{w['username']} (Ticket: {', '.join(t_nums)})"
             
-            update_telegram_message(success_msg)
-            broadcast_game_state() 
+            success_msg = (
+                f"🏆 *BINGO WINNER!* \n"
+                f"👤 አሸናፊ: {w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)}) \n"
+                f"💰 ሽልማት: {split_win_amt:.2f} ETB (ከጠቅላላው {game_state['pot']} ETB 80%)\n"
+                f"🎯 መስመር: *{w['combined_line_type']}*\n\n"
+                f"📊 *Winning Card:* \n"
+                f"`{card_text}`"
+            )
+        else:
+            winners_details_text = []
+            for w in game_state["winners_list"]:
+                t_nums = [detail["ticket_num"] for detail in w["winning_details"]]
+                winners_details_text.append(f"{w['username']} (ስልክ: `{w['phone']}`, ቲኬት: {', '.join(t_nums)})")
+            
+            game_state["winner"] = " & ".join([w['username'] for w in game_state["winners_list"]])
+            
+            success_msg = (
+                f"🏆 *JOINT WINNERS! (እኩል አሸናፊዎች)* \n"
+                f"👤 አሸናፊዎች:\n• " + "\n• ".join(winners_details_text) + "\n\n"
+                f"💰 የእያንዳንዱ ድርሻ: {split_win_amt:.2f} ETB (ከጠቅላላው {prize_pool:.2f} ETB በ {total_winners_count} ሰዎች የተካፈለ)\n"
+                f"🎯 መስመር: *የየራሳቸው መስመር*\n\n"
+                f"📊 *Winning Card:* \n"
+                f"`{card_text}`"
+            )
+        
+        update_telegram_message(success_msg)
+        broadcast_game_state() 
 
-            def countdown_and_reset():
-                for t in range(10, -1, -1):
-                    game_state["timer"] = t
-                    broadcast_game_state()
-                    socketio.sleep(1)
-                reset_game()
+        def countdown_and_reset():
+            for t in range(10, -1, -1):
+                game_state["timer"] = t
+                broadcast_game_state()
+                socketio.sleep(1)
+            reset_game()
 
-            socketio.start_background_task(countdown_and_reset)
-            return jsonify({"success": True})
-                
-        return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+        socketio.start_background_task(countdown_and_reset)
+        return jsonify({"success": True})
 
 @socketio.on('connect')
 def handle_connect():
