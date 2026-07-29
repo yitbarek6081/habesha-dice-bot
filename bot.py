@@ -678,7 +678,6 @@ def claim_bingo():
         if not has_won:
             return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
 
-        # ጨዋታው ወደ 'result' መቀየር (አንዴ ከተያዘ ዳግም እንዳይቀየር)
         game_state["status"] = "result"
         game_state["timer"] = 10
         game_state["telegram_msg_id"] = None
@@ -704,7 +703,6 @@ def claim_bingo():
             "combined_line_type": " + ".join(combined_line_types)
         }
         
-        # ተጫዋቹ አስቀድሞ በዝርዝሩ ውስጥ ካለ ድጋሚ እንዳይጨመር መከላከል
         existing_winner = next((w for w in game_state["winners_list"] if w["phone"] == db_phone), None)
         if not existing_winner:
             game_state["winners_list"].append(winner_entry)
@@ -713,9 +711,6 @@ def claim_bingo():
         prize_pool = total_pot * 0.80  
         total_winners_count = len(game_state["winners_list"])
 
-        # -------------------------------------------------------------
-        # ትክክለኛው የዕኩል ማካፈል ስሌት (እያንዳንዱ አሸናፊ የጠቅላላውን 80% በሰዎች ቁጥር ልክ ይካፈላል)
-        # -------------------------------------------------------------
         split_win_amt = prize_pool / total_winners_count if total_winners_count > 0 else 0
 
         game_state["winning_card"] = winning_details_list[0]["card"]
@@ -723,27 +718,8 @@ def claim_bingo():
         game_state["winning_indices"] = combined_win_indices  
         game_state["winning_line_name"] = " + ".join(combined_line_types)
 
-        # አሁን ያሉትን ሁሉንም አሸናፊዎች ድርሻ በአዲስ እና በትክክለኛው እኩል መጠን እንደገና ማስተካከል (ለብዙ ተጫዋቾች በአንድ ሰኮንድ ሲገቡ)
         for w_info in game_state["winners_list"]:
             w_phone = w_info["phone"]
-            
-            # ነባሩን የተሳሳተ ወይም ያልተመጣጠነ ክፍያ አስተካክሎ አዲሱን ትክክለኛ እኩል ድርሻ መስጠት
-            # (እዚህ ላይ ቀደም ሲል የተሰጠውን የተሳሳተ ድርሻ አስተካክሎ አዲሱን 'split_win_amt' በአግባቡ ለማስገባት 
-            #  የተጠቃሚውን ባላንስ ከዚህ በፊት ከነበረው የማስተካከያ ሎጂክ ጋር ማስተካከል ይቻላል)
-            wallets.find_one_and_update(
-                {"phone": w_phone}, 
-                {"$set": {"last_win_share": split_win_amt}}, 
-                return_document=True
-            )
-            
-            # ሙሉውን ባላንስ አስተካክሎ ማዘመን
-            # ማሳሰቢያ፡ ድርሻው በድጋሚ እንዳይጨመር የድሮውን 'last_win_share' በመቀነስ አዲሱን ማድረግ ይቻላል 
-            # ወይም ሁሉንም አሸናፊዎች በዚህ ሉፕ ውስጥ በአንድ ጊዜ በትክክል ማካፈል ይቻላል።
-        
-        # በቀላሉ ለእያንዳንዱ አሸናፊ ትክክለኛውን ድርሻ መስጠት (የመጀመሪያውን የተሳሳተ ክፍያ አስተካክሎ)
-        for w_info in game_state["winners_list"]:
-            w_phone = w_info["phone"]
-            # ቀድሞ የተሰጠው ድርሻ ካለ በመቀነስ አዲሱን እኩል ድርሻ ማስገባት
             u_doc_old = wallets.find_one({"phone": w_phone})
             old_share = u_doc_old.get("last_win_share", 0) if u_doc_old else 0
             
