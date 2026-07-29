@@ -625,102 +625,101 @@ def claim_bingo():
     db_phone = user_info["phone"]
 
     if game_state["status"] != "playing":
-        return jsonify({"success": False, "msg": "ጨዋታው በሂደት ላይ አይደለም!"})
+        return jsonify({"success": False, "msg": "ጨዋታውው በሂደት ላይ አይደለም!"})
         
     p_data = game_state["players"].get(db_phone)
     if not p_data:
         return jsonify({"success": False, "msg": "ይገባኛል ጥያቄው ውድቅ ተደርጓል!"})
         
     cards_to_check = p_data["cards"]
-    user_won_any = False
+    user_valid_wins = []
     
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
         win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=current_marked)
         
         if win_indices is not None:
-            user_won_any = True
-            if game_state["status"] != "result":
-                game_state["status"] = "result"
-                game_state["timer"] = 10
-                game_state["winners"] = []
-                game_state["pot_total"] = game_state["pot"]
-
-            winner_entry = {
-                "phone": db_phone,
-                "name": p_data["username"],
+            user_valid_wins.append({
                 "ticket_num": str(t_num),
-                "winning_line_name": line_type,
-                "winning_card": card,
-                "winning_indices": win_indices
-            }
-            if not any(w["ticket_num"] == str(t_num) for w in game_state["winners"]):
-                game_state["winners"].append(winner_entry)
+                "card": card,
+                "winning_indices": win_indices,
+                "winning_line_name": line_type
+            })
 
-    if user_won_any:
-        total_winners = len(game_state["winners"])
-        total_prize_pool = game_state.get("pot_total", game_state["pot"]) * 0.8
-        share_per_winner = total_prize_pool / total_winners if total_winners > 0 else 0
+    if not user_valid_wins:
+        return jsonify({"success": False, "msg": "ቢንጎ አልሞላም! እባክዎ ቁጥሮቹን በትክክል ማቅለምዎን ያረጋግጡ።"})
 
-        game_state["winner"] = ", ".join([w["name"] for w in game_state["winners"]])
-        game_state["winning_card"] = game_state["winners"][0]["winning_card"]
-        game_state["winning_ticket_num"] = game_state["winners"][0]["ticket_num"]
-        game_state["winning_indices"] = game_state["winners"][0]["winning_indices"]
-        game_state["winning_line_name"] = game_state["winners"][0]["winning_line_name"]
+    # Initialize winners list if not already set by an overlapping claim in this round
+    if not game_state.get("winners"):
+        game_state["winners"] = []
 
-        win_res = wallets.find_one_and_update({"phone": db_phone}, {"$inc": {"balance": share_per_winner}}, return_document=True)
+    total_pot = game_state["pot"]
+    base_prize = total_pot * 0.8
+
+    # Check if this user is already recorded as a winner in this round
+    already_recorded = any(w["phone"] == db_phone for w in game_state["winners"])
+    if not already_recorded:
+        for win_info in user_valid_wins:
+            game_state["winners"].append({
+                "phone": db_phone,
+                "username": p_data["username"],
+                "ticket_num": win_info["ticket_num"],
+                "card": win_info["card"],
+                "winning_indices": win_info["winning_indices"],
+                "winning_line_name": win_info["winning_line_name"]
+            })
+
+    # Switch state to result and handle split prize pool among all winners
+    game_state["status"] = "result"
+    game_state["timer"] = 10
+    
+    total_winners_count = len(game_state["winners"])
+    split_prize = base_prize / total_winners_count if total_winners_count > 0 else base_prize
+
+    game_state["winner"] = ", ".join([w["username"] for w in game_state["winners"]])
+    game_state["winning_card"] = game_state["winners"][0]["card"] if game_state["winners"] else None
+    game_state["winning_ticket_num"] = game_state["winners"][0]["ticket_num"] if game_state["winners"] else None
+    game_state["winning_indices"] = game_state["winners"][0]["winning_indices"] if game_state["winners"] else None
+    game_state["winning_line_name"] = game_state["winners"][0]["winning_line_name"] if game_state["winners"] else None
+
+    # Distribute money to all unique winners equally
+    unique_phones = set(w["phone"] for w in game_state["winners"])
+    share_per_user = base_prize / len(unique_phones)
+
+    for u_phone in unique_phones:
+        win_res = wallets.find_one_and_update({"phone": u_phone}, {"$inc": {"balance": share_per_user}}, return_document=True)
         if win_res:
-            notify_user_balance_update(db_phone, win_res.get("balance", 0))
+            notify_user_balance_update(u_phone, win_res.get("balance", 0))
         
-        agent_msg = ""
-        if user_info and "referred_by" in user_info:
-            agent_phone = user_info["referred_by"]
-            agent_commission = share_per_winner * 0.05
+        u_info = wallets.find_one({"phone": u_phone})
+        if u_info and "referred_by" in u_info:
+            agent_phone = u_info["referred_by"]
+            agent_commission = share_per_user * 0.05
             ag_res = wallets.find_one_and_update({"phone": agent_phone}, {"$inc": {"balance": agent_commission}}, return_document=True)
             if ag_res:
                 notify_user_balance_update(agent_phone, ag_res.get("balance", 0))
-            agent_msg = f"\n🤝 *Agent Bonus:* ኤጀንት `📞 {agent_phone}` የ *{agent_commission:.2f} ETB* ኮሚሽን ገቢ ተደርጎለታል።"
-        
-        card_rows = []
-        for r in range(5):
-            row_vals = []
-            for c in range(5):
-                idx = r * 5 + c  
-                val = game_state["winning_card"][idx]
-                val_str = "FREE" if val == 0 else str(val)
-                if idx in game_state["winning_indices"]:
-                    row_vals.append(f"⭐{val_str}⭐")
-                else:
-                    row_vals.append(val_str)
-            card_rows.append(" | ".join(row_vals))
-        card_text = "\n".join(card_rows)
-        
-        success_msg = (
-            f"🏆 *WINNER(S)!* \n"
-            f"👤 Name(s): {game_state['winner']} \n"
-            f"📞 Phone: `{db_phone}` \n"
-            f"💰 Share Prize: {share_per_winner:.2f} ETB (from {total_prize_pool:.2f} ETB)\n"
-            f"{agent_msg}\n\n"
-            f"📊 *Winning Card:* \n"
-            f"`{card_text}`"
-        )
-        
-        send_telegram(success_msg)
-        broadcast_game_state() 
 
-        def countdown_and_reset():
-            for t in range(10, -1, -1):
-                game_state["timer"] = t
-                broadcast_game_state()
-                socketio.sleep(1)
-            reset_game()
+    winners_telegram_summary = []
+    for w in game_state["winners"]:
+        winners_telegram_summary.append(f"👤 Name: {w['username']} | 🎫 Ticket: {w['ticket_num']} | 🎯 Line: {w['winning_line_name']}")
 
-        if len(game_state["winners"]) == 1:
-            socketio.start_background_task(countdown_and_reset)
+    success_msg = (
+        f"🏆 *WINNERS (Split Prize)!* \n"
+        f"💰 Total Pool: {base_prize} ETB (Each gets: {share_per_user:.2f} ETB)\n\n" +
+        "\n".join(winners_telegram_summary)
+    )
+    send_telegram(success_msg)
+    broadcast_game_state() 
 
-        return jsonify({"success": True})
-            
-    return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
+    def countdown_and_reset():
+        for t in range(10, -1, -1):
+            game_state["timer"] = t
+            broadcast_game_state()
+            socketio.sleep(1)
+        reset_game()
+
+    socketio.start_background_task(countdown_and_reset)
+    return jsonify({"success": True})
 
 @socketio.on('connect')
 def handle_connect():
