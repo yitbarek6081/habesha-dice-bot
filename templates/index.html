@@ -65,7 +65,6 @@
             overflow: hidden;
         }
 
-        /* 🔄 Side-by-Side Header Layout */
         .header-banner { 
             background: linear-gradient(145deg, #1e293b, #050a18); 
             padding: 8px 15px; 
@@ -78,7 +77,6 @@
         }
         .header-banner h1 { margin: 0; font-size: 1.3rem; color: var(--gold); letter-spacing: 2px; }
         
-        /* Top Header Refresh Button Styling */
         .btn-top-refresh {
             background: var(--gold);
             color: #000;
@@ -351,7 +349,7 @@
         </div>
     </div>
 
-    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች ሲወጡ ፈጥነው ይንኩ። ኳስ ከወጣ በኋላ 3 ተከታታይ ኳሶች ካለፉት ቁጥሩ ይቃጠላል!<br>4. መስመር ሲሞላ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ነጭ ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>2. ጨዋታው ሲጀምር ኳሶች በየ 5 ሰከንዱ ይጣላሉ።<br>3. ካርቴላዎ ላይ ያሉት ቁጥሮች ሲወጡ በማንኛውም ጊዜ መቅለም ይችላሉ።<br>4. መስመር ሲሞላ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
     <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
     <div id="dep-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--green);">DEPOSIT</h2><p>በTeleBirr or CBEBirr Send to: <b style="color:var(--gold); cursor:pointer;" onclick="copyNum('0945880474')">0945880474</b></p><input type="number" id="da" min="10" placeholder="Amount (ETB)"><input type="text" id="di" placeholder="Transaction ID"><button class="btn-main btn-deposit" style="width:100%" onclick="subD()">SUBMIT</button><button onclick="closeM('dep-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
 
@@ -785,29 +783,18 @@
             if(isNaN(targetNumVal)) return;
             
             let ballFound = false;
-            let matchedBallIndex = -1;
-
             if (latestDrawnBallsGlobal && latestDrawnBallsGlobal.length > 0) {
                 for (let k = 0; k < latestDrawnBallsGlobal.length; k++) {
                     let bNum = parseInt(latestDrawnBallsGlobal[k].replace(/[^0-9]/g, ''));
                     if (bNum === targetNumVal) {
-                        ballFound = true; matchedBallIndex = k; break;
+                        ballFound = true; break;
                     }
                 }
             }
 
-            // 🛑 ጨዋታው ላይ ኳሱ ገና ያልወጣ ከሆነ ማሳሰቢያ ይሰጣል
             if (!ballFound) {
                 alert("ሳይወጣ ማቅለም አይቻልም!");
                 return;
-            }
-
-            if (ballFound) {
-                let totalDrawn = latestDrawnBallsGlobal.length;
-                if ((totalDrawn - 1 - matchedBallIndex) >= 3) {
-                    alert("⚠️ አልፎሃል! ይህ ቁጥር ከወጣ 3 ኳስ ስለአለፈው መቅለም አትችልም!");
-                    return; 
-                }
             }
 
             const allGrids = document.querySelectorAll('.bingo-card');
