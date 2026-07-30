@@ -95,7 +95,7 @@ def broadcast_game_state():
 def notify_user_balance_update(phone_num, new_balance):
     socketio.emit('balance_update', {"phone": phone_num, "balance": new_balance})
 
-# --- DEPOSIT REQUEST ENDPOINT (የተጨመረው ክፍል) ---
+# --- DEPOSIT REQUEST ENDPOINT ---
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json or {}
@@ -106,7 +106,6 @@ def request_deposit():
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     db_phone = user["phone"] if user else ph
     
-    #  መैसेጅ (Message) ለኤጀንት ወይም ለአስተዳዳሪ ማዘጋጀት
     if user and "referred_by" in user:
         agent_phone = user["referred_by"]
         msg = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
@@ -419,22 +418,76 @@ def game_loop():
                     broadcast_game_state() 
                     socketio.sleep(1)
 
+                # -- እዚህ ጋር በመጨረሻው ኳስ (በጋራ ወይም በአንድ ጊዜ) አሸናፊዎችን የመለየት ሎጂክ ተሻሽሏል --
+                winners_in_this_ball = []
+
                 for b in shuffled:
                     if game_state["status"] != "playing": 
                         break
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
+
+                    # ኳስ ሲወጣ በሂደት ላይ ያሉትን ተጫዋቾች ካርቴላዎች በሙሉ እንፈትሻለን
+                    potential_winners = []
+                    for p_phone, p_data in game_state["players"].items():
+                        for t_num, card in p_data["cards"].items():
+                            win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
+                            if win_indices is not None:
+                                potential_winners.append({
+                                    "phone": p_phone,
+                                    "username": p_data["username"],
+                                    "ticket_num": str(t_num),
+                                    "card": card,
+                                    "indices": win_indices,
+                                    "line_name": line_type
+                                })
+                    
+                    if potential_winners:
+                        winners_in_this_ball = potential_winners
+                        break # አሸናፊ(ዎች) ከተገኙ ኳስ መሳቡ ይቆማል
+
                     broadcast_game_state() 
                     socketio.sleep(4) 
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
-                game_state["winner"] = "No Winner (House)"
-                game_state["winning_card"] = None
-                game_state["winning_ticket_num"] = None
-                game_state["winning_indices"] = None
-                game_state["winning_line_name"] = None
-                send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
+                
+                if 'winners_in_this_ball' in locals() and winners_in_this_ball:
+                    # አሸናፊዎች አሉ (አንድ ወይም ከዛ በላይ በጋራ ያሸነፉ)
+                    total_prize = game_state["pot"] * 0.8
+                    share_prize = total_prize / len(winners_in_this_ball)
+                    
+                    first_winner = winners_in_this_ball[0]
+                    game_state["winner"] = f"{first_winner['username']} etc." if len(winners_in_this_ball) > 1 else first_winner["username"]
+                    game_state["winning_card"] = first_winner["card"]
+                    game_state["winning_ticket_num"] = first_winner["ticket_num"]
+                    game_state["winning_indices"] = first_winner["indices"]
+                    game_state["winning_line_name"] = first_winner["line_name"]
+
+                    def background_multi_win_task():
+                        winner_texts = []
+                        for w in winners_in_this_ball:
+                            w_res = wallets.find_one_and_update(
+                                {"phone": w["phone"]}, 
+                                {"$inc": {"balance": share_prize}}, 
+                                return_document=True
+                            )
+                            if w_res:
+                                gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
+                            winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
+                        
+                        success_msg = f"🏆 *WINNERS (Shared Prize)!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({len(winners_in_this_ball)} winners)\n" + "\n".join(winner_texts)
+                        send_telegram(success_msg)
+                        broadcast_game_state()
+
+                    gevent.spawn(background_multi_win_task)
+                else:
+                    game_state["winner"] = "No Winner (House)"
+                    game_state["winning_card"] = None
+                    game_state["winning_ticket_num"] = None
+                    game_state["winning_indices"] = None
+                    game_state["winning_line_name"] = None
+                    send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
                 
                 def house_countdown_and_reset():
                     for t in range(10, -1, -1):
