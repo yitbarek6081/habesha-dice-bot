@@ -601,7 +601,7 @@ def claim_bingo():
             winning_card_data = card
             winning_line_type = line_type
             winning_indices_list = win_indices
-            break  # ጥያቄውን ያቀረበው ተጫዋች ማሸነፉ ከተረጋገጠ በቂ ነው (ሌሎችን አይጨምርም)
+            break  
             
     if not valid_win_found:
         return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
@@ -615,7 +615,7 @@ def claim_bingo():
         game_state["winning_indices"] = winning_indices_list
         game_state["winning_line_name"] = winning_line_type 
 
-        total_prize = game_state["pot"] * 0.8  # 80% ለድል አድራጊው
+        total_prize = game_state["pot"] * 0.8  
 
         def background_win_task():
             win_res = wallets.find_one_and_update(
