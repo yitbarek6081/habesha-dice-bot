@@ -101,149 +101,185 @@ def webhook():
     if not data:
         return "OK", 200
         
-    if "message" in data and "text" in data["message"]:
-        msg = data["message"]["text"].strip()
-        chat_id = str(data["message"]["chat"]["id"])
-
-        if msg.startswith("/start"):
-            parts = msg.split()
-            agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
+    # 1. የፎቶ (የደረሰኝ) ዲፖዚት ጥያቄዎችን ማስተናገድ
+    if "message" in data:
+        message = data["message"]
+        chat_id = str(message["chat"]["id"])
+        
+        # ተጫዋቹ ፎቶ ወይም ዶክመንት (ደረሰኝ) ሲልክ
+        if "photo" in message or "document" in message:
+            user_doc = wallets.find_one({"telegram_id": chat_id})
+            username = user_doc.get("username", "ያልታወቀ") if user_doc else "ያልታወቀ"
+            phone = user_doc.get("phone", chat_id) if user_doc else chat_id
             
-            already_registered = wallets.find_one({"$or": [{"telegram_id": chat_id}, {"phone": chat_id}]})
+            caption = message.get("caption", "መግለጫ የለውም")
             
-            if already_registered:
-                webapp_keyboard = {
-                    "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ", "web_app": {"url": WEB_APP_URL}}]]
-                }
-                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            # ፎቶውን ወደ አድሚን ማስተላለፍ (Forward)
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/forwardMessage"
+            try:
                 requests.post(url, json={
-                    "chat_id": chat_id, 
-                    "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው። በቀጥታ መጫወት ይችላሉ!", 
-                    "reply_markup": webapp_keyboard
+                    "chat_id": ADMIN_ID,
+                    "from_chat_id": chat_id,
+                    "message_id": message["message_id"]
+                }, timeout=5)
+                
+                # ተጨማሪ የተጫዋች መረጃ ለአድሚን መላክ
+                send_telegram(f"📥 *አዲስ የዲፖዚት (ብር တင်ላክ) ጥያቄ ደረሰ!*\n👤 ስም: `{username}`\n📞 ስልክ: `{phone}`\n💬 መግለጫ: {caption}")
+                
+                # ለተጫዋቹ ማረጋገጫ መላክ
+                reply_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                requests.post(reply_url, json={
+                    "chat_id": chat_id,
+                    "text": "✅ የክፍያደረሰኝዎ ለአድሚን ደርሷል። አድሚኑ ሲያረጋግጠው ባላንስዎ ላይ ይጨመራል!"
                 })
-                return "OK", 200
-
-            reg_session = {
-                "phone": f"TEMP_{chat_id}", 
-                "telegram_id": chat_id,
-                "reg_status": "awaiting_phone",
-                "balance": 0
-            }
-            if agent_phone:
-                reg_session["referred_by"] = agent_phone
+            except Exception as e:
+                print(f"Deposit forward error: {e}")
             
-            wallets.delete_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
-            wallets.insert_one(reg_session)
-
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-            requests.post(url, json={
-                "chat_id": chat_id, 
-                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክፍያ ሂደቱን ለማቅለል፤ እባክዎ **የተጫዋች (የመጫወቻ) ወይም የቴሌብር/ሲቢኢ ብር** ስልክ ቁጥርዎን ያስገቡ፦"
-            })
             return "OK", 200
 
-        session = wallets.find_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
-        
-        if session:
-            current_status = session.get("reg_status")
-            
-            if current_status == "awaiting_phone":
-                clean_phone = msg.replace("+", "").replace(" ", "")
-                if not clean_phone.isdigit() or len(clean_phone) < 9:
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ እባክዎ ትክክለኛ የስልክ ቁጥር ብቻ በቁጥር ያስገቡ (ምሳሌ: 0912345678)፦"})
-                    return "OK", 200
+        # 2. የጽሁፍ መልዕክቶች
+        if "text" in message:
+            msg = message["text"].strip()
 
-                duplicate_phone = wallets.find_one({"phone": clean_phone})
-                if duplicate_phone:
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ ይህ ስልክ ቁጥር ቀድሞ ተመዝግቧል። እባክዎ ሌላ ቁጥር ያስገቡ፦"})
-                    return "OK", 200
-
-                wallets.update_one(
-                    {"telegram_id": chat_id}, 
-                    {"$set": {"phone": clean_phone, "reg_status": "awaiting_name"}}
-                )
+            if msg.startswith("/start"):
+                parts = msg.split()
+                agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
                 
-                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                requests.post(url, json={"chat_id": chat_id, "text": "✅ ስልክ ቁጥርዎ ተቀብለናል።\n\nቀጥሎ ደግሞ ድረ-ገጹ ላይ የሚታየውን **የተጫዋች ስምዎን (የመጫወቻ ስም)** ያስገቡ፦"})
-                return "OK", 200
-
-            elif current_status == "awaiting_name":
-                player_name = sanitize_input(msg)
-                if len(player_name) < 2:
+                already_registered = wallets.find_one({"$or": [{"telegram_id": chat_id}, {"phone": chat_id}]})
+                
+                if already_registered:
+                    webapp_keyboard = {
+                        "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ", "web_app": {"url": WEB_APP_URL}}]]
+                    }
                     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ ስምዎ በጣም አጭር ነው። እባክዎ ድጋሚ ያስገቡ፦"})
+                    requests.post(url, json={
+                        "chat_id": chat_id, 
+                        "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው። በቀጥታ መጫወት ይችላሉ!", 
+                        "reply_markup": webapp_keyboard
+                    })
                     return "OK", 200
 
-                wallets.update_one(
-                    {"telegram_id": chat_id}, 
-                    {"$set": {"username": player_name}, "$unset": {"reg_status": ""}}
-                )
-                
-                final_user = wallets.find_one({"telegram_id": chat_id})
-                agent_phone = final_user.get("referred_by", "የለውም")
-
-                webapp_keyboard = {
-                    "inline_keyboard": [[{"text": "🎮 ጨዋታውን ክፈት (Open Game)", "web_app": {"url": WEB_APP_URL}}]]
+                reg_session = {
+                    "phone": f"TEMP_{chat_id}", 
+                    "telegram_id": chat_id,
+                    "reg_status": "awaiting_phone",
+                    "balance": 0
                 }
+                if agent_phone:
+                    reg_session["referred_by"] = agent_phone
                 
-                success_text = f"🎉 እንኳን ደስ አለዎት! ምዝገባዎ ሙሉ በሙሉ ተጠናቋል።\n\n👤 ስም: {player_name}\n📱 ስልክ: {final_user['phone']}\n\nአሁን ታች ያለውን ቁልፍ ተጭነው መጫወት ይችላሉ!"
+                wallets.delete_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
+                wallets.insert_one(reg_session)
+
                 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                 requests.post(url, json={
                     "chat_id": chat_id, 
-                    "text": success_text, 
-                    "reply_markup": webapp_keyboard
+                    "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክፍያ ሂደቱን ለማቅለል፤ እባክዎ **የተጫዋች (የመጫወቻ) ወይም የቴሌብር/ሲቢኢ ብር** ስልክ ቁጥርዎን ያስገቡ፦"
                 })
-                
-                send_telegram(f"🎉 *አዲስ ተጫዋች በጽሑፍ ተመዘገበ!*\n👤 ስም: `{player_name}`\n📞 ስልክ: `{final_user['phone']}`\n🔗 ኤጀንት: `{agent_phone}`")
-                gevent.spawn(broadcast_game_state) 
                 return "OK", 200
 
-        if chat_id == ADMIN_ID:
-            if msg.startswith("/add"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 3:
-                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
-                        if amount > 0:
-                            user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
-                            if user:
+            session = wallets.find_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
+            
+            if session:
+                current_status = session.get("reg_status")
+                
+                if current_status == "awaiting_phone":
+                    clean_phone = msg.replace("+", "").replace(" ", "")
+                    if not clean_phone.isdigit() or len(clean_phone) < 9:
+                        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                        requests.post(url, json={"chat_id": chat_id, "text": "❌ እባክዎ ትክክለኛ የስልክ ቁጥር ብቻ በቁጥር ያስገቡ (ምሳሌ: 0912345678)፦"})
+                        return "OK", 200
+
+                    duplicate_phone = wallets.find_one({"phone": clean_phone})
+                    if duplicate_phone:
+                        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                        requests.post(url, json={"chat_id": chat_id, "text": "❌ ይህ ስልክ ቁጥር ቀድሞ ተመዝግቧል። እባክዎ ሌላ ቁጥር ያስገቡ፦"})
+                        return "OK", 200
+
+                    wallets.update_one(
+                        {"telegram_id": chat_id}, 
+                        {"$set": {"phone": clean_phone, "reg_status": "awaiting_name"}}
+                    )
+                    
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    requests.post(url, json={"chat_id": chat_id, "text": "✅ ስልክ ቁጥርዎ ተቀብለናል።\n\nቀጥሎ ደግሞ ድረ-ገጹ ላይ የሚታየውን **የተጫዋች ስምዎን (የመጫወቻ ስም)** ያስገቡ፦"})
+                    return "OK", 200
+
+                elif current_status == "awaiting_name":
+                    player_name = sanitize_input(msg)
+                    if len(player_name) < 2:
+                        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                        requests.post(url, json={"chat_id": chat_id, "text": "❌ ስምዎ በጣም አጭር ነው። እባክዎ ድጋሚ ያስገቡ፦"})
+                        return "OK", 200
+
+                    wallets.update_one(
+                        {"telegram_id": chat_id}, 
+                        {"$set": {"username": player_name}, "$unset": {"reg_status": ""}}
+                    )
+                    
+                    final_user = wallets.find_one({"telegram_id": chat_id})
+                    agent_phone = final_user.get("referred_by", "የለውም")
+
+                    webapp_keyboard = {
+                        "inline_keyboard": [[{"text": "🎮 ጨዋታውን ክፈት (Open Game)", "web_app": {"url": WEB_APP_URL}}]]
+                    }
+                    
+                    success_text = f"🎉 እንኳን ደስ አለዎት! ምዝገባዎ ሙሉ በሙሉ ተጠናቋል።\n\n👤 ስም: {player_name}\n📱 ስልክ: {final_user['phone']}\n\nአሁን ታች ያለውን ቁልፍ ተጭነው መጫወት ይችላሉ!"
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    requests.post(url, json={
+                        "chat_id": chat_id, 
+                        "text": success_text, 
+                        "reply_markup": webapp_keyboard
+                    })
+                    
+                    send_telegram(f"🎉 *አዲስ ተጫዋች በጽሑፍ ተመዘገበ!*\n👤 ስም: `{player_name}`\n📞 ስልክ: `{final_user['phone']}`\n🔗 ኤጀንት: `{agent_phone}`")
+                    gevent.spawn(broadcast_game_state) 
+                    return "OK", 200
+
+            if chat_id == ADMIN_ID:
+                if msg.startswith("/add"):
+                    try:
+                        parts = msg.split()
+                        if len(parts) == 3:
+                            target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                            if amount > 0:
+                                user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
+                                if user:
+                                    updated = wallets.find_one_and_update(
+                                        {"_id": user["_id"]}, 
+                                        {"$inc": {"balance": amount}},
+                                        return_document=True
+                                    )
+                                    gevent.spawn(notify_user_balance_update, target_phone, updated.get("balance", 0))
+                                else:
+                                    wallets.insert_one({
+                                        "phone": target_phone, 
+                                        "balance": amount, 
+                                        "username": f"User_{target_phone[-4:]}"
+                                    })
+                                    gevent.spawn(notify_user_balance_update, target_phone, amount)
+                                send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
+                                gevent.spawn(broadcast_game_state) 
+                    except:
+                        send_telegram("❌ ስህተት! ፎርማቱ: `/add ስልክ መጠን`")
+                
+                elif msg.startswith("/sub"):
+                    try:
+                        parts = msg.split()
+                        if len(parts) == 3:
+                            target_phone, amount = sanitize_input(parts[1]), float(parts[2])
+                            if amount > 0:
                                 updated = wallets.find_one_and_update(
-                                    {"_id": user["_id"]}, 
-                                    {"$inc": {"balance": amount}},
+                                    {"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, 
+                                    {"$inc": {"balance": -amount}},
                                     return_document=True
                                 )
-                                gevent.spawn(notify_user_balance_update, target_phone, updated.get("balance", 0))
-                            else:
-                                wallets.insert_one({
-                                    "phone": target_phone, 
-                                    "balance": amount, 
-                                    "username": f"User_{target_phone[-4:]}"
-                                })
-                                gevent.spawn(notify_user_balance_update, target_phone, amount)
-                            send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-                            gevent.spawn(broadcast_game_state) 
-                except:
-                    send_telegram("❌ ስህተት! ፎርማቱ: `/add ስልክ መጠን`")
-            
-            elif msg.startswith("/sub"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 3:
-                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
-                        if amount > 0:
-                            updated = wallets.find_one_and_update(
-                                {"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, 
-                                {"$inc": {"balance": -amount}},
-                                return_document=True
-                            )
-                            if updated:
-                                gevent.spawn(notify_user_balance_update, target_phone, updated.get("balance", 0))
-                            send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
-                            gevent.spawn(broadcast_game_state) 
-                except:
-                    send_telegram("❌ ስህተት! ፎርማቱ: `/sub ስልክ መጠን`")
+                                if updated:
+                                    gevent.spawn(notify_user_balance_update, target_phone, updated.get("balance", 0))
+                                send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
+                                gevent.spawn(broadcast_game_state) 
+                    except:
+                        send_telegram("❌ ስህተት! ፎርማቱ: `/sub ስልክ መጠን`")
 
     return "OK", 200
 
@@ -601,7 +637,7 @@ def claim_bingo():
             winning_card_data = card
             winning_line_type = line_type
             winning_indices_list = win_indices
-            break  # ጥያቄውን ያቀረበው ተጫዋች ማሸነፉ ከተረጋገጠ በቂ ነው (ሌሎችን አይጨምርም)
+            break  
             
     if not valid_win_found:
         return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
@@ -615,7 +651,7 @@ def claim_bingo():
         game_state["winning_indices"] = winning_indices_list
         game_state["winning_line_name"] = winning_line_type 
 
-        total_prize = game_state["pot"] * 0.8  # 80% ለድል አድራጊው
+        total_prize = game_state["pot"] * 0.8  
 
         def background_win_task():
             win_res = wallets.find_one_and_update(
