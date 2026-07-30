@@ -1,4 +1,5 @@
 import os
+import time
 from gevent import monkey
 monkey.patch_all()
 
@@ -625,9 +626,15 @@ def claim_bingo():
     winning_line_type = None
     winning_indices_list = None
     
+    current_drawn_balls = game_state["drawn_balls"]
+    if not current_drawn_balls:
+        return jsonify({"success": False, "msg": "ገና ኳስ አልወጣም!"})
+        
+    last_called_ball = current_drawn_balls[-1]
+
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
-        win_indices, line_type = check_winning_line(card, game_state["drawn_balls"], player_marked_numbers=current_marked)
+        win_indices, line_type = check_winning_line(card, current_drawn_balls, player_marked_numbers=current_marked)
         
         if win_indices is not None:
             valid_win_found = True
@@ -646,7 +653,8 @@ def claim_bingo():
         "ticket_num": str(winning_ticket_num),
         "card": winning_card_data,
         "indices": winning_indices_list,
-        "line_name": winning_line_type
+        "line_name": winning_line_type,
+        "winning_ball": last_called_ball
     }
 
     if game_state["status"] == "playing":
@@ -656,9 +664,9 @@ def claim_bingo():
             game_state["timer"] = 10
             pending_claims = [claim_info]
 
-            def process_claims_after_window():
+            def process_claims_by_ball():
                 global claim_lock_active, pending_claims
-                socketio.sleep(0.8)
+                socketio.sleep(1.0)
 
                 total_prize = game_state["pot"] * 0.8  
                 num_winners = len(pending_claims)
@@ -680,7 +688,7 @@ def claim_bingo():
                         if win_res:
                             gevent.spawn(notify_user_balance_update, w["phone"], win_res.get("balance", 0))
                         
-                        success_msg = f"🏆 *WINNER!* \n👤 Name: {w['username']} | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket_num']} \n💰 Prize Won: {total_prize:.2f} ETB"
+                        success_msg = f"🏆 *WINNER!* \n👤 Name: {w['username']} | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket_num']} \n🎯 Winning Ball: {w['winning_ball']} \n💰 Prize Won: {total_prize:.2f} ETB"
                         send_telegram(success_msg)
                     else:
                         share_prize = total_prize / num_winners
@@ -695,7 +703,7 @@ def claim_bingo():
                                 gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
                             winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
                         
-                        success_msg = f"🏆 *WINNERS (Shared Prize)!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
+                        success_msg = f"🏆 *WINNERS (Shared Prize on Ball {pending_claims[0]['winning_ball']})!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
                         send_telegram(success_msg)
                         
                     broadcast_game_state()
@@ -714,11 +722,16 @@ def claim_bingo():
 
                 socketio.start_background_task(countdown_and_reset)
 
-            socketio.start_background_task(process_claims_after_window)
+            socketio.start_background_task(process_claims_by_ball)
         else:
             already_exists = any(c["phone"] == db_phone for c in pending_claims)
             if not already_exists:
                 pending_claims.append(claim_info)
+
+    elif game_state["status"] == "result" and claim_lock_active:
+        already_exists = any(c["phone"] == db_phone for c in pending_claims)
+        if not already_exists:
+            pending_claims.append(claim_info)
 
     return jsonify({"success": True})
 
