@@ -418,76 +418,23 @@ def game_loop():
                     broadcast_game_state() 
                     socketio.sleep(1)
 
-                # -- እዚህ ጋር በመጨረሻው ኳስ (በጋራ ወይም በአንድ ጊዜ) አሸናፊዎችን የመለየት ሎጂክ ተሻሽሏል --
-                winners_in_this_ball = []
-
                 for b in shuffled:
                     if game_state["status"] != "playing": 
                         break
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
-
-                    # ኳስ ሲወጣ በሂደት ላይ ያሉትን ተጫዋቾች ካርቴላዎች በሙሉ እንፈትሻለን
-                    potential_winners = []
-                    for p_phone, p_data in game_state["players"].items():
-                        for t_num, card in p_data["cards"].items():
-                            win_indices, line_type = check_winning_line(card, game_state["drawn_balls"])
-                            if win_indices is not None:
-                                potential_winners.append({
-                                    "phone": p_phone,
-                                    "username": p_data["username"],
-                                    "ticket_num": str(t_num),
-                                    "card": card,
-                                    "indices": win_indices,
-                                    "line_name": line_type
-                                })
-                    
-                    if potential_winners:
-                        winners_in_this_ball = potential_winners
-                        break # አሸናፊ(ዎች) ከተገኙ ኳስ መሳቡ ይቆማል
-
                     broadcast_game_state() 
                     socketio.sleep(4) 
             
+            # ኳሶች ተጠቅልለው ካለቁ እና ማንም 'ቢንጎ' ሳይል ሰዓቱ ካለቀ ጨዋታው ያለ አሸናፊ ይጠናቀቃል
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
-                
-                if 'winners_in_this_ball' in locals() and winners_in_this_ball:
-                    # አሸናፊዎች አሉ (አንድ ወይም ከዛ በላይ በጋራ ያሸነፉ)
-                    total_prize = game_state["pot"] * 0.8
-                    share_prize = total_prize / len(winners_in_this_ball)
-                    
-                    first_winner = winners_in_this_ball[0]
-                    game_state["winner"] = f"{first_winner['username']} etc." if len(winners_in_this_ball) > 1 else first_winner["username"]
-                    game_state["winning_card"] = first_winner["card"]
-                    game_state["winning_ticket_num"] = first_winner["ticket_num"]
-                    game_state["winning_indices"] = first_winner["indices"]
-                    game_state["winning_line_name"] = first_winner["line_name"]
-
-                    def background_multi_win_task():
-                        winner_texts = []
-                        for w in winners_in_this_ball:
-                            w_res = wallets.find_one_and_update(
-                                {"phone": w["phone"]}, 
-                                {"$inc": {"balance": share_prize}}, 
-                                return_document=True
-                            )
-                            if w_res:
-                                gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
-                            winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
-                        
-                        success_msg = f"🏆 *WINNERS (Shared Prize)!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({len(winners_in_this_ball)} winners)\n" + "\n".join(winner_texts)
-                        send_telegram(success_msg)
-                        broadcast_game_state()
-
-                    gevent.spawn(background_multi_win_task)
-                else:
-                    game_state["winner"] = "No Winner (House)"
-                    game_state["winning_card"] = None
-                    game_state["winning_ticket_num"] = None
-                    game_state["winning_indices"] = None
-                    game_state["winning_line_name"] = None
-                    send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
+                game_state["winner"] = "No Winner (House)"
+                game_state["winning_card"] = None
+                game_state["winning_ticket_num"] = None
+                game_state["winning_indices"] = None
+                game_state["winning_line_name"] = None
+                send_telegram("ℹ️ ጨዋታው ያለ አሸናፊ ተጠናቋል።")
                 
                 def house_countdown_and_reset():
                     for t in range(10, -1, -1):
@@ -689,28 +636,66 @@ def claim_bingo():
     if not valid_win_found:
         return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
         
+    # ተጠቃሚው 'ቢንጎ' ሲጫን እና ትክክለኛ ሆኖ ሲገኝ ጨዋታውን ወደ 'result' እንለውጣለን
     if game_state["status"] == "playing":
         game_state["status"] = "result"
         game_state["timer"] = 10
-        game_state["winner"] = p_data["username"]
+        
+        # በዚሁ ቅጽበት (በዚህ ሰዓት) ቢንጎ ያሉት ሌሎች ተጫዋቾች ካሉ እንፈትሻለን (Tie ለመለየት)
+        all_current_winners = []
+        for other_phone, other_data in game_state["players"].items():
+            for ot_num, o_card in other_data["cards"].items():
+                # ተጫዋቹ የራሱን ካርቴላ መስመሮች አሟልቶ እንደሆነ በድጋሚ እናረጋግጣለን
+                o_win_indices, o_line_type = check_winning_line(o_card, game_state["drawn_balls"])
+                if o_win_indices is not None:
+                    all_current_winners.append({
+                        "phone": other_phone,
+                        "username": other_data["username"],
+                        "ticket_num": str(ot_num),
+                        "card": o_card,
+                        "indices": o_win_indices,
+                        "line_name": o_line_type
+                    })
+        
+        # ድምር 80% ሽልማት
+        total_prize = game_state["pot"] * 0.8  
+        num_winners = len(all_current_winners) if all_current_winners else 1
+        share_prize = total_prize / num_winners
+
+        # የሽልማት መግለጫዎችን ለ UI ማዘጋጀት
+        game_state["winner"] = f"{p_data['username']} etc." if num_winners > 1 else p_data["username"]
         game_state["winning_card"] = winning_card_data  
         game_state["winning_ticket_num"] = winning_ticket_num 
         game_state["winning_indices"] = winning_indices_list
         game_state["winning_line_name"] = winning_line_type 
 
-        total_prize = game_state["pot"] * 0.8  # 80% ለድል አድራጊው
-
         def background_win_task():
-            win_res = wallets.find_one_and_update(
-                {"phone": db_phone}, 
-                {"$inc": {"balance": total_prize}}, 
-                return_document=True
-            )
-            if win_res:
-                gevent.spawn(notify_user_balance_update, db_phone, win_res.get("balance", 0))
-            
-            success_msg = f"🏆 *WINNER!* \n👤 Name: {p_data['username']} | 📞 Phone: `{db_phone}` | 🎫 Ticket: {winning_ticket_num} \n💰 Prize Won: {total_prize:.2f} ETB"
-            send_telegram(success_msg)
+            if num_winners > 1:
+                winner_texts = []
+                for w in all_current_winners:
+                    w_res = wallets.find_one_and_update(
+                        {"phone": w["phone"]}, 
+                        {"$inc": {"balance": share_prize}}, 
+                        return_document=True
+                    )
+                    if w_res:
+                        gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
+                    winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
+                
+                success_msg = f"🏆 *WINNERS (Shared Prize)!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
+                send_telegram(success_msg)
+            else:
+                win_res = wallets.find_one_and_update(
+                    {"phone": db_phone}, 
+                    {"$inc": {"balance": total_prize}}, 
+                    return_document=True
+                )
+                if win_res:
+                    gevent.spawn(notify_user_balance_update, db_phone, win_res.get("balance", 0))
+                
+                success_msg = f"🏆 *WINNER!* \n👤 Name: {p_data['username']} | 📞 Phone: `{db_phone}` | 🎫 Ticket: {winning_ticket_num} \n💰 Prize Won: {total_prize:.2f} ETB"
+                send_telegram(success_msg)
+                
             broadcast_game_state()
 
         gevent.spawn(background_win_task)
