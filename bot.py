@@ -50,6 +50,8 @@ game_state = {
 
 loop_started = False
 reset_task_reference = None
+pending_claims = []
+claim_lock_active = False
 
 def sanitize_input(text):
     if not text:
@@ -377,8 +379,10 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
     return None, None
 
 def reset_game():
-    global reset_task_reference
+    global reset_task_reference, claim_lock_active, pending_claims
     reset_task_reference = None
+    claim_lock_active = False
+    pending_claims = []
     game_state.update({
         "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, 
         "winning_indices": None, "winning_line_name": None, "pot": 0, "players": {}, 
@@ -596,6 +600,7 @@ def cancel_ticket():
 
 @app.route('/claim_bingo', methods=['POST'])
 def claim_bingo():
+    global claim_lock_active, pending_claims
     d = request.json or {}
     ph = sanitize_input(d.get('phone'))
     marked_0 = d.get('marked_0', [])
@@ -635,96 +640,86 @@ def claim_bingo():
     if not valid_win_found:
         return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
         
-    # የመጀመሪያው ተጫዋች "ቢንጎ" ሲል ወይም ጨዋታው በሂደት ላይ (playing) ሲሆን
+    claim_info = {
+        "phone": db_phone,
+        "username": p_data["username"],
+        "ticket_num": str(winning_ticket_num),
+        "card": winning_card_data,
+        "indices": winning_indices_list,
+        "line_name": winning_line_type
+    }
+
     if game_state["status"] == "playing":
-        game_state["status"] = "result"
-        game_state["timer"] = 10
-        
-        # 1. መጀመሪያ "ቢንጎ" ማለቱን ያረጋገጠውን (የተጫነውን) ሰውን ብቻ እንይዛለን
-        first_winner = {
-            "phone": db_phone,
-            "username": p_data["username"],
-            "ticket_num": str(winning_ticket_num),
-            "card": winning_card_data,
-            "indices": winning_indices_list,
-            "line_name": winning_line_type
-        }
-        
-        all_current_winners = [first_winner]
-        
-        # 2. በዚሁ ቅጽበት (በዚያው ሰከንድ) ሌሎች ተጫዋቾችም ቢንጎ ካላቸው (በተመሳሳይ ኳስ ያሸነፉ ካሉ) እንፈትሻለን
-        for other_phone, other_data in game_state["players"].items():
-            if other_phone == db_phone:
-                continue # ራሱን መዝለል
-                
-            for ot_num, o_card in other_data["cards"].items():
-                o_win_indices, o_line_type = check_winning_line(o_card, game_state["drawn_balls"])
-                if o_win_indices is not None:
-                    all_current_winners.append({
-                        "phone": other_phone,
-                        "username": other_data["username"],
-                        "ticket_num": str(ot_num),
-                        "card": o_card,
-                        "indices": o_win_indices,
-                        "line_name": o_line_type
-                    })
-        
-        total_prize = game_state["pot"] * 0.8  # 80% የድል ድምር
-        num_winners = len(all_current_winners)
+        if not claim_lock_active:
+            claim_lock_active = True
+            game_state["status"] = "result"
+            game_state["timer"] = 10
+            pending_claims = [claim_info]
 
-        # የድል መረጃውን ለ UI ማዘጋጀት
-        game_state["winner"] = f"{p_data['username']} etc." if num_winners > 1 else p_data["username"]
-        game_state["winning_card"] = winning_card_data  
-        game_state["winning_ticket_num"] = winning_ticket_num 
-        game_state["winning_indices"] = winning_indices_list
-        game_state["winning_line_name"] = winning_line_type 
+            def process_claims_after_window():
+                global claim_lock_active, pending_claims
+                socketio.sleep(0.8)
 
-        def background_win_task():
-            if num_winners == 1:
-                # --- ሁኔታ A: አንድ ሰው ብቻ ሲያሸንፍ (80%ቱን ሙሉውን ይሰጠዋል) ---
-                win_res = wallets.find_one_and_update(
-                    {"phone": db_phone}, 
-                    {"$inc": {"balance": total_prize}}, 
-                    return_document=True
-                )
-                if win_res:
-                    gevent.spawn(notify_user_balance_update, db_phone, win_res.get("balance", 0))
-                
-                success_msg = f"🏆 *WINNER!* \n👤 Name: {p_data['username']} | 📞 Phone: `{db_phone}` | 🎫 Ticket: {winning_ticket_num} \n💰 Prize Won: {total_prize:.2f} ETB"
-                send_telegram(success_msg)
-            else:
-                # --- ሁኔታ B: ከሁለት እና ከዚያ በላይ አሸናፊዎች ሲኖሩ (80%ቱን እኩል ይካፈላሉ) ---
-                share_prize = total_prize / num_winners
-                winner_texts = []
-                for w in all_current_winners:
-                    w_res = wallets.find_one_and_update(
-                        {"phone": w["phone"]}, 
-                        {"$inc": {"balance": share_prize}}, 
-                        return_document=True
-                    )
-                    if w_res:
-                        gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
-                    winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
-                
-                success_msg = f"🏆 *WINNERS (Shared Prize)!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
-                send_telegram(success_msg)
-                
-            broadcast_game_state()
+                total_prize = game_state["pot"] * 0.8  
+                num_winners = len(pending_claims)
 
-        gevent.spawn(background_win_task)
+                game_state["winner"] = f"{pending_claims[0]['username']} etc." if num_winners > 1 else pending_claims[0]["username"]
+                game_state["winning_card"] = pending_claims[0]["card"]  
+                game_state["winning_ticket_num"] = pending_claims[0]["ticket_num"] 
+                game_state["winning_indices"] = pending_claims[0]["indices"]
+                game_state["winning_line_name"] = pending_claims[0]["line_name"] 
 
-        def countdown_and_reset():
-            for t in range(10, -1, -1):
-                if game_state["status"] != "result":
-                    return
-                game_state["timer"] = t
-                broadcast_game_state()
-                socketio.sleep(1)
-            reset_game()
+                def background_win_task():
+                    if num_winners == 1:
+                        w = pending_claims[0]
+                        win_res = wallets.find_one_and_update(
+                            {"phone": w["phone"]}, 
+                            {"$inc": {"balance": total_prize}}, 
+                            return_document=True
+                        )
+                        if win_res:
+                            gevent.spawn(notify_user_balance_update, w["phone"], win_res.get("balance", 0))
+                        
+                        success_msg = f"🏆 *WINNER!* \n👤 Name: {w['username']} | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket_num']} \n💰 Prize Won: {total_prize:.2f} ETB"
+                        send_telegram(success_msg)
+                    else:
+                        share_prize = total_prize / num_winners
+                        winner_texts = []
+                        for w in pending_claims:
+                            w_res = wallets.find_one_and_update(
+                                {"phone": w["phone"]}, 
+                                {"$inc": {"balance": share_prize}}, 
+                                return_document=True
+                            )
+                            if w_res:
+                                gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
+                            winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
+                        
+                        success_msg = f"🏆 *WINNERS (Shared Prize)!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
+                        send_telegram(success_msg)
+                        
+                    broadcast_game_state()
 
-        global reset_task_reference
-        reset_task_reference = socketio.start_background_task(countdown_and_reset)
-        
+                gevent.spawn(background_win_task)
+
+                def countdown_and_reset():
+                    global claim_lock_active, pending_claims
+                    for t in range(10, -1, -1):
+                        if game_state["status"] != "result":
+                            return
+                        game_state["timer"] = t
+                        broadcast_game_state()
+                        socketio.sleep(1)
+                    reset_game()
+
+                socketio.start_background_task(countdown_and_reset)
+
+            socketio.start_background_task(process_claims_after_window)
+        else:
+            already_exists = any(c["phone"] == db_phone for c in pending_claims)
+            if not already_exists:
+                pending_claims.append(claim_info)
+
     return jsonify({"success": True})
 
 @socketio.on('connect')
