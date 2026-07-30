@@ -95,6 +95,36 @@ def broadcast_game_state():
 def notify_user_balance_update(phone_num, new_balance):
     socketio.emit('balance_update', {"phone": phone_num, "balance": new_balance})
 
+# --- DEPOSIT REQUEST ENDPOINT (የተጨመረው ክፍል) ---
+@app.route('/request_deposit', methods=['POST'])
+def request_deposit():
+    d = request.json or {}
+    ph = sanitize_input(str(d.get('phone')))
+    amt = d.get('amount')
+    t_id = sanitize_input(d.get('transaction_id', 'N/A'))
+    
+    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    db_phone = user["phone"] if user else ph
+    
+    #  መैसेጅ (Message) ለኤጀንት ወይም ለአስተዳዳሪ ማዘጋጀት
+    if user and "referred_by" in user:
+        agent_phone = user["referred_by"]
+        msg = (f"👤 **አዲስ ተመዝጋቢ በኤጀንት!**\n\n"
+               f"📝 ስም: `{user.get('username', 'N/A')}`\n"
+               f"🆔 ስልክ: `{db_phone}`\n"
+               f"💵 መጠን: `{amt}` ETB\n"
+               f"📲 ያመጣው ኤጀንት (ስልክ): **{agent_phone}**\n\n"
+               f"👇 Approve ለማድረግ:\n`/add {db_phone} {amt}`")
+    else:
+        msg = (f"💰 *Deposit Request*\n"
+               f"📞 Phone: `{db_phone}`\n"
+               f"💵 Amount: `{amt}` ETB\n"
+               f"🆔 ID: `{t_id}`\n\n"
+               f"👇 Approve:\n`/add {db_phone} {amt}`")
+               
+    send_telegram(msg)
+    return jsonify({"success": True})
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -601,7 +631,7 @@ def claim_bingo():
             winning_card_data = card
             winning_line_type = line_type
             winning_indices_list = win_indices
-            break  
+            break 
             
     if not valid_win_found:
         return jsonify({"success": False, "msg": "ቢንጎ አልሞላም!"})
@@ -615,7 +645,7 @@ def claim_bingo():
         game_state["winning_indices"] = winning_indices_list
         game_state["winning_line_name"] = winning_line_type 
 
-        total_prize = game_state["pot"] * 0.8  
+        total_prize = game_state["pot"] * 0.8  # 80% ለድል አድራጊው
 
         def background_win_task():
             win_res = wallets.find_one_and_update(
