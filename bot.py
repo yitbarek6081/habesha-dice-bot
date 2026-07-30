@@ -671,7 +671,7 @@ def claim_bingo():
                 total_prize = game_state["pot"] * 0.8  
                 num_winners = len(pending_claims)
 
-                game_state["winner"] = ", ".join([c["username"] for c in pending_claims]) if num_winners > 1 else pending_claims[0]["username"]
+                game_state["winner"] = f"{pending_claims[0]['username']} etc." if num_winners > 1 else pending_claims[0]["username"]
                 game_state["winning_card"] = pending_claims[0]["card"]  
                 game_state["winning_ticket_num"] = pending_claims[0]["ticket_num"] 
                 game_state["winning_indices"] = pending_claims[0]["indices"]
@@ -731,7 +731,7 @@ def claim_bingo():
     elif game_state["status"] == "result" and claim_lock_active:
         already_exists = any(c["phone"] == db_phone for c in pending_claims)
         if not already_exists:
-                    pending_claims.append(claim_info)
+            pending_claims.append(claim_info)
 
     return jsonify({"success": True})
 
