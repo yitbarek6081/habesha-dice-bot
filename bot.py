@@ -126,7 +126,6 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
-# --- ተጠቃሚዎች በቀጥታ ከድረ-ገጹ ገንዘብ ለማስተላለፍ የሚያስችለው endpoint ---
 @app.route('/request_transfer', methods=['POST'])
 def request_transfer():
     d = request.json or {}
@@ -153,14 +152,12 @@ def request_transfer():
     if db_sender_phone == receiver_ph:
         return jsonify({"success": False, "msg": "ለራስዎ ገንዘብ ማስተላለፍ አይችሉም!"})
 
-    # ከላኪው ባላንስ ገንዘቡን አውቶማቲክ መቀነስ
     sender_res = wallets.find_one_and_update(
         {"phone": db_sender_phone}, 
         {"$inc": {"balance": -amt}}, 
         return_document=True
     )
     
-    # ለአድሚኑ ማሳወቂያ መላክ
     msg = (f"💸 *Direct Transfer Request*\n"
            f"📤 ላኪ: `{db_sender_phone}`\n"
            f"📥 ተቀባይ: `{receiver_ph}`\n"
@@ -304,100 +301,24 @@ def webhook():
                     send_telegram("❌ አጠቃቀም፦ `/transfer ላኪ_ስልክ ተቀባይ_ስልክ መጠን`")
                 return "OK", 200
 
+        # በጽሁፍ የሚደረግ ምዝገባ ሙሉ በሙሉ ተነስቶ፣ ተጠቃሚው /start ሲሉ በቀጥታ Web App መክፈቻ ቁልፍ (Button) ብቻ እንዲሰጣቸው ተደርጓል
         if msg.startswith("/start"):
             parts = msg.split()
             agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
             
-            already_registered = wallets.find_one({"$or": [{"telegram_id": chat_id}, {"phone": chat_id}]})
+            # ካለፈው የተረፈ ኤጀንት ኮድ ካለ በ തற்காலிக (Temporary) ወይም በSession መልክ መያዝ ከፈለጉ ማስቀመጥ ይቻላል፣ 
+            # አሁን ግን በቀጥታ የድረ-ገጽ (Web App) ሊንክ መላክ ይቻላል።
             
-            if already_registered:
-                webapp_keyboard = {
-                    "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ", "web_app": {"url": WEB_APP_URL}}]]
-                }
-                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                requests.post(url, json={
-                    "chat_id": chat_id, 
-                    "text": f"ℹ️ ሰላም {already_registered.get('username', 'ተጫዋች')}! ቀድመው የተመዘገቡ ነባር ተጫዋች ነዎት። ባላንስዎ፦ {already_registered.get('balance', 0)} ETB ነው። በቀጥታ መጫወት ይችላሉ!", 
-                    "reply_markup": webapp_keyboard
-                })
-                return "OK", 200
-
-            reg_session = {
-                "phone": f"TEMP_{chat_id}", 
-                "telegram_id": chat_id,
-                "reg_status": "awaiting_phone",
-                "balance": 0
+            webapp_keyboard = {
+                "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ (Open Web App)", "web_app": {"url": WEB_APP_URL}}]]
             }
-            if agent_phone:
-                reg_session["referred_by"] = agent_phone
-            
-            wallets.delete_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
-            wallets.insert_one(reg_session)
-
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             requests.post(url, json={
                 "chat_id": chat_id, 
-                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nየተደራሽነት እና የክፍያ ሂደቱን ለማቅለል፤ እባክዎ **የተጫዋች (የመጫወቻ) ወይም የቴሌብር/ሲቢኢ ብር** ስልክ ቁጥርዎን ያስገቡ፦"
+                "text": "👋 እንኳን ወደ BESH BINGO በደህና መጡ!\n\nለመጫወት እና ለመመዝገብ ከታች ያለውን ቁልፍ ይጫኑ፦", 
+                "reply_markup": webapp_keyboard
             })
             return "OK", 200
-
-        session = wallets.find_one({"telegram_id": chat_id, "reg_status": {"$exists": True}})
-        
-        if session:
-            current_status = session.get("reg_status")
-            
-            if current_status == "awaiting_phone":
-                clean_phone = msg.replace("+", "").replace(" ", "")
-                if not clean_phone.isdigit() or len(clean_phone) < 9:
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ እባክዎ ትክክለኛ የስልክ ቁጥር ብቻ በቁጥር ያስገቡ (ምሳሌ: 0912345678)፦"})
-                    return "OK", 200
-
-                duplicate_phone = wallets.find_one({"phone": clean_phone})
-                if duplicate_phone:
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ ይህ ስልክ ቁጥር ቀድሞ ተመዝግቧል። እባክዎ ሌላ ቁጥር ያስገቡ፦"})
-                    return "OK", 200
-
-                wallets.update_one(
-                    {"telegram_id": chat_id}, 
-                    {"$set": {"phone": clean_phone, "reg_status": "awaiting_name"}}
-                )
-                
-                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                requests.post(url, json={"chat_id": chat_id, "text": "✅ ስልክ ቁጥርዎ ተቀብለናል።\n\nቀጥሎ ደግሞ ድረ-ገጹ ላይ የሚታየውን **የተጫዋች ስምዎን (የመጫወቻ ስም)** ያስገቡ፦"})
-                return "OK", 200
-
-            elif current_status == "awaiting_name":
-                player_name = sanitize_input(msg)
-                if len(player_name) < 2:
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={"chat_id": chat_id, "text": "❌ ስምዎ በጣም አጭር ነው። እባክዎ ድጋሚ ያስገቡ፦"})
-                    return "OK", 200
-
-                wallets.update_one(
-                    {"telegram_id": chat_id}, 
-                    {"$set": {"phone": session["phone"].replace("TEMP_", ""), "username": player_name}, "$unset": {"reg_status": ""}}
-                )
-                
-                final_user = wallets.find_one({"telegram_id": chat_id})
-                agent_phone = final_user.get("referred_by", "የለውም")
-
-                webapp_keyboard = {
-                    "inline_keyboard": [[{"text": "🎮 ጨዋታውን ክፈት (Open Game)", "web_app": {"url": WEB_APP_URL}}]]
-                }
-                
-                success_text = f"🎉 እንኳን ደስ አለዎት! ምዝገባዎ ሙሉ በሙሉ ተጠናቋል።\n\n👤 ስም: {player_name}\n📱 ስልክ: {final_user['phone']}\n\nአሁን ታች ያለውን ቁልፍ ተጭነው መጫወት ይችላሉ!"
-                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                requests.post(url, json={
-                    "chat_id": chat_id, 
-                    "text": success_text, 
-                    "reply_markup": webapp_keyboard
-                })
-                
-                send_telegram(f"🎉 *አዲስ ተጫዋች በጽሑፍ ተመዘገበ!*\n👤 ስም: `{player_name}`\n📞 ስልክ: `{final_user['phone']}`\n🔗 ኤጀንት: `{agent_phone}`")
-                gevent.spawn(broadcast_game_state) 
-                return "OK", 200
 
     return "OK", 200
 
@@ -413,21 +334,11 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
 
     try:
-        temp_user = wallets.find_one({"phone": f"TEMP_{clean_phone}"})
-        if not temp_user:
-            temp_user = wallets.find_one({"phone": clean_phone})
-
-        if temp_user:
-            wallets.update_one(
-                {"_id": temp_user["_id"]},
-                {
-                    "$set": {"phone": clean_phone, "username": input_username},
-                    "$unset": {"reg_status": ""}
-                }
-            )
-            updated_user = wallets.find_one({"_id": temp_user["_id"]})
+        existing = wallets.find_one({"phone": clean_phone})
+        if existing:
+            wallets.update_one({"phone": clean_phone}, {"$set": {"username": input_username}})
             gevent.spawn(broadcast_game_state)
-            return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": updated_user.get("balance", 0)})
+            return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": existing.get("balance", 0)})
         else:
             new_user = {"phone": clean_phone, "username": input_username, "balance": 0}
             wallets.insert_one(new_user)
