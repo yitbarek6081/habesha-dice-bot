@@ -57,7 +57,7 @@ claim_lock_active = False
 def sanitize_input(text):
     if not text:
         return ""
-    return re.sub(r'[^\w\s\-\+\.@]', '', str(text)).strip()
+    return re.sub(r'[^\w\s\-\\.\@]', '', str(text)).strip()
 
 def send_telegram(text):
     def _send():
@@ -98,7 +98,6 @@ def broadcast_game_state():
 def notify_user_balance_update(phone_num, new_balance):
     socketio.emit('balance_update', {"phone": phone_num, "balance": new_balance})
 
-# --- DEPOSIT REQUEST ENDPOINT ---
 @app.route('/request_deposit', methods=['POST'])
 def request_deposit():
     d = request.json or {}
@@ -232,51 +231,6 @@ def webhook():
                 gevent.spawn(broadcast_game_state) 
                 return "OK", 200
 
-        if chat_id == ADMIN_ID:
-            if msg.startswith("/add"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 3:
-                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
-                        if amount > 0:
-                            user = wallets.find_one({"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]})
-                            if user:
-                                updated = wallets.find_one_and_update(
-                                    {"_id": user["_id"]}, 
-                                    {"$inc": {"balance": amount}},
-                                    return_document=True
-                                )
-                                gevent.spawn(notify_user_balance_update, target_phone, updated.get("balance", 0))
-                            else:
-                                wallets.insert_one({
-                                    "phone": target_phone, 
-                                    "balance": amount, 
-                                    "username": f"User_{target_phone[-4:]}"
-                                })
-                                gevent.spawn(notify_user_balance_update, target_phone, amount)
-                            send_telegram(f"✅ ለ `{target_phone}` {amount} ETB ተጨምሯል።")
-                            gevent.spawn(broadcast_game_state) 
-                except:
-                    send_telegram("❌ ስህተት! ፎርማቱ: `/add ስልክ መጠን`")
-            
-            elif msg.startswith("/sub"):
-                try:
-                    parts = msg.split()
-                    if len(parts) == 3:
-                        target_phone, amount = sanitize_input(parts[1]), float(parts[2])
-                        if amount > 0:
-                            updated = wallets.find_one_and_update(
-                                {"$or": [{"phone": target_phone}, {"telegram_id": target_phone}]}, 
-                                {"$inc": {"balance": -amount}},
-                                return_document=True
-                            )
-                            if updated:
-                                gevent.spawn(notify_user_balance_update, target_phone, updated.get("balance", 0))
-                            send_telegram(f"⚠️ ከ `{target_phone}` {amount} ETB ተቀንሷል።")
-                            gevent.spawn(broadcast_game_state) 
-                except:
-                    send_telegram("❌ ስህተት! ፎርማቱ: `/sub ስልክ መጠን`")
-
     return "OK", 200
 
 @app.route('/register_or_login', methods=['POST'])
@@ -404,7 +358,7 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            # ቢያንስ 2 ተጫዋቾች መኖራቸውን ማረጋገጫ
+            # ተጫዋቾቹ ከሁለት ካነሱ ጨዋታውን ማቆም ሳይሆን 30 ሰከንዱ እንደገና እንዲጀምር የተደረገ ማስተካከያ[cite: 13, 14, 15]
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -413,7 +367,6 @@ def game_loop():
                 random.shuffle(shuffled)
                 broadcast_game_state()
             else:
-                # ከ 2 ሰው በታች ከሆነ ጨዋታው አይጀምርም, ሰዓቱ እንደገና ወደ 30 ይመለሳል
                 game_state["timer"] = 30
                 broadcast_game_state()
                 continue
@@ -429,7 +382,6 @@ def game_loop():
                 for b in shuffled:
                     if game_state["status"] != "playing": 
                         break
-                    # ጨዋታው እየተጫወተ እስከ ዜሮ ኳስ ድረስ ቢያንስ 2 ተጫዋች መኖሩን ማረጋገጥ
                     if len(game_state["players"]) < 2:
                         game_state["status"] = "result"
                         game_state["winner"] = "No Winner (Insufficient Players)"
@@ -680,13 +632,18 @@ def claim_bingo():
 
             def process_claims_by_ball():
                 global claim_lock_active, pending_claims
-                # በትክክል 1.5 ሰከንድ (1.5 seconds) ውስጥ አረጋግጦ ማሳወቅ
                 socketio.sleep(1.5)
 
                 total_prize = game_state["pot"] * 0.8  
                 num_winners = len(pending_claims)
 
-                game_state["winner"] = f"{pending_claims[0]['username']} etc." if num_winners > 1 else pending_claims[0]["username"]
+                if num_winners == 1:
+                    winner_display = pending_claims[0]["username"]
+                else:
+                    winner_names = [c["username"] for c in pending_claims]
+                    winner_display = " & ".join(winner_names)
+
+                game_state["winner"] = winner_display
                 game_state["winning_card"] = pending_claims[0]["card"]  
                 game_state["winning_ticket_num"] = pending_claims[0]["ticket_num"] 
                 game_state["winning_indices"] = pending_claims[0]["indices"]
