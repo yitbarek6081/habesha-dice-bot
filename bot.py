@@ -210,7 +210,7 @@ def webhook():
 
                 wallets.update_one(
                     {"telegram_id": chat_id}, 
-                    {"$set": {"username": player_name}, "$unset": {"reg_status": ""}}
+                    {"$set": {"phone": session["phone"].replace("TEMP_", ""), "username": player_name}, "$unset": {"reg_status": ""}}
                 )
                 
                 final_user = wallets.find_one({"telegram_id": chat_id})
@@ -404,16 +404,19 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
+            # ቢያንስ 2 ተጫዋቾች መኖራቸውን ማረጋገጫ
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
                 game_state["ball_timer"] = 3
                 shuffled = balls.copy()
                 random.shuffle(shuffled)
+                broadcast_game_state()
             else:
+                # ከ 2 ሰው በታች ከሆነ ጨዋታው አይጀምርም, ሰዓቱ እንደገና ወደ 30 ይመለሳል
                 game_state["timer"] = 30
-                shuffled = []
-            broadcast_game_state()
+                broadcast_game_state()
+                continue
 
             if shuffled:
                 for j in range(3, -1, -1):
@@ -426,6 +429,17 @@ def game_loop():
                 for b in shuffled:
                     if game_state["status"] != "playing": 
                         break
+                    # ጨዋታው እየተጫወተ እስከ ዜሮ ኳስ ድረስ ቢያንስ 2 ተጫዋች መኖሩን ማረጋገጥ
+                    if len(game_state["players"]) < 2:
+                        game_state["status"] = "result"
+                        game_state["winner"] = "No Winner (Insufficient Players)"
+                        game_state["winning_card"] = None
+                        game_state["winning_ticket_num"] = None
+                        game_state["winning_indices"] = None
+                        game_state["winning_line_name"] = None
+                        send_telegram("ℹ️ ተጫዋቾች ከሁለት ስለወረዱ ጨዋታው ተቋርጧል።")
+                        break
+
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
                     broadcast_game_state() 
@@ -666,7 +680,8 @@ def claim_bingo():
 
             def process_claims_by_ball():
                 global claim_lock_active, pending_claims
-                socketio.sleep(1.0)
+                # በትክክል 1.5 ሰከንድ (1.5 seconds) ውስጥ አረጋግጦ ማሳወቅ
+                socketio.sleep(1.5)
 
                 total_prize = game_state["pot"] * 0.8  
                 num_winners = len(pending_claims)
