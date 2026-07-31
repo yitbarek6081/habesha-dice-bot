@@ -178,6 +178,7 @@ def webhook():
         msg = data["message"]["text"].strip()
         chat_id = str(data["message"]["chat"]["id"])
 
+        # ትዕዛዞቹ ለአድሚን ብቻ እንዲሰሩ የተደረገ ማረጋገጫ (Strict Admin Authorization Check)
         if chat_id == ADMIN_ID:
             if msg.startswith("/all") or msg.startswith("/all_balances"):
                 all_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}}}))
@@ -215,9 +216,9 @@ def webhook():
                 parts = msg.split()
                 if len(parts) > 1:
                     target_ph = sanitize_input(parts[1])
-                    res = wallets.deleteOne({"phone": target_ph})
+                    res = wallets.delete_one({"phone": target_ph})
                     if res.deleted_count > 0:
-                        send_telegram(f"🗑️ ስልክ ቁጥሩ `{target_ph}` ከዳታቤዝ ተሰርዟል።")
+                        send_telegram(f"🗑️ ስልክ ቁጥሩ `{target_ph}` ከዳታቤዝ ሙሉ በሙሉ ተሰርዟል (ኤጀንቱ/ተጠቃሚው ታግዷል)።")
                     else:
                         send_telegram("❌ ተጠቃሚው አልተገኘም!")
                 return "OK", 200
@@ -270,44 +271,9 @@ def webhook():
                     send_telegram("❌ እባክዎ የኤጀንቱን ስልክ ቁጥር ያስገቡ (ምሳሌ: `/agent_players 0912345678`)")
                 return "OK", 200
 
-            elif msg.startswith("/transfer"):
-                parts = msg.split()
-                if len(parts) > 3:
-                    sender_ph = sanitize_input(parts[1])
-                    receiver_ph = sanitize_input(parts[2])
-                    try:
-                        amt = float(parts[3])
-                        sender = wallets.find_one({"phone": sender_ph})
-                        if not sender or sender.get("balance", 0) < amt:
-                            send_telegram("❌ ላኪው ተጠቃሚ አልተገኘም ወይም በቂ ባላንስ የለውም!")
-                            return "OK", 200
-                        
-                        receiver = wallets.find_one({"phone": receiver_ph})
-                        if not receiver:
-                            send_telegram("❌ ተቀባዩ ተጠቃሚ አልተገኘም!")
-                            return "OK", 200
-
-                        wallets.update_one({"phone": sender_ph}, {"$inc": {"balance": -amt}})
-                        up_recv = wallets.find_one_and_update({"phone": receiver_ph}, {"$inc": {"balance": amt}}, return_document=True)
-                        
-                        updated_sender = wallets.find_one({"phone": sender_ph})
-                        notify_user_balance_update(sender_ph, updated_sender.get('balance', 0))
-                        notify_user_balance_update(receiver_ph, up_recv.get('balance', 0))
-
-                        send_telegram(f"✅ በተሳካ ሁኔታ {amt} ETB ከ `{sender_ph}` ወደ `{receiver_ph}` ተዘዋውሯል!")
-                    except ValueError:
-                        send_telegram("❌ ትክክለኛ የገንዘብ መጠን ያስገቡ!")
-                else:
-                    send_telegram("❌ አጠቃቀም፦ `/transfer ላኪ_ስልክ ተቀባይ_ስልክ መጠን`")
-                return "OK", 200
-
-        # በጽሁፍ የሚደረግ ምዝገባ ሙሉ በሙሉ ተነስቶ፣ ተጠቃሚው /start ሲሉ በቀጥታ Web App መክፈቻ ቁልፍ (Button) ብቻ እንዲሰጣቸው ተደርጓል
         if msg.startswith("/start"):
             parts = msg.split()
             agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
-            
-            # ካለፈው የተረፈ ኤጀንት ኮድ ካለ በ തற்காலிக (Temporary) ወይም በSession መልክ መያዝ ከፈለጉ ማስቀመጥ ይቻላል፣ 
-            # አሁን ግን በቀጥታ የድረ-ገጽ (Web App) ሊንክ መላክ ይቻላል።
             
             webapp_keyboard = {
                 "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ (Open Web App)", "web_app": {"url": WEB_APP_URL}}]]
