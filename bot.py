@@ -126,6 +126,51 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
+# --- ተጠቃሚዎች በቀጥታ ከድረ-ገጹ ገንዘብ ለማስተላለፍ የሚያስችለው endpoint ---
+@app.route('/request_transfer', methods=['POST'])
+def request_transfer():
+    d = request.json or {}
+    sender_ph = sanitize_input(d.get('phone'))
+    receiver_ph = sanitize_input(d.get('receiver_phone'))
+    try:
+        amt = float(d.get('amount', 0))
+    except ValueError:
+        return jsonify({"success": False, "msg": "ትክክለኛ የገንዘብ መጠን ያስገቡ!"})
+
+    if amt <= 0:
+        return jsonify({"success": False, "msg": "እባክዎ ትክክለኛ የብር መጠን ያስገቡ!"})
+
+    sender = wallets.find_one({"$or": [{"phone": sender_ph}, {"telegram_id": sender_ph}]})
+    if not sender or sender.get("balance", 0) < amt:
+        return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
+    
+    db_sender_phone = sender["phone"]
+
+    receiver = wallets.find_one({"phone": receiver_ph})
+    if not receiver:
+        return jsonify({"success": False, "msg": "ተቀባዩ ስልክ ቁጥር በሲስተሙ አልተገኘም!"})
+    
+    if db_sender_phone == receiver_ph:
+        return jsonify({"success": False, "msg": "ለራስዎ ገንዘብ ማስተላለፍ አይችሉም!"})
+
+    # ከላኪው ባላንስ ገንዘቡን አውቶማቲክ መቀነስ
+    sender_res = wallets.find_one_and_update(
+        {"phone": db_sender_phone}, 
+        {"$inc": {"balance": -amt}}, 
+        return_document=True
+    )
+    
+    # ለአድሚኑ ማሳወቂያ መላክ
+    msg = (f"💸 *Direct Transfer Request*\n"
+           f"📤 ላኪ: `{db_sender_phone}`\n"
+           f"📥 ተቀባይ: `{receiver_ph}`\n"
+           f"💵 መጠን: `{amt}` ETB\n\n"
+           f"👇 አድሚን Approve ሲያደርግ (ከታች ባላንስ እንዲጨመርለት ከፈለጉ):-\n`/add {receiver_ph} {amt}`")
+    send_telegram(msg)
+
+    notify_user_balance_update(db_sender_phone, sender_res.get('balance', 0))
+    return jsonify({"success": True, "msg": "የብር ማስተላለፍ ጥያቄዎ ተሳክቷል!", "balance": sender_res.get('balance', 0)})
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -135,6 +180,129 @@ def webhook():
     if "message" in data and "text" in data["message"]:
         msg = data["message"]["text"].strip()
         chat_id = str(data["message"]["chat"]["id"])
+
+        if chat_id == ADMIN_ID:
+            if msg.startswith("/all") or msg.startswith("/all_balances"):
+                all_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}}}))
+                text = "📊 *የሁሉም ተጠቃሚዎች ዝርዝር፦*\n\n"
+                total_sys_balance = 0
+                for u in all_users:
+                    bal = u.get('balance', 0)
+                    total_sys_balance += bal
+                    text += f"👤 {u.get('username', 'N/A')} | 📞 `{u.get('phone')}` | 💰 {bal} ETB\n"
+                text += f"\n💎 **ጠቅላላ የሲስተም ባላንስ፦** {total_sys_balance} ETB"
+                send_telegram(text)
+                return "OK", 200
+
+            elif msg.startswith("/check_balance"):
+                parts = msg.split()
+                if len(parts) > 1:
+                    target_ph = sanitize_input(parts[1])
+                    u = wallets.find_one({"phone": target_ph})
+                    if u:
+                        agent = u.get("referred_by", "የለውም")
+                        send_telegram(f"👤 ስም: {u.get('username')}\n📞 ስልክ: `{u.get('phone')}`\n💰 ባላንስ: {u.get('balance', 0)} ETB\n🔗 ጋባዥ ኤጀንት: `{agent}`")
+                    else:
+                        send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                return "OK", 200
+
+            elif msg.startswith("/security_check"):
+                rich_users = list(wallets.find({"balance": {"$gte": 500}}).sort("balance", -1))
+                text = "🛡️ *የከፍተኛ ገንዘብ ባለቤቶች እና አጠራጣሪ ሰዎች ቼክ፦*\n\n"
+                for u in rich_users:
+                    text += f"👤 {u.get('username')} | 📞 `{u.get('phone')}` | 💰 **{u.get('balance')} ETB**\n"
+                send_telegram(text if rich_users else "🛡️ አጠራጣሪ ወይም ከፍተኛ ገንዘብ ያለው ተጠቃሚ የለም።")
+                return "OK", 200
+
+            elif msg.startswith("/remove"):
+                parts = msg.split()
+                if len(parts) > 1:
+                    target_ph = sanitize_input(parts[1])
+                    res = wallets.deleteOne({"phone": target_ph})
+                    if res.deleted_count > 0:
+                        send_telegram(f"🗑️ ስልክ ቁጥሩ `{target_ph}` ከዳታቤዝ ተሰርዟል።")
+                    else:
+                        send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                return "OK", 200
+
+            elif msg.startswith("/add"):
+                parts = msg.split()
+                if len(parts) > 2:
+                    target_ph = sanitize_input(parts[1])
+                    try:
+                        amt = float(parts[2])
+                        u = wallets.find_one_and_update({"phone": target_ph}, {"$inc": {"balance": amt}}, return_document=True)
+                        if u:
+                            send_telegram(f"✅ ለ `{target_ph}` ተጠቃሚ {amt} ETB ተጨምሯል። አዲስ ባላንስ፦ {u.get('balance')} ETB")
+                            notify_user_balance_update(target_ph, u.get('balance', 0))
+                        else:
+                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                    except ValueError:
+                        send_telegram("❌ ትክክለኛ መጠን ያስገቡ!")
+                return "OK", 200
+
+            elif msg.startswith("/sub"):
+                parts = msg.split()
+                if len(parts) > 2:
+                    target_ph = sanitize_input(parts[1])
+                    try:
+                        amt = float(parts[2])
+                        u = wallets.find_one_and_update({"phone": target_ph}, {"$inc": {"balance": -amt}}, return_document=True)
+                        if u:
+                            send_telegram(f"✅ ከ `{target_ph}` ተጠቃሚ ላይ {amt} ETB ተቀንሷል። አዲስ ባላንስ፦ {u.get('balance')} ETB")
+                            notify_user_balance_update(target_ph, u.get('balance', 0))
+                        else:
+                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                    except ValueError:
+                        send_telegram("❌ ትክክለኛ መጠን ያስገቡ!")
+                return "OK", 200
+
+            elif msg.startswith("/agent_players"):
+                parts = msg.split()
+                if len(parts) > 1:
+                    agent_ph = sanitize_input(parts[1])
+                    players = list(wallets.find({"referred_by": agent_ph}))
+                    text = f"👥 **በኤጀንት (`{agent_ph}`) የተመዘገቡ ተጫዋቾች፦**\n\n"
+                    if players:
+                        for p in players:
+                            text += f"👤 {p.get('username')} | 📞 `{p.get('phone')}` | 💰 {p.get('balance', 0)} ETB\n"
+                    else:
+                        text += "ይህ ኤጀንት የመዘገበው ተጫዋች የለም።"
+                    send_telegram(text)
+                else:
+                    send_telegram("❌ እባክዎ የኤጀንቱን ስልክ ቁጥር ያስገቡ (ምሳሌ: `/agent_players 0912345678`)")
+                return "OK", 200
+
+            elif msg.startswith("/transfer"):
+                parts = msg.split()
+                if len(parts) > 3:
+                    sender_ph = sanitize_input(parts[1])
+                    receiver_ph = sanitize_input(parts[2])
+                    try:
+                        amt = float(parts[3])
+                        sender = wallets.find_one({"phone": sender_ph})
+                        if not sender or sender.get("balance", 0) < amt:
+                            send_telegram("❌ ላኪው ተጠቃሚ አልተገኘም ወይም በቂ ባላንስ የለውም!")
+                            return "OK", 200
+                        
+                        receiver = wallets.find_one({"phone": receiver_ph})
+                        if not receiver:
+                            send_telegram("❌ ተቀባዩ ተጠቃሚ አልተገኘም!")
+                            return "OK", 200
+
+                        wallets.update_one({"phone": sender_ph}, {"$inc": {"balance": -amt}})
+                        up_recv = wallets.find_one_and_update({"phone": receiver_ph}, {"$inc": {"balance": amt}}, return_document=True)
+                        
+                        updated_sender = wallets.find_one({"phone": sender_ph})
+                        notify_user_balance_update(sender_ph, updated_sender.get('balance', 0))
+                        notify_user_balance_update(receiver_ph, up_recv.get('balance', 0))
+
+                        send_telegram(f"✅ በተሳካ ሁኔታ {amt} ETB ከ `{sender_ph}` ወደ `{receiver_ph}` ተዘዋውሯል!")
+                    except ValueError:
+                        send_telegram("❌ ትክክለኛ የገንዘብ መጠን ያስገቡ!")
+                else:
+                    send_telegram("❌ አጠቃቀም፦ `/transfer ላኪ_ስልክ ተቀባይ_ስልክ መጠን`")
+                return "OK", 200
 
         if msg.startswith("/start"):
             parts = msg.split()
@@ -358,7 +526,6 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            # ተጫዋቾቹ ከሁለት ካነሱ ጨዋታውን ማቆም ሳይሆን 30 ሰከንዱ እንደገና እንዲጀምር የተደረገ ማስተካከያ[cite: 13, 14, 15]
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
