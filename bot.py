@@ -126,7 +126,6 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
-# --- WITHDRAWAL ENDPOINT (በቴሌግራም ማሳወቂያ እና ባላንስ መቀነስ የተስተካከለ) ---
 @app.route('/request_withdrawal', methods=['POST'])
 def request_withdrawal():
     d = request.json or {}
@@ -149,7 +148,6 @@ def request_withdrawal():
     if current_balance < amt:
         return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
 
-    # ተጠቃሚው ብር ሲጠይቅ ከባላንሱ ወዲያውኑ ይቀነሳል (ወይም አድሚን ሲያጸድቅ እንዲሆን ከፈለጉ ማስተካከል ይቻላል)
     updated_user = wallets.find_one_and_update(
         {"phone": db_phone, "balance": {"$gte": amt}},
         {"$inc": {"balance": -amt}},
@@ -161,7 +159,6 @@ def request_withdrawal():
 
     new_balance = updated_user.get("balance", 0)
 
-    # ለቴሌግራም አድሚን ማሳወቂያ መላክ
     msg = (f"📤 *Withdrawal Request*\n"
            f"👤 ስም: `{updated_user.get('username', 'N/A')}`\n"
            f"📞 ስልክ: `{db_phone}`\n"
@@ -170,7 +167,6 @@ def request_withdrawal():
            f"ኢንፎormation: ገንዘቡን ከሰጡት በኋላ ትክክል መሆኑን ያረጋግጡ። እምቢ ለማለት፦\n`/add {db_phone} {amt}`")
     send_telegram(msg)
 
-    # ለተጠቃሚው በሶኬት በኩል አዲስ ባላንስ ማሳወቅ
     notify_user_balance_update(db_phone, new_balance)
 
     return jsonify({"success": True, "msg": "የውጭ ጥያቄዎ በተሳካ ሁኔታ ተልኳል!", "balance": new_balance})
