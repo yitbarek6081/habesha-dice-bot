@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO - SECURE PREMIUM</title>
-    <!-- Telegram Web App SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     
     <style>
@@ -391,34 +389,13 @@
         let globalMyCardsData = []; 
 
         window.onload = function() {
-            // Telegram WebApp Initialization & Auto-Login
-            if (window.Telegram && window.Telegram.WebApp) {
-                const tg = window.Telegram.WebApp;
-                tg.ready();
-                if (tg.expand) tg.expand();
-                
-                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                    let tgUser = tg.initDataUnsafe.user;
-                    if (tgUser.id) {
-                        phone = String(tgUser.id);
-                        if (tgUser.first_name) {
-                            username = tgUser.first_name;
-                            if (tgUser.last_name) username += " " + tgUser.last_name;
-                        }
-                        localStorage.setItem('phone', phone);
-                        if (username) localStorage.setItem('username', username);
-                        
-                        // Automatically register/login via backend silently
-                        fetch('/register_or_login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phone: phone, username: username })
-                        }).then(r => r.json()).then(d => {
-                            if(d.success && d.balance !== undefined) {
-                                clientBalance = parseFloat(d.balance) || 0;
-                            }
-                        }).catch(()=>{});
-                    }
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+                if (tgUser.id) {
+                    phone = String(tgUser.id);
+                    if (tgUser.first_name) username = tgUser.first_name;
+                    localStorage.setItem('phone', phone);
+                    if (username) localStorage.setItem('username', username);
                 }
             }
 
