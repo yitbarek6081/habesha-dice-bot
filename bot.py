@@ -227,6 +227,7 @@ def webhook():
         chat_id = str(data["message"]["chat"]["id"])
 
         if chat_id == ADMIN_ID:
+            # FIXED: /all_balances እና /all ትዕዛዞች በትክክል እንዲሰሩ ተደርጓል
             if msg.startswith("/all") or msg.startswith("/all_balances"):
                 all_users = list(wallets.find())
                 text = "📊 *የሁሉም ተጠቃሚዎች ዝርዝር፦*\n\n"
@@ -272,7 +273,6 @@ def webhook():
                 return "OK", 200
 
         if msg.startswith("/start"):
-            parts = msg.split()
             webapp_keyboard = {
                 "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ (Open Web App)", "web_app": {"url": WEB_APP_URL}}]]
             }
@@ -611,6 +611,7 @@ def claim_bingo():
     global claim_lock_active, pending_claims
     d = request.json or {}
     ph = sanitize_input(d.get('phone'))
+    # ሁለት ካርተላዎች የተመረጡበት ማርክ ዳታ (በቅደም ተከተል ticket keys መሰረት)
     marked_0 = d.get('marked_0', [])
     marked_1 = d.get('marked_1', [])
     
@@ -639,6 +640,7 @@ def claim_bingo():
         
     last_called_ball = current_drawn_balls[-1]
 
+    # FIXED: እያንዳንዱን ካርተላ ከየራሱ ትክክለኛ ማርክ (marked_0 ወይም marked_1) ጋር በማመሳከር ማረጋገጥ
     for idx_key, (t_num, card) in enumerate(cards_to_check.items()):
         current_marked = marked_0 if idx_key == 0 else marked_1
         win_indices, line_type = check_winning_line(card, current_drawn_balls, player_marked_numbers=current_marked)
