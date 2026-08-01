@@ -232,24 +232,9 @@
         .winner-grid-modern { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #f8fafc; padding: 6px; border-radius: 12px; border: 1px solid #e2e8f0; }
         .w-cell-modern { background: #ffffff; color: #a0aec0; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; }
         
-        .w-cell-modern.drawn { 
-            background: #cbd5e1; 
-            color: #475569; 
-            border-color: #cbd5e1;
-        }
-        
-        .w-cell-modern.hit { 
-            background: #ef4444 !important; 
-            color: #ffffff !important; 
-            border-color: #ef4444; 
-            font-weight: 900; 
-            box-shadow: 0 0 12px #ef4444; 
-            animation: pulseWin 1s infinite alternate;
-        }
-        @keyframes pulseWin {
-            from { transform: scale(1); }
-            to { transform: scale(1.05); box-shadow: 0 0 18px #ef4444; }
-        }
+        .w-cell-modern.drawn { background: #cbd5e1; color: #475569; border-color: #cbd5e1; }
+        .w-cell-modern.hit { background: #ef4444 !important; color: #ffffff !important; border-color: #ef4444; font-weight: 900; box-shadow: 0 0 12px #ef4444; animation: pulseWin 1s infinite alternate; }
+        @keyframes pulseWin { from { transform: scale(1); } to { transform: scale(1.05); box-shadow: 0 0 18px #ef4444; } }
         
         .w-cell-modern.free { background: var(--gold); color: #1e293b; font-size: 1rem; border-color: var(--gold); }
         .next-round-bar { background: var(--gold); color: #000; font-weight: 900; padding: 12px; width: 92%; max-width: 360px; margin-top: 10px; border-radius: 15px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
@@ -352,9 +337,18 @@
         </div>
     </div>
 
-    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ጨዋታው እንዲጀምር ቢያንስ 2 ተጫዋቾች ሊኖሩ ይገባል (እስከመጨረሻይቱም 0 ድረስ 2 ሰው መኖር አለበት)።<br>2. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)።<br>3. ጨዋታው ሲጀምር ኳሶች በየጊዜው ይጣላሉ።<br>4. መስመር ሲሞላ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
+    <div id="guide-m" class="modal"><div class="modal-content"><h2 style="color:var(--gold); text-align:center; margin-top:0;">📖 መመሪያ</h2><p style="color:#fff; line-height: 1.6; font-size:0.9rem;">1. ጨዋታው እንዲጀምር ቢያንስ 2 ተጫዋቾች ሊኖሩ ይገባል。<br>2. ካርቴላ ለመግዛት ሎቢ ላይ ያሉትን ቁጥሮች ይጫኑ (አንድ ካርቴላ 10 ብር ነው። ማክሲመም 2 መግዛት ይቻላል)。<br>3. ጨዋታው ሲጀምር ኳሶች በየጊዜው ይጣላሉ。<br>4. መስመር ሲሞላ ፈጥነው BINGO የሚለውን ይጫኑ!</p><button class="btn-main" style="width:100%; background:var(--red); color:white; margin-top:15px;" onclick="closeM('guide-m')">እሺ</button></div></div>
     
-    <div id="with-m" class="modal"><div class="modal-content" style="text-align:center;"><h2 style="color:var(--orange);">WITHDRAW</h2><input type="number" id="wa" min="20" placeholder="Amount (ETB)"><button class="btn-main btn-withdraw" style="width:100%" onclick="subW()">CONFIRM</button><button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px;">CLOSE</button></div></div>
+    <!-- WITHDRAW MODAL -->
+    <div id="with-m" class="modal">
+        <div class="modal-content" style="text-align:center;">
+            <h2 style="color:var(--orange);">WITHDRAW</h2>
+            <p style="font-size:0.85rem; color:#94a3b8;">የሚያወጡትን የብር መጠን ያስገቡ (ዝቅተኛው 20 ETB)</p>
+            <input type="number" id="wa" min="20" placeholder="Amount (ETB)">
+            <button class="btn-main btn-withdraw" style="width:100%; padding:12px;" onclick="subW()">CONFIRM</button>
+            <button onclick="closeM('with-m')" style="color:#94a3b8; background:none; border:none; margin-top:15px; cursor:pointer;">CLOSE</button>
+        </div>
+    </div>
     
     <div id="trans-m" class="modal">
         <div class="modal-content" style="text-align:center;">
@@ -484,7 +478,7 @@
                 let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
                 document.getElementById('prize').innerText = finalPrize + " ETB";
                 document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
-                document.getElementById('timer').innerText = sanitizeText(d.timer);
+                document.getElementById('timer').innerText = d.timer;
                 
                 clientBalance = parseFloat(d.balance) || 0;
                 document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
@@ -495,7 +489,7 @@
                     document.getElementById('result-ui').style.display='none';
 
                     latestDrawnBallsGlobal = d.drawn_balls || [];
-                    let secureBall = sanitizeText(d.current_ball);
+                    let secureBall = d.current_ball;
                     document.getElementById('ball-circle').innerText = secureBall;
                     renderMainBoard(latestDrawnBallsGlobal);
                     
@@ -535,13 +529,12 @@
                 }
                 alert("🔄 መረጃው በተሳካ ሁኔታ ታድሷል!");
             }).catch(() => {
-                alert("🔄 ገፁ እንደገና እየተጫነ ነው...");
                 window.location.reload();
             });
         }
 
         function initWebSocket() {
-            socket = io("https://habesha-dice-bot.onrender.com");
+            socket = io();
 
             socket.on('balance_update', function(data) {
                 if (data && phoneMatches(data.phone, phone)) {
@@ -554,7 +547,7 @@
                 let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
                 document.getElementById('prize').innerText = finalPrize + " ETB";
                 document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
-                document.getElementById('timer').innerText = sanitizeText(d.timer);
+                document.getElementById('timer').innerText = d.timer;
 
                 if(d.status === "lobby") {
                     document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
@@ -584,7 +577,7 @@
                         prepCountdownEl.style.display = 'none'; startAlertEl.style.display = 'none'; 
                         document.getElementById('ball-circle').style.opacity = '1';  
                     }
-                    let secureBall = sanitizeText(d.current_ball);
+                    let secureBall = d.current_ball;
                     document.getElementById('ball-circle').innerText = secureBall;
                     if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
                     
@@ -598,7 +591,7 @@
                         historyBalls.forEach((b, idx) => {
                             const ballDiv = document.createElement("div");
                             ballDiv.className = "recent-ball";
-                            ballDiv.innerText = sanitizeText(b);
+                            ballDiv.innerText = b;
                             if(historyBalls.length === 3 && idx === 0) {
                                 ballDiv.classList.add("opacity-50-ball");
                             }
@@ -624,9 +617,7 @@
                         if (myCards.length > 0) {
                             if (cardArea.children.length === 0 || cardArea.querySelector('.waiting-box')) {
                                 cardArea.innerHTML = "";
-                                myCards.forEach((cObj, i) => { 
-                                    renderCard(cObj.matrix, i); 
-                                }); 
+                                myCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
                             }
                         } else {
                             if (!cardArea.querySelector('.waiting-box')) {
@@ -644,7 +635,7 @@
                 } 
                 else if(d.status === "result") {
                     document.getElementById('result-ui').style.display='flex';
-                    let winnerName = sanitizeText(d.winner || "Player");
+                    let winnerName = d.winner || "Player";
                     document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
                     document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                     
@@ -657,7 +648,7 @@
 
                     let patternNameEl = document.getElementById('w-pattern-name');
                     if (patternNameEl) {
-                        patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${sanitizeText(d.winning_line_name)}` : "🎉 BINGO!";
+                        patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "🎉 BINGO!";
                     }
 
                     const gridCells = document.getElementById('w-grid-cells');
@@ -684,7 +675,7 @@
 
                         winCard.forEach((n, idx) => {
                             let cell = document.createElement('div'); 
-                            let cleanNum = sanitizeText(n);
+                            let cleanNum = n;
                             
                             if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
                                 cell.className = "w-cell-modern free"; 
@@ -710,13 +701,6 @@
             });
 
             socket.on('disconnect', function() { console.log("Disconnected."); });
-        }
-
-        function sanitizeText(str) {
-            if (!str) return '';
-            return String(str).replace(/[&<>"']/g, function(m) {
-                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[m];
-            }).trim();
         }
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
@@ -848,7 +832,7 @@
             let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
             
             card.forEach((n, i) => {
-                const cell=document.createElement('div'); let cleanVal = sanitizeText(n);
+                const cell=document.createElement('div'); let cleanVal = n;
                 if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
                 else { 
                     let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
@@ -872,12 +856,12 @@
                 method:'POST', headers:{ 'Content-Type':'application/json' }, 
                 body:JSON.stringify({phone: phone, marked_0: activeMarks0, marked_1: activeMarks1}) 
             })
-            .then(r => r.json()).then(d=>{ if(!d.success) { alert(sanitizeText(d.msg)); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
+            .then(r => r.json()).then(d=>{ if(!d.success) { alert(d.msg); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
         }
         
         function subD() {
             let amt = parseInt(document.getElementById('da').value);
-            let tid = sanitizeText(document.getElementById('di').value);
+            let tid = document.getElementById('di').value.trim();
             if(!amt || amt < 10 || !tid || tid.length < 4) return alert("ትክክለኛ መረጃ ያስገቡ!");
             fetch('/request_deposit', { 
                 method:'POST', headers:{'Content-Type':'application/json'}, 
@@ -885,19 +869,32 @@
             }).then(() => { closeM('dep-m'); alert("የዲፖዚት ጥያቄዎ ተልኳል!"); fetchBalanceOnly(); }).catch(() => { alert("ስህተት!"); });
         }
 
+        // --- WITHDRAW FRONTEND FUNCTION (የተስተካከለ) ---
         function subW() {
-            let amt = parseInt(document.getElementById('wa').value);
-            if(!amt || amt < 20) return alert("ቢያንስ 20 ETB ያስገቡ!");
+            let amt = parseFloat(document.getElementById('wa').value);
+            if(!amt || amt < 20) return alert("ቢያንስ 20 ETB ማውጣት ይችላሉ!");
             if(amt > clientBalance) return alert("በቂ ባላንስ የለዎትም!");
+            
             fetch('/request_withdrawal', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, amount: amt })
             })
-            .then(r => r.json()).then(res => { closeM('with-m'); alert(res.msg); fetchBalanceOnly(); }).catch(() => { alert("ስህተት!"); });
+            .then(r => r.json())
+            .then(res => { 
+                closeM('with-m'); 
+                alert(res.msg || "ጥያቄዎ ተልኳል!"); 
+                if(res.success && res.balance !== undefined) {
+                    clientBalance = parseFloat(res.balance);
+                    document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+                }
+                fetchBalanceOnly(); 
+            })
+            .catch(() => { alert("የማውጣት ጥያቄ ላይ ስህተት አጋጥሟል!"); });
         }
 
         function subTransfer() {
-            let receiverPh = sanitizeText(document.getElementById('trans-phone').value);
+            let receiverPh = document.getElementById('trans-phone').value.trim();
             let amt = parseFloat(document.getElementById('trans-amount').value);
             if(!receiverPh || isNaN(amt) || amt <= 0) return alert("እባክዎ ትክክለኛ ስልክ ቁጥር እና የብር መጠን ያስገቡ!");
             
