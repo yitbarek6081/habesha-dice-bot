@@ -207,6 +207,7 @@ def request_transfer():
            f"📤 ላኪ: `{db_sender_phone}`\n"
            f"📥 ተቀባይ: `{receiver_ph}`\n"
            f"💵 መጠን: `{amt}` ETB")
+    f"👇 አድሚን Approve ሲያደርግ (ከታች ባላንስ እንዲጨመርለት ከፈለጉ):-\n`/add {receiver_ph} {amt}`")
     send_telegram(msg)
 
     notify_user_balance_update(db_sender_phone, sender_res.get('balance', 0))
