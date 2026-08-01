@@ -126,6 +126,55 @@ def request_deposit():
     send_telegram(msg)
     return jsonify({"success": True})
 
+# --- WITHDRAWAL ENDPOINT (በቴሌግራም ማሳወቂያ እና ባላንስ መቀነስ የተስተካከለ) ---
+@app.route('/request_withdrawal', methods=['POST'])
+def request_withdrawal():
+    d = request.json or {}
+    ph = sanitize_input(str(d.get('phone')))
+    try:
+        amt = float(d.get('amount', 0))
+    except ValueError:
+        return jsonify({"success": False, "msg": "ትክክለኛ የገንዘብ መጠን ያስገቡ!"})
+
+    if amt < 20:
+        return jsonify({"success": False, "msg": "ቢያንስ ማውጣት የሚችሉት 20 ETB ነው!"})
+
+    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    if not user:
+        return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
+
+    db_phone = user["phone"]
+    current_balance = float(user.get("balance", 0))
+
+    if current_balance < amt:
+        return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
+
+    # ተጠቃሚው ብር ሲጠይቅ ከባላንሱ ወዲያውኑ ይቀነሳል (ወይም አድሚን ሲያጸድቅ እንዲሆን ከፈለጉ ማስተካከል ይቻላል)
+    updated_user = wallets.find_one_and_update(
+        {"phone": db_phone, "balance": {"$gte": amt}},
+        {"$inc": {"balance": -amt}},
+        return_document=True
+    )
+
+    if not updated_user:
+        return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
+
+    new_balance = updated_user.get("balance", 0)
+
+    # ለቴሌግራም አድሚን ማሳወቂያ መላክ
+    msg = (f"📤 *Withdrawal Request*\n"
+           f"👤 ስም: `{updated_user.get('username', 'N/A')}`\n"
+           f"📞 ስልክ: `{db_phone}`\n"
+           f"💵 የሚወጣው መጠን: `{amt}` ETB\n"
+           f"💰 የቀረው ባላንስ: `{new_balance}` ETB\n\n"
+           f"ኢንፎormation: ገንዘቡን ከሰጡት በኋላ ትክክል መሆኑን ያረጋግጡ። እምቢ ለማለት፦\n`/add {db_phone} {amt}`")
+    send_telegram(msg)
+
+    # ለተጠቃሚው በሶኬት በኩል አዲስ ባላንስ ማሳወቅ
+    notify_user_balance_update(db_phone, new_balance)
+
+    return jsonify({"success": True, "msg": "የውጭ ጥያቄዎ በተሳካ ሁኔታ ተልኳል!", "balance": new_balance})
+
 @app.route('/request_transfer', methods=['POST'])
 def request_transfer():
     d = request.json or {}
@@ -161,8 +210,7 @@ def request_transfer():
     msg = (f"💸 *Direct Transfer Request*\n"
            f"📤 ላኪ: `{db_sender_phone}`\n"
            f"📥 ተቀባይ: `{receiver_ph}`\n"
-           f"💵 መጠን: `{amt}` ETB\n\n"
-           f"👇 አድሚን Approve ሲያደርግ (ከታች ባላንስ እንዲጨመርለት ከፈለጉ):-\n`/add {receiver_ph} {amt}`")
+           f"💵 መጠን: `{amt}` ETB")
     send_telegram(msg)
 
     notify_user_balance_update(db_sender_phone, sender_res.get('balance', 0))
@@ -178,7 +226,6 @@ def webhook():
         msg = data["message"]["text"].strip()
         chat_id = str(data["message"]["chat"]["id"])
 
-        # ትዕዛዞቹ ለአድሚን ብቻ እንዲሰሩ የተደረገ ማረጋገጫ (Strict Admin Authorization Check)
         if chat_id == ADMIN_ID:
             if msg.startswith("/all") or msg.startswith("/all_balances"):
                 all_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}}}))
@@ -190,37 +237,6 @@ def webhook():
                     text += f"👤 {u.get('username', 'N/A')} | 📞 `{u.get('phone')}` | 💰 {bal} ETB\n"
                 text += f"\n💎 **ጠቅላላ የሲስተም ባላንስ፦** {total_sys_balance} ETB"
                 send_telegram(text)
-                return "OK", 200
-
-            elif msg.startswith("/check_balance"):
-                parts = msg.split()
-                if len(parts) > 1:
-                    target_ph = sanitize_input(parts[1])
-                    u = wallets.find_one({"phone": target_ph})
-                    if u:
-                        agent = u.get("referred_by", "የለውም")
-                        send_telegram(f"👤 ስም: {u.get('username')}\n📞 ስልክ: `{u.get('phone')}`\n💰 ባላንስ: {u.get('balance', 0)} ETB\n🔗 ጋባዥ ኤጀንት: `{agent}`")
-                    else:
-                        send_telegram("❌ ተጠቃሚው አልተገኘም!")
-                return "OK", 200
-
-            elif msg.startswith("/security_check"):
-                rich_users = list(wallets.find({"balance": {"$gte": 500}}).sort("balance", -1))
-                text = "🛡️ *የከፍተኛ ገንዘብ ባለቤቶች እና አጠራጣሪ ሰዎች ቼክ፦*\n\n"
-                for u in rich_users:
-                    text += f"👤 {u.get('username')} | 📞 `{u.get('phone')}` | 💰 **{u.get('balance')} ETB**\n"
-                send_telegram(text if rich_users else "🛡️ አጠራጣሪ ወይም ከፍተኛ ገንዘብ ያለው ተጠቃሚ የለም።")
-                return "OK", 200
-
-            elif msg.startswith("/remove"):
-                parts = msg.split()
-                if len(parts) > 1:
-                    target_ph = sanitize_input(parts[1])
-                    res = wallets.delete_one({"phone": target_ph})
-                    if res.deleted_count > 0:
-                        send_telegram(f"🗑️ ስልክ ቁጥሩ `{target_ph}` ከዳታቤዝ ሙሉ በሙሉ ተሰርዟል (ኤጀንቱ/ተጠቃሚው ታግዷል)።")
-                    else:
-                        send_telegram("❌ ተጠቃሚው አልተገኘም!")
                 return "OK", 200
 
             elif msg.startswith("/add"):
@@ -255,26 +271,8 @@ def webhook():
                         send_telegram("❌ ትክክለኛ መጠን ያስገቡ!")
                 return "OK", 200
 
-            elif msg.startswith("/agent_players"):
-                parts = msg.split()
-                if len(parts) > 1:
-                    agent_ph = sanitize_input(parts[1])
-                    players = list(wallets.find({"referred_by": agent_ph}))
-                    text = f"👥 **በኤጀንት (`{agent_ph}`) የተመዘገቡ ተጫዋቾች፦**\n\n"
-                    if players:
-                        for p in players:
-                            text += f"👤 {p.get('username')} | 📞 `{p.get('phone')}` | 💰 {p.get('balance', 0)} ETB\n"
-                    else:
-                        text += "ይህ ኤጀንት የመዘገበው ተጫዋች የለም።"
-                    send_telegram(text)
-                else:
-                    send_telegram("❌ እባክዎ የኤጀንቱን ስልክ ቁጥር ያስገቡ (ምሳሌ: `/agent_players 0912345678`)")
-                return "OK", 200
-
         if msg.startswith("/start"):
             parts = msg.split()
-            agent_phone = sanitize_input(parts[1]) if len(parts) > 1 else None
-            
             webapp_keyboard = {
                 "inline_keyboard": [[{"text": "🎮 ወደ ጨዋታው ግባ (Open Web App)", "web_app": {"url": WEB_APP_URL}}]]
             }
@@ -311,7 +309,6 @@ def register_or_login():
             send_telegram(f"🌐 *አዲስ ተጫዋች በሊንክ (Web) ተመዘገበ!*\n👤 ስም: `{input_username}`\n📞 ስልክ: `{clean_phone}`")
             gevent.spawn(broadcast_game_state)
             return jsonify({"success": True, "msg": "ምዝገባዎ ተጠናቋል!", "balance": 0})
-
     except Exception as e:
         existing = wallets.find_one({"phone": clean_phone})
         if existing:
