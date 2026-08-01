@@ -389,6 +389,16 @@
         let globalMyCardsData = []; 
 
         window.onload = function() {
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+                if (tgUser.id) {
+                    phone = String(tgUser.id);
+                    if (tgUser.first_name) username = tgUser.first_name;
+                    localStorage.setItem('phone', phone);
+                    if (username) localStorage.setItem('username', username);
+                }
+            }
+
             if (phone && username) {
                 showGameUI();
             } else {
@@ -869,7 +879,6 @@
             }).then(() => { closeM('dep-m'); alert("የዲፖዚት ጥያቄዎ ተልኳል!"); fetchBalanceOnly(); }).catch(() => { alert("ስህተት!"); });
         }
 
-        // --- WITHDRAW FRONTEND FUNCTION (የተስተካከለ) ---
         function subW() {
             let amt = parseFloat(document.getElementById('wa').value);
             if(!amt || amt < 20) return alert("ቢያንስ 20 ETB ማውጣት ይችላሉ!");
