@@ -18,7 +18,7 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # --- CONFIG ---
-ADMIN_ID = os.getenv("ADMIN_ID", "7956330391") 
+ADMIN_ID = os.getenv("ADMIN_ID") 
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 MONGO_URL = os.getenv("MONGO_URL")
 WEB_APP_URL = os.getenv("WEB_APP_URL", "https://habesha-dice-bot.onrender.com") 
