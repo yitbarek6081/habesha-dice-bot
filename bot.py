@@ -228,7 +228,7 @@ def webhook():
 
         if chat_id == ADMIN_ID:
             if msg.startswith("/all") or msg.startswith("/all_balances"):
-                all_users = list(wallets.find({"phone": {"$not": {"$regex": "^TEMP_"}}}))
+                all_users = list(wallets.find())
                 text = "📊 *የሁሉም ተጠቃሚዎች ዝርዝር፦*\n\n"
                 total_sys_balance = 0
                 for u in all_users:
