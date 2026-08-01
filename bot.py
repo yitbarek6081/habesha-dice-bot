@@ -203,11 +203,14 @@ def request_transfer():
         return_document=True
     )
     
-    msg = (f"💸 *Direct Transfer Request*\n"
-           f"📤 ላኪ: `{db_sender_phone}`\n"
-           f"📥 ተቀባይ: `{receiver_ph}`\n"
-           f"💵 መጠን: `{amt}` ETB")
-    f"👇 አድሚን Approve ሲያደርግ (ከታች ባላንስ እንዲጨመርለት ከፈለጉ):-\n`/add {receiver_ph} {amt}`")
+    msg = (
+        f"💸 *Direct Transfer Request*\n"
+        f"📤 ላኪ: `{db_sender_phone}`\n"
+        f"📥 ተቀባይ: `{receiver_ph}`\n"
+        f"💵 መጠን: `{amt}` ETB\n\n"
+        f"👇 አድሚን Approve ሲያደርግ (ከታች ባላንስ እንዲጨመርለት ከፈለጉ):-\n"
+        f"`/add {receiver_ph} {amt}`"
+    )
     send_telegram(msg)
 
     notify_user_balance_update(db_sender_phone, sender_res.get('balance', 0))
