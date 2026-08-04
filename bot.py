@@ -227,7 +227,10 @@ def webhook():
         chat_id = str(data["message"]["chat"]["id"])
 
         if chat_id == ADMIN_ID:
-            if msg.startswith("/all") or msg.startswith("/all_balances"):
+            parts = msg.split()
+            cmd = parts[0] if parts else ""
+
+            if cmd in ["/all", "/all_balances"]:
                 all_users = list(wallets.find())
                 text = "📊 *የሁሉም ተጠቃሚዎች ዝርዝር፦*\n\n"
                 total_sys_balance = 0
@@ -239,8 +242,7 @@ def webhook():
                 send_telegram(text)
                 return "OK", 200
 
-            elif msg.startswith("/add"):
-                parts = msg.split()
+            elif cmd == "/add":
                 if len(parts) > 2:
                     target_ph = sanitize_input(parts[1])
                     try:
@@ -255,8 +257,7 @@ def webhook():
                         send_telegram("❌ ትክክለኛ መጠን ያስገቡ!")
                 return "OK", 200
 
-            elif msg.startswith("/sub"):
-                parts = msg.split()
+            elif cmd == "/sub":
                 if len(parts) > 2:
                     target_ph = sanitize_input(parts[1])
                     try:
@@ -269,6 +270,40 @@ def webhook():
                             send_telegram("❌ ተጠቃሚው አልተገኘም!")
                     except ValueError:
                         send_telegram("❌ ትክክለኛ መጠን ያስገቡ!")
+                return "OK", 200
+
+            elif cmd == "/remove":
+                if len(parts) > 1:
+                    target_ph = sanitize_input(parts[1])
+                    res = wallets.delete_one({"phone": target_ph})
+                    if res.deleted_count > 0:
+                        send_telegram(f"🗑️ ተጠቃሚ `{target_ph}` ከዳታቤዝ ተሰርዟል።")
+                    else:
+                        send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                return "OK", 200
+
+            elif cmd == "/check_balance":
+                if len(parts) > 1:
+                    target_ph = sanitize_input(parts[1])
+                    u = wallets.find_one({"phone": target_ph})
+                    if u:
+                        referrer = u.get('referred_by', 'የለም')
+                        send_telegram(f"👤 ስም: `{u.get('username', 'N/A')}`\n📞 ስልክ: `{u.get('phone')}`\n💰 ባላንስ: `{u.get('balance', 0)}` ETB\n🔗 ጋባዥ (Agent): `{referrer}`")
+                    else:
+                        send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                return "OK", 200
+
+            elif cmd == "/agent_players":
+                if len(parts) > 1:
+                    agent_ph = sanitize_input(parts[1])
+                    referred_users = list(wallets.find({"referred_by": agent_ph}))
+                    if referred_users:
+                        text = f"👥 በኤጀንት (`{agent_ph}`) የተመዘገቡ ተጠቃሚዎች፦\n\n"
+                        for u in referred_users:
+                            text += f"👤 {u.get('username', 'N/A')} | 📞 `{u.get('phone')}` | 💰 {u.get('balance', 0)} ETB\n"
+                        send_telegram(text)
+                    else:
+                        send_telegram(f"ℹ️ በ `{agent_ph}` ስር የተመዘገበ ተጠቃሚ የለም።")
                 return "OK", 200
 
         if msg.startswith("/start"):
