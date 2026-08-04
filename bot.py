@@ -76,6 +76,16 @@ def set_webhook():
     except Exception as e:
         print(f"Webhook set failed: {e}")
 
+# --- የቦቱን Description በራስ ሰር ለማስተካከል የተጨመረው ክፍል ---
+def fix_bot_description():
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setMyDescription"
+    try:
+        # እዚህጋ የሚፈልጉትን ንጹህ የቦት Description መጻፍ ይችላሉ
+        response = requests.post(url, json={"description": "የቢንጎ ጨዋታ መጫወቻ ቦት"}, timeout=5)
+        print("Bot description fix response:", response.json())
+    except Exception as e:
+        print(f"Bot description fix failed: {e}")
+
 def broadcast_game_state():
     state_payload = {
         "status": game_state["status"],
@@ -788,6 +798,7 @@ def handle_connect():
     if not loop_started:
         loop_started = True
         set_webhook()
+        fix_bot_description()  # <--- ቦቱ ሲነሳ ዲስክሪፕሽኑን በራስ ሰር አስተካክሎ እንዲቀይር የተጨመረው ትዕዛዞ
         socketio.start_background_task(game_loop)
     broadcast_game_state()
 
