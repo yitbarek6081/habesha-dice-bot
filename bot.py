@@ -351,23 +351,23 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
 
     try:
+        # upsert=True በመጠቀም ተጠቃሚው ከጠፋ በአዲስ መልክ እንዲፈጠር ወይም ከነበረ ስሙ እንዲዘምን ይደረጋል
+        wallets.update_one(
+            {"phone": clean_phone},
+            {
+                "$set": {"username": input_username},
+                "$setOnInsert": {"balance": 0}
+            },
+            upsert=True
+        )
+        
         existing = wallets.find_one({"phone": clean_phone})
-        if existing:
-            wallets.update_one({"phone": clean_phone}, {"$set": {"username": input_username}})
-            gevent.spawn(broadcast_game_state)
-            return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": existing.get("balance", 0)})
-        else:
-            new_user = {"phone": clean_phone, "username": input_username, "balance": 0}
-            wallets.insert_one(new_user)
-            send_telegram(f"🌐 *አዲስ ተጫዋች በሊንክ (Web) ተመዘገበ!*\n👤 ስም: `{input_username}`\n📞 ስልክ: `{clean_phone}`")
-            gevent.spawn(broadcast_game_state)
-            return jsonify({"success": True, "msg": "ምዝገባዎ ተጠናቋል!", "balance": 0})
+        current_balance = existing.get("balance", 0) if existing else 0
+
+        gevent.spawn(broadcast_game_state)
+        return jsonify({"success": True, "msg": "እንኳን ደህና መጡ!", "balance": current_balance})
+        
     except Exception as e:
-        existing = wallets.find_one({"phone": clean_phone})
-        if existing:
-            wallets.update_one({"phone": clean_phone}, {"$set": {"username": input_username}})
-            gevent.spawn(broadcast_game_state)
-            return jsonify({"success": True, "msg": "አካውንትዎ ተገኝቷል!", "balance": existing.get("balance", 0)})
         return jsonify({"success": False, "msg": f"የምዝገባ ስህተት፦ {str(e)}"}), 500
 
 def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
