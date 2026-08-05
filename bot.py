@@ -266,14 +266,28 @@ def webhook():
                     target_ph = sanitize_input(parts[1])
                     try:
                         amt = float(parts[2])
-                        u = wallets.find_one_and_update({"phone": target_ph}, {"$inc": {"balance": amt}}, return_document=True)
+                        u = wallets.find_one_and_update(
+                            {"$or": [{"phone": target_ph}, {"telegram_id": target_ph}, {"phone": {"$regex": target_ph}}]},
+                            {"$inc": {"balance": amt}},
+                            return_document=True
+                        )
+                        
+                        if not u and len(target_ph) >= 9:
+                            wallets.update_one(
+                                {"phone": target_ph},
+                                {"$set": {"username": f"User_{target_ph[-4:]}"}, "$inc": {"balance": amt}},
+                                upsert=True
+                            )
+                            u = wallets.find_one({"phone": target_ph})
+
                         if u:
-                            send_telegram(f"✅ ለ `{target_ph}` ተጠቃሚ {amt} ETB ተጨምሯል። አዲስ ባላንስ፦ {u.get('balance')} ETB")
-                            notify_user_balance_update(target_ph, u.get('balance', 0))
+                            real_phone = u.get('phone', target_ph)
+                            send_telegram(f"✅ ለ `{real_phone}` ተጠቃሚ {amt} ETB ተጨምሯል። አዲስ ባላንስ፦ {u.get('balance')} ETB")
+                            notify_user_balance_update(real_phone, u.get('balance', 0))
                         else:
-                            send_telegram("❌ ተጠቃሚው አልተገኘም!")
+                            send_telegram("❌ ተጠቃሚው በሲስተሙ ውስጥ በፍጹም አልተገኘም! እባክዎ ቁጥሩን በትክክል ያረጋግጡ።")
                     except ValueError:
-                        send_telegram("❌ ትክክለኛ መጠን ያስገቡ!")
+                        send_telegram("❌ ትክክለኛ የገንዘብ መጠን ያስገቡ!")
                 return "OK", 200
 
             elif cmd == "/sub":
@@ -351,7 +365,6 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
 
     try:
-        # upsert=True በመጠቀም ተጠቃሚው ከጠፋ በአዲስ መልክ እንዲፈጠር ወይም ከነበረ ስሙ እንዲዘምን ይደረጋል
         wallets.update_one(
             {"phone": clean_phone},
             {
