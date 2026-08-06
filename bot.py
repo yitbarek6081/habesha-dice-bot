@@ -298,7 +298,7 @@ def game_loop():
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
                     broadcast_game_state() 
-                    socketio.sleep(5)  # ኳስ በየ 5 ሰከንዱ እንዲወጣ ተደርጓል[cite: 1]
+                    socketio.sleep(5)  
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
