@@ -407,6 +407,14 @@
             }
         }
 
+        // ፔጁ ከባክግራውንድ (Background) ሲመለስ ራስ-ሰር ዳታውን የሚያድስበት ክፍል
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === "visible") {
+                console.log("App is active again, syncing state...");
+                forceRecoveryRefresh();
+            }
+        });
+
         function phoneMatches(p1, p2) {
             if (!p1 || !p2) return false;
             let clean1 = String(p1).replace(/[^0-9]/g, '').slice(-9);
@@ -537,14 +545,22 @@
                     document.getElementById('game-ui').style.display='none'; 
                     document.getElementById('result-ui').style.display='none';
                 }
-                alert("🔄 መረጃው በተሳካ ሁኔታ ታድሷል!");
-            }).catch(() => {
-                window.location.reload();
-            });
+            }).catch(() => {});
         }
 
         function initWebSocket() {
-            socket = io();
+            socket = io({
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000
+            });
+
+            socket.on('connect', function() {
+                console.log("Connected to server successfully!");
+                fetchBalanceOnly();
+            });
 
             socket.on('balance_update', function(data) {
                 if (data && phoneMatches(data.phone, phone)) {
