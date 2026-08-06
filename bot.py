@@ -34,7 +34,7 @@ except Exception as e:
 
 game_state = {
     "status": "lobby", 
-    "timer": 15, 
+    "timer": 30, # የቆይታ ጊዜ ወደ 30 ሰከንድ ተስተካክሏል
     "ball_timer": 2,      
     "pot": 0, 
     "players": {},       
@@ -243,7 +243,7 @@ def reset_game():
     game_state.update({
         "status": "lobby", "winner": None, "winning_card": None, "winning_ticket_num": None, 
         "winning_indices": None, "winning_line_name": None, "pot": 0, "players": {}, 
-        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 15, "ball_timer": 2, "all_cards": {}
+        "sold_tickets": {}, "drawn_balls": [], "current_ball": "--", "timer": 30, "ball_timer": 2, "all_cards": {}
     })
     broadcast_game_state() 
 
@@ -252,13 +252,15 @@ def game_loop():
     while True:
         current_status = game_state["status"]
         if current_status == "lobby":
-            for i in range(15, -1, -1):
+            # የ 30 ሰከንድ ቆጣሪ ከ 30 እስከ 0 ይቆጥራል
+            for i in range(30, -1, -1):
                 if game_state["status"] != "lobby": 
                     break
                 game_state["timer"] = i
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
+            # ቢያንስ 2 ተጫዋቾች ካሉ ጨዋታው ይጀምራል፤ ካልሆነ ግን ገንዘብ ሳይመለስ (Refund ሳያደርግ) ቆጣሪው እንደገና ወደ 30 ሰከንድ ተመልሶ ሎቢውን ይቀጥላል
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -267,14 +269,8 @@ def game_loop():
                 random.shuffle(shuffled)
                 broadcast_game_state()
             else:
-                if len(game_state["sold_tickets"]) > 0:
-                    refund_all_sold_tickets()
-                
-                game_state["sold_tickets"] = {}
-                game_state["players"] = {}
-                game_state["all_cards"] = {}
-                game_state["pot"] = 0
-                game_state["timer"] = 15
+                # ገንዘብ ተመላሽ (Refund) እንዳይደረግ ተወግዷል፤ የተገዛው ካርቴላ እንደተጠበቀ ቆጣሪው እንደገና ወደ 30 ይመለሳል
+                game_state["timer"] = 30
                 broadcast_game_state()
                 continue
 
