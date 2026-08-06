@@ -59,11 +59,14 @@ def sanitize_input(text):
         return ""
     return re.sub(r'[^\w\s\-\\.\@]', '', str(text)).strip()
 
-def send_telegram(text):
+def send_telegram(text, reply_markup=None):
     def _send():
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         try:
-            requests.post(url, json={"chat_id": ADMIN_ID, "text": text, "parse_mode": "Markdown"}, timeout=2)
+            requests.post(url, json=payload, timeout=2)
         except Exception as e:
             print(f"Telegram Error: {e}")
     gevent.spawn(_send)
@@ -102,12 +105,26 @@ def notify_user_balance_update(phone_num, new_balance):
 def request_deposit():
     d = request.json or {}
     ph = sanitize_input(str(d.get('phone')))
-    amt = d.get('amount')
+    try:
+        amt = float(d.get('amount', 0))
+    except ValueError:
+        amt = 0
     t_id = sanitize_input(d.get('transaction_id', 'N/A'))
     user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
     db_phone = user["phone"] if user else ph
+    
     msg = f"💰 *Deposit Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n🆔 ID: `{t_id}`"
-    send_telegram(msg)
+    
+    # አድሚኑ በቀጥታ ነክቶ እንዲያጸድቅበት የቴሌግራም Inline Button (Callback Data) ተጨምሯል
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "✅ አረጋግጥ (Approve)", "callback_data": f"app_dep_{db_phone}_{amt}"},
+                {"text": "❌ሰርዝ (Reject)", "callback_data": f"rej_dep_{db_phone}"}
+            ]
+        ]
+    }
+    send_telegram(msg, reply_markup=keyboard)
     return jsonify({"success": True})
 
 @app.route('/request_withdrawal', methods=['POST'])
@@ -160,6 +177,80 @@ def request_transfer():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    data = request.json or {}
+    
+    # 1. አድሚኑ በቦቱ ውስጥ በቀጥታ /add <phone> <amount> ብሎ ሲልክ ማስተናገጃ
+    if "message" in data:
+        msg = data["message"]
+        text = msg.get("text", "")
+        chat_id = str(msg.get("chat", {}).get("id", ""))
+        
+        if chat_id == str(ADMIN_ID) and text.startswith("/add "):
+            parts = text.split()
+            if len(parts) >= 3:
+                target_phone = sanitize_input(parts[1])
+                try:
+                    add_amt = float(parts[2])
+                    updated = wallets.find_one_and_update(
+                        {"phone": target_phone},
+                        {"$inc": {"balance": add_amt}},
+                        return_document=True,
+                        upsert=True
+                    )
+                    new_bal = updated.get("balance", 0) if updated else 0
+                    notify_user_balance_update(target_phone, new_bal)
+                    
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    requests.post(url, json={
+                        "chat_id": ADMIN_ID, 
+                        "text": f"✅ የተጠቃሚው ({target_phone}) ባላንስ በ {add_amt} ETB ጨምሯል። አጠቃላይ ባላንስ: {new_bal} ETB"
+                    })
+                except ValueError:
+                    pass
+
+    # 2. አድሚኑ የ Telegram Inline Button (Approve/Reject) ሲጫን የሚሰራ
+    elif "callback_query" in data:
+        cq = data["callback_query"]
+        cq_id = cq["id"]
+        chat_id = str(cq["message"]["chat"]["id"])
+        data_str = cq.get("data", "")
+        
+        if chat_id == str(ADMIN_ID):
+            answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+            if data_str.startswith("app_dep_"):
+                _, _, phone, amt_str = data_str.split("_", 3)
+                amt = float(amt_str)
+                
+                updated = wallets.find_one_and_update(
+                    {"phone": phone},
+                    {"$inc": {"balance": amt}},
+                    return_document=True,
+                    upsert=True
+                )
+                new_bal = updated.get("balance", 0) if updated else 0
+                notify_user_balance_update(phone, new_bal)
+                
+                requests.post(answer_url, json={"callback_query_id": cq_id, "text": f"ተሳክቷል! {amt} ETB ገብቷል።"})
+                
+                edit_url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+                requests.post(edit_url, json={
+                    "chat_id": ADMIN_ID,
+                    "message_id": cq["message"]["message_id"],
+                    "text": cq["message"]["text"] + f"\n\n✅ *APPROVED* by Admin",
+                    "parse_mode": "Markdown"
+                })
+            elif data_str.startswith("rej_dep_"):
+                _, _, phone = data_str.split("_", 2)
+                requests.post(answer_url, json={"callback_query_id": cq_id, "text": "ክፍያው ተሰርዟል።"})
+                
+                edit_url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+                requests.post(edit_url, json={
+                    "chat_id": ADMIN_ID,
+                    "message_id": cq["message"]["message_id"],
+                    "text": cq["message"]["text"] + f"\n\n❌ *REJECTED* by Admin",
+                    "parse_mode": "Markdown"
+                })
+
     return "OK", 200
 
 @app.route('/register_or_login', methods=['POST'])
@@ -252,7 +343,6 @@ def game_loop():
     while True:
         current_status = game_state["status"]
         if current_status == "lobby":
-            # የ 30 ሰከንድ ቆጣሪ ከ 30 እስከ 0 ይቆጥራል
             for i in range(30, -1, -1):
                 if game_state["status"] != "lobby": 
                     break
@@ -260,7 +350,6 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            # ቢያንስ 2 ተጫዋቾች ካሉ ጨዋታው ይጀምራል፤ ካልሆነ ግን ገንዘብ ሳይመለስ (Refund ሳያደርግ) ቆጣሪው እንደገና ወደ 30 ሰከንድ ተመልሶ ሎቢውን ይቀጥላል
             if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
                 game_state["status"] = "playing"
                 game_state["drawn_balls"] = []
@@ -269,7 +358,6 @@ def game_loop():
                 random.shuffle(shuffled)
                 broadcast_game_state()
             else:
-                # ገንዘብ ተመላሽ (Refund) እንዳይደረግ ተወግዷል፤ የተገዛው ካርቴላ እንደተጠበቀ ቆጣሪው እንደገና ወደ 30 ይመለሳል
                 game_state["timer"] = 30
                 broadcast_game_state()
                 continue
@@ -478,7 +566,7 @@ def claim_bingo():
                 winner_display = " & ".join([c["username"] for c in pending_claims])
 
                 game_state["winner"] = winner_display
-                game_state["winning_card"] = pending_claims[0]["card"]  
+                game_state["winning_card"] = pending_claims[0]["card"] 
                 game_state["winning_ticket_num"] = pending_claims[0]["ticket_num"] 
                 game_state["winning_indices"] = pending_claims[0]["indices"]
                 game_state["winning_line_name"] = pending_claims[0]["line_name"] 
