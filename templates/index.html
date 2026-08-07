@@ -407,13 +407,20 @@
             }
         }
 
-        // ፔጁ ከባክግራውንድ (Background) ሲመለስ ራስ-ሰር ዳታውን የሚያድስበት ክፍል
+        // አፕሊኬሽኑ ከባክግራውንድ (Background) ሲመለስ ወይም ስክሪኑ ሲቀየር በፍጥነት ዳታውን ያመሳስላል
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === "visible") {
-                console.log("App is active again, syncing state...");
+                console.log("App active again, syncing state immediately...");
                 forceRecoveryRefresh();
             }
         });
+
+        // ኢንተርኔት ቢቋረጥ / ሲመለስ በየ 3 ሰከንዱ ራሱን በራሱ አዳዲስ መረጃዎችን እንዲያመጣ (Polling Backup) ፍሪዝ እንዳያደርግ ተደርጓል
+        setInterval(() => {
+            if (phone && document.getElementById('main-app-content').style.display !== 'none') {
+                silentBackgroundSync();
+            }
+        }, 3000);
 
         function phoneMatches(p1, p2) {
             if (!p1 || !p2) return false;
@@ -478,6 +485,16 @@
             }).catch(() => {});
         }
 
+        // ከሰርቨር ጋር ያለውን ሁኔታ ያለማቋረጥ እና በፍጥነት (Micro-second) የሚያመሳስል
+        function silentBackgroundSync() {
+            if (!phone) return;
+            fetch(`/get_status?phone=${encodeURIComponent(phone)}`)
+            .then(r => r.json())
+            .then(d => {
+                applyGameStateData(d);
+            }).catch(() => {});
+        }
+
         function forceRecoveryRefresh() {
             if (!phone) return;
             
@@ -493,58 +510,7 @@
             fetch(`/get_status?phone=${encodeURIComponent(phone)}`)
             .then(r => r.json())
             .then(d => {
-                let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
-                document.getElementById('prize').innerText = finalPrize + " ETB";
-                document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
-                document.getElementById('timer').innerText = d.timer;
-                
-                clientBalance = parseFloat(d.balance) || 0;
-                document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
-
-                if (d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; 
-                    document.getElementById('game-ui').style.display='flex'; 
-                    document.getElementById('result-ui').style.display='none';
-
-                    latestDrawnBallsGlobal = d.drawn_balls || [];
-                    let secureBall = d.current_ball;
-                    document.getElementById('ball-circle').innerText = secureBall;
-                    renderMainBoard(latestDrawnBallsGlobal);
-                    
-                    let updatedCards = [];
-                    if (d.sold_tickets) {
-                        for (let ticketId in d.sold_tickets) {
-                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
-                                let tNumStr = String(ticketId);
-                                if (d.all_cards && d.all_cards[tNumStr]) {
-                                    updatedCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
-                                }
-                            }
-                        }
-                    }
-                    globalMyCardsData = updatedCards;
-
-                    const cardArea = document.getElementById('card-area');
-                    if (cardArea) {
-                        if (updatedCards.length > 0) {
-                            cardArea.innerHTML = "";
-                            updatedCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
-                        } else {
-                            cardArea.innerHTML = `
-                                <div class="waiting-box">
-                                    <span>ጨዋታዉ ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ</span>
-                                    <div class="waiting-box-btns">
-                                        <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
-                                        <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
-                                    </div>
-                                </div>`;
-                        }
-                    }
-                } else if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='flex'; 
-                    document.getElementById('game-ui').style.display='none'; 
-                    document.getElementById('result-ui').style.display='none';
-                }
+                applyGameStateData(d);
             }).catch(() => {});
         }
 
@@ -552,14 +518,15 @@
             socket = io({
                 reconnection: true,
                 reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                timeout: 20000
+                reconnectionDelay: 500,
+                reconnectionDelayMax: 2000,
+                timeout: 10000
             });
 
             socket.on('connect', function() {
                 console.log("Connected to server successfully!");
                 fetchBalanceOnly();
+                forceRecoveryRefresh();
             });
 
             socket.on('balance_update', function(data) {
@@ -570,163 +537,180 @@
             });
 
             socket.on('game_update', function(d) {
-                let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
-                document.getElementById('prize').innerText = finalPrize + " ETB";
-                document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
-                document.getElementById('timer').innerText = d.timer;
-
-                if(d.status === "lobby") {
-                    document.getElementById('lobby-ui').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('result-ui').style.display='none';
-                    document.getElementById('main-board').innerHTML=""; document.getElementById('card-area').innerHTML="";
-                    document.getElementById('w-grid-cells').innerHTML = ""; 
-                    document.getElementById('ball-prep-countdown').style.display = 'none';
-                    document.getElementById('start-alert-msg').style.display = 'none';
-                    document.getElementById("recent-balls-container").innerHTML = ""; 
-                    if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
-                    const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
-                    lastBall = "--";
-                    latestDrawnBallsGlobal = [];
-                    globalMyCardsData = [];
-                    initTicketsOnce(); 
-                    if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
-                } 
-                else if(d.status === "playing") {
-                    document.getElementById('lobby-ui').style.display='none'; document.getElementById('game-ui').style.display='flex'; document.getElementById('result-ui').style.display='none';
-                    const prepCountdownEl = document.getElementById('ball-prep-countdown');
-                    const startAlertEl = document.getElementById('start-alert-msg');
-                    let ballTimerVal = parseInt(d.ball_timer);
-                    if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
-                        prepCountdownEl.style.display = 'block'; startAlertEl.style.display = 'block'; 
-                        prepCountdownEl.innerText = `⏳ ዝግጅት፦ ${ballTimerVal}`;
-                        document.getElementById('ball-circle').style.opacity = '0.4'; 
-                    } else {
-                        prepCountdownEl.style.display = 'none'; startAlertEl.style.display = 'none'; 
-                        document.getElementById('ball-circle').style.opacity = '1';  
-                    }
-                    let secureBall = d.current_ball;
-                    document.getElementById('ball-circle').innerText = secureBall;
-                    if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
-                    
-                    latestDrawnBallsGlobal = d.drawn_balls || [];
-                    renderMainBoard(latestDrawnBallsGlobal);
-                    
-                    const recentContainer = document.getElementById("recent-balls-container");
-                    recentContainer.innerHTML = "";
-                    if(latestDrawnBallsGlobal.length > 1) {
-                        const historyBalls = latestDrawnBallsGlobal.slice(0, -1).reverse().slice(0, 3).reverse();
-                        historyBalls.forEach((b, idx) => {
-                            const ballDiv = document.createElement("div");
-                            ballDiv.className = "recent-ball";
-                            ballDiv.innerText = b;
-                            if(historyBalls.length === 3 && idx === 0) {
-                                ballDiv.classList.add("opacity-50-ball");
-                            }
-                            recentContainer.appendChild(ballDiv);
-                        });
-                    }
-
-                    let myCards = [];
-                    if (d.sold_tickets) {
-                        for (let ticketId in d.sold_tickets) {
-                            if (phoneMatches(d.sold_tickets[ticketId], phone)) {
-                                let tNumStr = String(ticketId);
-                                if (d.all_cards && d.all_cards[tNumStr]) {
-                                    myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
-                                }
-                            }
-                        }
-                    }
-                    globalMyCardsData = myCards;
-
-                    const cardArea = document.getElementById('card-area');
-                    if (cardArea) {
-                        if (myCards.length > 0) {
-                            if (cardArea.children.length === 0 || cardArea.querySelector('.waiting-box')) {
-                                cardArea.innerHTML = "";
-                                myCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
-                            }
-                        } else {
-                            if (!cardArea.querySelector('.waiting-box')) {
-                                cardArea.innerHTML = `
-                                    <div class="waiting-box">
-                                        <span>ጨዋታዉ ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ</span>
-                                        <div class="waiting-box-btns">
-                                            <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
-                                            <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
-                                        </div>
-                                    </div>`;
-                            }
-                        }
-                    }
-                } 
-                else if(d.status === "result") {
-                    document.getElementById('result-ui').style.display='flex';
-                    let winnerName = d.winner || "Player";
-                    document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
-                    document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
-                    
-                    let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
-                    document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
-                    document.getElementById('w-card-owner').innerText = winnerName;
-                    
-                    let timerVal = parseInt(d.timer);
-                    document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
-
-                    let patternNameEl = document.getElementById('w-pattern-name');
-                    if (patternNameEl) {
-                        patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "🎉 BINGO!";
-                    }
-
-                    const gridCells = document.getElementById('w-grid-cells');
-                    gridCells.innerHTML = ""; 
-
-                    let winCard = d.winning_card;
-                    if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
-                        winCard = d.all_cards[ticketNum];
-                    }
-
-                    if (Array.isArray(winCard)) {
-                        let drawnSet = new Set();
-                        if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
-                            d.drawn_balls.forEach(b => { 
-                                let numOnly = String(b).replace(/[^0-9]/g, ''); 
-                                if(numOnly) drawnSet.add(parseInt(numOnly)); 
-                            }); 
-                        }
-                        
-                        let winIdxs = new Set();
-                        if (d.winning_indices && Array.isArray(d.winning_indices)) {
-                            d.winning_indices.forEach(idx => winIdxs.add(idx));
-                        }
-
-                        winCard.forEach((n, idx) => {
-                            let cell = document.createElement('div'); 
-                            let cleanNum = n;
-                            
-                            if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
-                                cell.className = "w-cell-modern free"; 
-                                cell.innerText = "★";
-                                if(winIdxs.has(idx)) cell.className += " hit";
-                            } else {
-                                let numVal = parseInt(cleanNum); 
-                                cell.innerText = cleanNum;
-                                
-                                if (winIdxs.has(idx)) { 
-                                    cell.className = "w-cell-modern hit"; 
-                                } else if (drawnSet.has(numVal)) { 
-                                    cell.className = "w-cell-modern drawn"; 
-                                } else { 
-                                    cell.className = "w-cell-modern"; 
-                                }
-                            }
-                            gridCells.appendChild(cell);
-                        });
-                    }
-                    if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
-                }
+                applyGameStateData(d);
             });
 
-            socket.on('disconnect', function() { console.log("Disconnected."); });
+            socket.on('disconnect', function() { 
+                console.log("Disconnected, trying to auto-reconnect..."); 
+            });
+        }
+
+        // የጨዋታውን ሁኔታ (State) የሚተገብር ዋናው እና ፈጣኑ ፈንክሽን
+        function applyGameStateData(d) {
+            if (!d) return;
+            let finalPrize = Math.floor((parseFloat(d.pot) || 0) * 0.8);
+            document.getElementById('prize').innerText = finalPrize + " ETB";
+            document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
+            document.getElementById('timer').innerText = d.timer;
+            
+            clientBalance = parseFloat(d.balance) || 0;
+            document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
+
+            if(d.status === "lobby") {
+                document.getElementById('lobby-ui').style.display='flex'; 
+                document.getElementById('game-ui').style.display='none'; 
+                document.getElementById('result-ui').style.display='none';
+                document.getElementById('main-board').innerHTML=""; 
+                document.getElementById('card-area').innerHTML="";
+                document.getElementById('w-grid-cells').innerHTML = ""; 
+                document.getElementById('ball-prep-countdown').style.display = 'none';
+                document.getElementById('start-alert-msg').style.display = 'none';
+                document.getElementById("recent-balls-container").innerHTML = ""; 
+                if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
+                const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
+                lastBall = "--";
+                latestDrawnBallsGlobal = [];
+                globalMyCardsData = [];
+                initTicketsOnce(); 
+                if (!isProcessingBuy) { renderTickets(d.sold_tickets || {}); }
+            } 
+            else if(d.status === "playing") {
+                document.getElementById('lobby-ui').style.display='none'; 
+                document.getElementById('game-ui').style.display='flex'; 
+                document.getElementById('result-ui').style.display='none';
+                
+                const prepCountdownEl = document.getElementById('ball-prep-countdown');
+                const startAlertEl = document.getElementById('start-alert-msg');
+                let ballTimerVal = parseInt(d.ball_timer);
+                if (!isNaN(ballTimerVal) && ballTimerVal > 0) {
+                    prepCountdownEl.style.display = 'block'; startAlertEl.style.display = 'block'; 
+                    prepCountdownEl.innerText = `⏳ ዝግጅት፦ ${ballTimerVal}`;
+                    document.getElementById('ball-circle').style.opacity = '0.4'; 
+                } else {
+                    prepCountdownEl.style.display = 'none'; startAlertEl.style.display = 'none'; 
+                    document.getElementById('ball-circle').style.opacity = '1';  
+                }
+                let secureBall = d.current_ball;
+                document.getElementById('ball-circle').innerText = secureBall;
+                if (secureBall !== lastBall && secureBall !== "--") { lastBall = secureBall; }
+                
+                latestDrawnBallsGlobal = d.drawn_balls || [];
+                renderMainBoard(latestDrawnBallsGlobal);
+                
+                const recentContainer = document.getElementById("recent-balls-container");
+                recentContainer.innerHTML = "";
+                if(latestDrawnBallsGlobal.length > 1) {
+                    const historyBalls = latestDrawnBallsGlobal.slice(0, -1).reverse().slice(0, 3).reverse();
+                    historyBalls.forEach((b, idx) => {
+                        const ballDiv = document.createElement("div");
+                        ballDiv.className = "recent-ball";
+                        ballDiv.innerText = b;
+                        if(historyBalls.length === 3 && idx === 0) {
+                            ballDiv.classList.add("opacity-50-ball");
+                        }
+                        recentContainer.appendChild(ballDiv);
+                    });
+                }
+
+                let myCards = [];
+                if (d.sold_tickets) {
+                    for (let ticketId in d.sold_tickets) {
+                        if (phoneMatches(d.sold_tickets[ticketId], phone)) {
+                            let tNumStr = String(ticketId);
+                            if (d.all_cards && d.all_cards[tNumStr]) {
+                                myCards.push({ id: tNumStr, matrix: d.all_cards[tNumStr] });
+                            }
+                        }
+                    }
+                }
+                globalMyCardsData = myCards;
+
+                const cardArea = document.getElementById('card-area');
+                if (cardArea) {
+                    if (myCards.length > 0) {
+                        if (cardArea.children.length === 0 || cardArea.querySelector('.waiting-box')) {
+                            cardArea.innerHTML = "";
+                            myCards.forEach((cObj, i) => { renderCard(cObj.matrix, i); }); 
+                        }
+                    } else {
+                        if (!cardArea.querySelector('.waiting-box')) {
+                            cardArea.innerHTML = `
+                                <div class="waiting-box">
+                                    <span>ጨዋታዉ ተጀምሯል! እባክዎ ይህ ዙር እስኪጠናቀቅ በትግስት ይጠብቁ</span>
+                                    <div class="waiting-box-btns">
+                                        <button class="btn-main btn-deposit" onclick="openM('dep-m')">📥 DEPOSIT</button>
+                                        <button class="btn-main btn-withdraw" onclick="openM('with-m')">📤 WITHDRAW</button>
+                                    </div>
+                                </div>`;
+                        }
+                    }
+                }
+            } 
+            else if(d.status === "result") {
+                document.getElementById('result-ui').style.display='flex';
+                let winnerName = d.winner || "Player";
+                document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
+                document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
+                
+                let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
+                document.getElementById('w-card-number').innerText = `CARD #${ticketNum}`;
+                document.getElementById('w-card-owner').innerText = winnerName;
+                
+                let timerVal = parseInt(d.timer);
+                document.getElementById('w-next-timer').innerText = isNaN(timerVal) ? "10s" : timerVal + "s";
+
+                let patternNameEl = document.getElementById('w-pattern-name');
+                if (patternNameEl) {
+                    patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "🎉 BINGO!";
+                }
+
+                const gridCells = document.getElementById('w-grid-cells');
+                gridCells.innerHTML = ""; 
+
+                let winCard = d.winning_card;
+                if (!winCard && d.all_cards && d.all_cards[ticketNum]) {
+                    winCard = d.all_cards[ticketNum];
+                }
+
+                if (Array.isArray(winCard)) {
+                    let drawnSet = new Set();
+                    if (d.drawn_balls && Array.isArray(d.drawn_balls)) { 
+                        d.drawn_balls.forEach(b => { 
+                            let numOnly = String(b).replace(/[^0-9]/g, ''); 
+                            if(numOnly) drawnSet.add(parseInt(numOnly)); 
+                        }); 
+                    }
+                    
+                    let winIdxs = new Set();
+                    if (d.winning_indices && Array.isArray(d.winning_indices)) {
+                        d.winning_indices.forEach(idx => winIdxs.add(idx));
+                    }
+
+                    winCard.forEach((n, idx) => {
+                        let cell = document.createElement('div'); 
+                        let cleanNum = n;
+                        
+                        if(idx === 12 || cleanNum === "FREE" || cleanNum === "★" || parseInt(cleanNum) === 0) {
+                            cell.className = "w-cell-modern free"; 
+                            cell.innerText = "★";
+                            if(winIdxs.has(idx)) cell.className += " hit";
+                        } else {
+                            let numVal = parseInt(cleanNum); 
+                            cell.innerText = cleanNum;
+                            
+                            if (winIdxs.has(idx)) { 
+                                cell.className = "w-cell-modern hit"; 
+                            } else if (drawnSet.has(numVal)) { 
+                                cell.className = "w-cell-modern drawn"; 
+                            } else { 
+                                cell.className = "w-cell-modern"; 
+                            }
+                        }
+                        gridCells.appendChild(cell);
+                    });
+                }
+                if(!announced) { try { document.getElementById('win-horn').play(); } catch(e){} announced = true; }
+            }
         }
 
         function openM(id) { document.getElementById(id).style.display='flex'; }
@@ -777,6 +761,7 @@
                     clientBalance = parseFloat(d.balance);
                     document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
                 }
+                silentBackgroundSync();
             })
             .catch(() => { isProcessingBuy = false; }); 
         }
@@ -785,7 +770,7 @@
             const target = parseInt(n); if(isNaN(target)) return;
             if(confirm("መልሰው 10 ብር ይውሰዱ?")) {
                 fetch('/cancel_ticket', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone: phone, ticket_num: target}) })
-                .then(() => { fetchBalanceOnly(); }); 
+                .then(() => { fetchBalanceOnly(); silentBackgroundSync(); }); 
             }
         }
         
@@ -882,7 +867,14 @@
                 method:'POST', headers:{ 'Content-Type':'application/json' }, 
                 body:JSON.stringify({phone: phone, marked_0: activeMarks0, marked_1: activeMarks1}) 
             })
-            .then(r => r.json()).then(d=>{ if(!d.success) { alert(d.msg); if(bBtn) bBtn.disabled = false; } }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
+            .then(r => r.json()).then(d=>{ 
+                if(!d.success) { 
+                    alert(d.msg); 
+                    if(bBtn) bBtn.disabled = false; 
+                } else {
+                    silentBackgroundSync();
+                }
+            }).catch(() => { if(bBtn) bBtn.disabled = false; }); 
         }
         
         function subD() {
