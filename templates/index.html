@@ -388,11 +388,11 @@
         let globalMyCardsData = []; 
 
         window.onload = function() {
-            // ከቴሌግራም ዌብ አፕ (Telegram WebApp) ዩዘር ID አንወስድም፤ 
-            // በምትኩ በተጠቃሚው ስልክ ቁጥር ብቻ እንመዘገባለን (Telegram ID እንዳይመዘገብ የተደረገ)።
-            if (phone && username) {
+            // ተጠቃሚው ቀድሞ ከተመዘገበ (ስልክ ቁጥር ካለው) በቀጥታ ወደ ጨዋታው ይገባል
+            if (phone && phone.trim() !== "") {
                 showGameUI();
             } else {
+                // የመጀመሪያው ጊዜ ከሆነ የምዝገባ ፎርሙን ያሳያል
                 document.getElementById('auth-ui').style.display = 'flex';
                 document.getElementById('main-app-content').style.display = 'none';
             }
@@ -884,7 +884,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, amount: amt })
             })
-            .then(r =>.json())
+            .then(r => r.json())
             .then(res => { 
                 closeM('with-m'); 
                 alert(res.msg || "ጥያቄዎ ተልኳል!"); 
