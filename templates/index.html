@@ -425,6 +425,7 @@
             document.getElementById('main-app-content').style.display = 'none';
         }
 
+        // 4: ተጠቃሚው ሌላ አፕ ከፍቶ ሲመለስ (visibilitychange) አፑ እንዳይዝል እና ራሱን እንዲያድስ (Force Recovery)
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === "visible") {
                 forceRecoveryRefresh();
