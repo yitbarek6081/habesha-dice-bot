@@ -221,6 +221,29 @@ def webhook():
                     except ValueError:
                         pass
 
+            elif text.startswith("/sub "):
+                parts = text.split()
+                if len(parts) >= 3:
+                    target_phone = sanitize_input(parts[1])
+                    try:
+                        sub_amt = float(parts[2])
+                        updated = wallets.find_one_and_update(
+                            {"phone": target_phone},
+                            {"$inc": {"balance": -sub_amt}},
+                            return_document=True
+                        )
+                        if updated:
+                            new_bal = updated.get("balance", 0)
+                            notify_user_balance_update(target_phone, new_bal)
+                            requests.post(url, json={
+                                "chat_id": ADMIN_ID, 
+                                "text": f"✅ የተጠቃሚው ({target_phone}) ባላንስ በ {sub_amt} ETB ቀንሷል። አጠቃላይ ባላንስ: {new_bal} ETB"
+                            })
+                        else:
+                            requests.post(url, json={"chat_id": ADMIN_ID, "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"})
+                    except ValueError:
+                        pass
+
             elif text == "/all" or text == "/all_balances":
                 all_users = list(wallets.find({}))
                 if not all_users:
@@ -401,6 +424,7 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
     
+    # እዚህጋ ቴሌግራም ID በራስ ሰር እንዳይመዘገብ ተደርጓል፣ በስልክ ቁጥር ብቻ ቼክ ይደረጋል (upsert=True በመሆኑ /remove የተደረገም በአዲስ መልክ በስልክ ቁጥሩ መመዝገብ ይችላል)
     wallets.update_one(
         {"phone": clean_phone},
         {
