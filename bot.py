@@ -289,9 +289,26 @@ def webhook():
                 parts = text.split()
                 if len(parts) >= 2:
                     target_phone = sanitize_input(parts[1])
+                    
+                    # ከዳታቤዝ (wallets) መሰረዝ
                     delete_result = wallets.delete_one({"phone": target_phone})
-                    if delete_result.deleted_count > 0:
-                        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"✅ ተጠቃሚው ({target_phone}) ከዳታቤዝ ሙሉ በሙሉ ተሰርዟል።"})
+                    
+                    # ንቁ በሆነው የጨዋታ ሁኔታ (game_state) ውስጥ ካለ ማስወገድ
+                    removed_from_game = False
+                    for p_key in list(game_state["players"].keys()):
+                        if target_phone in p_key or p_key == target_phone:
+                            game_state["players"].pop(p_key, None)
+                            removed_from_game = True
+                            
+                    # የያዛቸውን ካርቴላዎች መልቀቅ (sold_tickets)
+                    for t_num, p_ph in list(game_state["sold_tickets"].items()):
+                        if target_phone in p_ph or p_ph == target_phone:
+                            game_state["sold_tickets"].pop(t_num, None)
+                            game_state.get("all_cards", {}).pop(str(t_num), None)
+                            game_state["pot"] = max(0, game_state["pot"] - 10)
+
+                    if delete_result.deleted_count > 0 or removed_from_game:
+                        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"✅ ተጠቃሚው ({target_phone}) ከሲስተሙ እና ከዳታቤዙ ሙሉ በሙሉ ተሰርዟል!"})
                     else:
                         requests.post(url, json={"chat_id": ADMIN_ID, "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"})
 
@@ -424,7 +441,6 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
     
-    # ቴሌግራም ID በራስ ሰር እንዳይመዘገብ ተደርጓል፣ በስልክ ቁጥር ብቻ ቼክ ይደረጋል (upsert=True በመሆኑ /remove የተደረገም በአዲስ መልክ በስልክ ቁጥሩ መመዝገብ ይችላል)
     wallets.update_one(
         {"phone": clean_phone},
         {
