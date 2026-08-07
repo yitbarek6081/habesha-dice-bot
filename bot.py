@@ -395,16 +395,20 @@ def register_or_login():
     input_phone = sanitize_input(data.get('phone'))
     input_username = sanitize_input(data.get('username'))
     
-    # ስልክ ቁጥር ወይም ስም ከሌለ (ክዶ ከቀረ) በራስ-ሰር ምዝገባ እንዳይደረግ ጥብቅ ማጣሪያ
-    if not input_phone or not input_username:
-        return jsonify({"success": False, "msg": "እባክዎ ስልክ ቁጥር እና ስም በትክክል ያስገቡ!"}), 400
+    if not input_phone:
+        return jsonify({"success": False, "msg": "እባክዎ ስልክ ቁጥር ያስገቡ!"}), 400
         
     clean_phone = input_phone.replace("+", "").replace(" ", "")
+    fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
     
-    # ከዚህ በፊት የጠፋ/የተሰረዘ ተጠቃሚ ሲገባ ፎርሙን ሞልቶ ክሊክ ሲያደርግ ብቻ እንዲመዘገብ (እንዲመለስ) ይደረጋል
+    # ተጠቃሚው ከዚህ በፊት ተሰርዞ (Removed) ከሆነ ወይም አዲስ ከሆነ በስልክ ቁጥሩ ብቻ በራስ-ሰር ይመዘገባል (Register)
+    # አስቀድሞ ከነበረ ደግሞ ያለ ተጨማሪ ምዝገባ በቀጥታ ይገባል (Login)
     wallets.update_one(
         {"phone": clean_phone},
-        {"$set": {"username": input_username, "name": input_username}, "$setOnInsert": {"balance": 0}},
+        {
+            "$set": {"username": fallback_name, "name": fallback_name},
+            "$setOnInsert": {"balance": 0}
+        },
         upsert=True
     )
     existing = wallets.find_one({"phone": clean_phone})
