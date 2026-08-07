@@ -455,6 +455,12 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
     if all(is_hit(idx) for idx in diag2_indices):
         all_win_indices.update(diag2_indices)
         line_types.append("ዲያጎናል ↙")
+    
+    corner_indices = [0, 4, 20, 24]
+    if all(is_hit(idx) for idx in corner_indices):
+        all_win_indices.update(corner_indices)
+        line_types.append("ኮርነር (4 ማዕዘኖች)")
+
     if all_win_indices:
         return list(all_win_indices), " + ".join(line_types)
     return None, None
@@ -699,36 +705,64 @@ def claim_bingo():
         if not claim_lock_active:
             claim_lock_active = True
             game_state["status"] = "result"
-            game_state["timer"] = 5
+            game_state["timer"] = 10
             pending_claims = [claim_info]
 
             def process_claims_by_ball():
                 global claim_lock_active, pending_claims
+                socketio.sleep(1.5)
+
                 total_prize = game_state["pot"] * 0.8  
                 num_winners = len(pending_claims)
-                winner_display = " & ".join([c["username"] for c in pending_claims])
+
+                if num_winners == 1:
+                    winner_display = pending_claims[0]["username"]
+                else:
+                    winner_names = [c["username"] for c in pending_claims]
+                    winner_display = " & ".join(winner_names)
 
                 game_state["winner"] = winner_display
-                game_state["winning_card"] = pending_claims[0]["card"] 
+                game_state["winning_card"] = pending_claims[0]["card"]  
                 game_state["winning_ticket_num"] = pending_claims[0]["ticket_num"] 
                 game_state["winning_indices"] = pending_claims[0]["indices"]
                 game_state["winning_line_name"] = pending_claims[0]["line_name"] 
 
-                share_prize = total_prize / num_winners
-                for w in pending_claims:
-                    w_res = wallets.find_one_and_update(
-                        {"phone": w["phone"]}, {"$inc": {"balance": share_prize}}, return_document=True
-                    )
-                    if w_res:
-                        gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
-                
-                first_winner = pending_claims[0]
-                send_telegram(f"🏆 *WINNER!*\n👤 Name: {first_winner['username']} | 📞 Phone: {first_winner['phone']} | 🎫 Ticket: {first_winner['ticket_num']}\n🎯 Winning Ball: {first_winner['winning_ball']}\n💰 Prize Won: {share_prize:.2f} ETB")
-                broadcast_game_state()
+                def background_win_task():
+                    if num_winners == 1:
+                        w = pending_claims[0]
+                        win_res = wallets.find_one_and_update(
+                            {"phone": w["phone"]}, 
+                            {"$inc": {"balance": total_prize}}, 
+                            return_document=True
+                        )
+                        if win_res:
+                            gevent.spawn(notify_user_balance_update, w["phone"], win_res.get("balance", 0))
+                        
+                        success_msg = f"🏆 *WINNER!* \n👤 Name: {w['username']} | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket_num']} \n🎯 Winning Ball: {w['winning_ball']} \n💰 Prize Won: {total_prize:.2f} ETB"
+                        send_telegram(success_msg)
+                    else:
+                        share_prize = total_prize / num_winners
+                        winner_texts = []
+                        for w in pending_claims:
+                            w_res = wallets.find_one_and_update(
+                                {"phone": w["phone"]}, 
+                                {"$inc": {"balance": share_prize}}, 
+                                return_document=True
+                            )
+                            if w_res:
+                                gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
+                            winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
+                        
+                        success_msg = f"🏆 *WINNERS (Shared Prize on Ball {pending_claims[0]['winning_ball']})!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
+                        send_telegram(success_msg)
+                        
+                    broadcast_game_state()
+
+                gevent.spawn(background_win_task)
 
                 def countdown_and_reset():
                     global claim_lock_active, pending_claims
-                    for t in range(5, -1, -1):
+                    for t in range(10, -1, -1):
                         if game_state["status"] != "result":
                             return
                         game_state["timer"] = t
@@ -740,8 +774,14 @@ def claim_bingo():
 
             socketio.start_background_task(process_claims_by_ball)
         else:
-            if not any(c["phone"] == db_phone for c in pending_claims):
+            already_exists = any(c["phone"] == db_phone for c in pending_claims)
+            if not already_exists:
                 pending_claims.append(claim_info)
+
+    elif game_state["status"] == "result" and claim_lock_active:
+        already_exists = any(c["phone"] == db_phone for c in pending_claims)
+        if not already_exists:
+            pending_claims.append(claim_info)
 
     return jsonify({"success": True})
 
