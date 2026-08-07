@@ -34,7 +34,7 @@ except Exception as e:
 game_state = {
     "status": "lobby", 
     "timer": 30,
-    "ball_timer": 3,      
+    "ball_timer": 2,      
     "pot": 0, 
     "players": {},        
     "sold_tickets": {},  
@@ -401,7 +401,6 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
     
-    # 1 & 2 & 3: በቴሌግራም ID አውቶማቲክ ምዝገባ ታግዷል። በስልክ ቁጥር ብቻ አዲስ ዩዘር ወይም ሪሙቭ ሆኖ የተመለሰ ዩዘር ይመዘገባል/ይገባል።
     wallets.update_one(
         {"phone": clean_phone},
         {
