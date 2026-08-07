@@ -34,7 +34,7 @@ except Exception as e:
 game_state = {
     "status": "lobby", 
     "timer": 30,
-    "ball_timer": 2,      
+    "ball_timer": 3,      
     "pot": 0, 
     "players": {},        
     "sold_tickets": {},  
