@@ -15,7 +15,7 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# ለ 2G፣ 3G እና 4G ኢንተርኔቶች ፍጹም ፈጣን ምላሽ የሚሰጥ የ SocketIO ውቅር
+# ለ 2G፣ 3G እና 4G ኢንተርኔቶች ፈጣን ምላሽ የሚሰጥ የ SocketIO ውቅር
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent", ping_timeout=10, ping_interval=3)
 
 ADMIN_ID = os.getenv("ADMIN_ID") 
@@ -34,8 +34,8 @@ except Exception as e:
 
 game_state = {
     "status": "lobby", 
-    "timer": 30, # የቆይታ ጊዜ ወደ 30 ሰከንድ ተስተካክሏል
-    "ball_timer": 3,      
+    "timer": 30,
+    "ball_timer": 2,      
     "pot": 0, 
     "players": {},        
     "sold_tickets": {},  
