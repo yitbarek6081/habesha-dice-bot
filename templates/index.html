@@ -389,10 +389,20 @@
 
         window.onload = function() {
             if (phone && phone.trim() !== "") {
-                fetch(`/get_status?phone=${encodeURIComponent(phone)}`)
-                .then(r => r.json())
+                fetch(`/register_or_login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: phone, username: localStorage.getItem('username') || "User" })
+                })
+                .then(res => res.json())
                 .then(d => {
-                    checkAndClearIfDeleted(phone);
+                    if (d.success) {
+                        showGameUI();
+                    } else {
+                        localStorage.removeItem('phone');
+                        localStorage.removeItem('username');
+                        showAuthUI();
+                    }
                 })
                 .catch(() => {
                     showGameUI();
@@ -402,30 +412,11 @@
             }
         }
 
-        function checkAndClearIfDeleted(currentPhone) {
-            fetch(`/register_or_login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: currentPhone, username: localStorage.getItem('username') || "User" })
-            }).then(res => res.json()).then(resp => {
-                if(!resp.success) {
-                    localStorage.removeItem('phone');
-                    localStorage.removeItem('username');
-                    showAuthUI();
-                } else {
-                    showGameUI();
-                }
-            }).catch(() => {
-                showAuthUI();
-            });
-        }
-
         function showAuthUI() {
             document.getElementById('auth-ui').style.display = 'flex';
             document.getElementById('main-app-content').style.display = 'none';
         }
 
-        // 4: ተጠቃሚው ሌላ አፕ ከፍቶ ሲመለስ (visibilitychange) አፑ እንዳይዝል እና ራሱን እንዲያድስ (Force Recovery)
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === "visible") {
                 forceRecoveryRefresh();
@@ -935,7 +926,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, receiver_phone: receiverPh, amount: amt })
             })
-            .then(r => r.json())
+            .then(r =>_json => _json.json())
             .then(res => {
                 closeM('trans-m');
                 alert(res.msg || "ተከናውኗል!");
