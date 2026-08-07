@@ -35,7 +35,7 @@ except Exception as e:
 game_state = {
     "status": "lobby", 
     "timer": 30, # የቆይታ ጊዜ ወደ 30 ሰከንድ ተስተካክሏል
-    "ball_timer": 2,      
+    "ball_timer": 3,      
     "pot": 0, 
     "players": {},        
     "sold_tickets": {},  
@@ -141,7 +141,6 @@ def request_withdrawal():
         return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
     db_phone = user["phone"]
     
-    # ዊዝድሮዋል ሲጠየቅ ባላንሱ እንዳይቀነስ (አድሚኑ አረጋግጦ ሲለቀው ብቻ እንዲቀነስ) ተስተካክሏል
     if user.get("balance", 0) < amt:
         return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
 
@@ -231,7 +230,6 @@ def webhook():
             answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
             edit_url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
             
-            # 1. ዴፖዚት አፕሩቭ/ሪጀክት
             if data_str.startswith("app_dep_"):
                 _, _, phone, amt_str = data_str.split("_", 3)
                 amt = float(amt_str)
@@ -248,7 +246,7 @@ def webhook():
                 requests.post(edit_url, json={
                     "chat_id": ADMIN_ID,
                     "message_id": cq["message"]["message_id"],
-                    "text": cq["message"]["text"] + f"\n\n✅ *APPROVED* by Admin",
+                    "text": cq["message"]["text"] + f"\n\n✅ የተጠቃሚው ({phone}) ባላንስ በ {amt} ETB ጨምሯል። አጠቃላይ ባላንስ: {new_bal} ETB\n\n✅ *APPROVED* by Admin",
                     "parse_mode": "Markdown"
                 })
             elif data_str.startswith("rej_dep_"):
@@ -261,7 +259,6 @@ def webhook():
                     "parse_mode": "Markdown"
                 })
 
-            # 2. ዊዝድሮዋል አፕሩቭ/ሪጀክት
             elif data_str.startswith("app_wit_"):
                 _, _, phone, amt_str = data_str.split("_", 3)
                 amt = float(amt_str)
@@ -274,13 +271,15 @@ def webhook():
                     new_bal = updated.get("balance", 0)
                     notify_user_balance_update(phone, new_bal)
                     requests.post(answer_url, json={"callback_query_id": cq_id, "text": f"ዊዝድሮዋል ጸድቋል! {amt} ETB ተቀናሽ ሆኗል።"})
+                    edit_text = cq["message"]["text"] + f"\n\n✅ የተጠቃሚው ({phone}) ባላንስ በ {amt} ETB ቀንሷል። አጠቃላይ ባላንስ: {new_bal} ETB\n\n✅ *APPROVED* by Admin"
                 else:
                     requests.post(answer_url, json={"callback_query_id": cq_id, "text": "ተጠቃሚው በቂ ባላንስ የለውም!"})
+                    edit_text = cq["message"]["text"] + f"\n\n❌ ተጠቃሚው በቂ ባላንስ ስለሌለው አልተፈቀደም"
 
                 requests.post(edit_url, json={
                     "chat_id": ADMIN_ID,
                     "message_id": cq["message"]["message_id"],
-                    "text": cq["message"]["text"] + f"\n\n✅ *APPROVED* by Admin",
+                    "text": edit_text,
                     "parse_mode": "Markdown"
                 })
             elif data_str.startswith("rej_wit_"):
@@ -292,7 +291,6 @@ def webhook():
                     "parse_mode": "Markdown"
                 })
 
-            # 3. ትራንስፈር አፕሩቭ/ሪጀክት
             elif data_str.startswith("app_trf_"):
                 _, _, sender_ph, receiver_ph, amt_str = data_str.split("_", 4)
                 amt = float(amt_str)
@@ -309,18 +307,23 @@ def webhook():
                         return_document=True,
                         upsert=True
                     )
-                    notify_user_balance_update(sender_ph, sender_res.get('balance', 0))
+                    sender_new_bal = sender_res.get('balance', 0)
+                    receiver_new_bal = receiver_res.get('balance', 0) if receiver_res else 0
+
+                    notify_user_balance_update(sender_ph, sender_new_bal)
                     if receiver_res:
-                        notify_user_balance_update(receiver_ph, receiver_res.get('balance', 0))
+                        notify_user_balance_update(receiver_ph, receiver_new_bal)
                     
                     requests.post(answer_url, json={"callback_query_id": cq_id, "text": f"ትራንስፈሩ ጸድቋል! {amt} ETB ተላልፏል።"})
+                    edit_text = cq["message"]["text"] + f"\n\n✅ ላኪ ({sender_ph}) ባላንስ በ {amt} ETB ቀንሷል። አጠቃላይ ባላንስ: {sender_new_bal} ETB\n✅ ተቀባይ ({receiver_ph}) ባላንስ በ {amt} ETB ጨምሯል። አጠቃላይ ባላንስ: {receiver_new_bal} ETB\n\n✅ *APPROVED* by Admin"
                 else:
                     requests.post(answer_url, json={"callback_query_id": cq_id, "text": "ላኪው በቂ ባላንስ የለውም!"})
+                    edit_text = cq["message"]["text"] + f"\n\n❌ ላኪው በቂ ባላንስ ስለሌለው ትራንስፈሩ አልተፈቀደም"
 
                 requests.post(edit_url, json={
                     "chat_id": ADMIN_ID,
                     "message_id": cq["message"]["message_id"],
-                    "text": cq["message"]["text"] + f"\n\n✅ *APPROVED* by Admin",
+                    "text": edit_text,
                     "parse_mode": "Markdown"
                 })
             elif data_str.startswith("rej_trf_"):
@@ -660,7 +663,8 @@ def claim_bingo():
                     if w_res:
                         gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
                 
-                send_telegram(f"🏆 *WINNER!* 💰 Prize: {share_prize:.2f} ETB")
+                first_winner = pending_claims[0]
+                send_telegram(f"🏆 *WINNER!*\n👤 Name: {first_winner['username']} | 📞 Phone: {first_winner['phone']} | 🎫 Ticket: {first_winner['ticket_num']}\n🎯 Winning Ball: {first_winner['winning_ball']}\n💰 Prize Won: {share_prize:.2f} ETB")
                 broadcast_game_state()
 
                 def countdown_and_reset():
