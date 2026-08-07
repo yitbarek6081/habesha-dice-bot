@@ -15,7 +15,6 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# ለ 2G፣ 3G እና 4G ኢንተርኔቶች ፈጣን ምላሽ የሚሰጥ የ SocketIO ውቅር
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent", ping_timeout=10, ping_interval=3)
 
 ADMIN_ID = os.getenv("ADMIN_ID") 
@@ -110,7 +109,7 @@ def request_deposit():
     except ValueError:
         amt = 0
     t_id = sanitize_input(d.get('transaction_id', 'N/A'))
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    user = wallets.find_one({"phone": ph})
     db_phone = user["phone"] if user else ph
     
     msg = f"💰 *Deposit Request*\n📞 Phone: `{db_phone}`\n💵 Amount: `{amt}` ETB\n🆔 ID: `{t_id}`"
@@ -136,7 +135,7 @@ def request_withdrawal():
         return jsonify({"success": False, "msg": "ትክክለኛ የገንዘብ መጠን ያስገቡ!"})
     if amt < 20:
         return jsonify({"success": False, "msg": "ቢያንስ 20 ETB ነው!"})
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    user = wallets.find_one({"phone": ph})
     if not user:
         return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
     db_phone = user["phone"]
@@ -166,7 +165,7 @@ def request_transfer():
     except ValueError:
         return jsonify({"success": False, "msg": "ትክክለኛ መጠን ያስገቡ!"})
     
-    sender = wallets.find_one({"$or": [{"phone": sender_ph}, {"telegram_id": sender_ph}]})
+    sender = wallets.find_one({"phone": sender_ph})
     if not sender or sender.get("balance", 0) < amt:
         return jsonify({"success": False, "msg": "በቂ ባላንስ የለዎትም!"})
     db_sender_phone = sender["phone"]
@@ -197,28 +196,81 @@ def webhook():
         text = msg.get("text", "")
         chat_id = str(msg.get("chat", {}).get("id", ""))
         
-        if chat_id == str(ADMIN_ID) and text.startswith("/add "):
-            parts = text.split()
-            if len(parts) >= 3:
-                target_phone = sanitize_input(parts[1])
-                try:
-                    add_amt = float(parts[2])
-                    updated = wallets.find_one_and_update(
-                        {"phone": target_phone},
-                        {"$inc": {"balance": add_amt}},
-                        return_document=True,
-                        upsert=True
-                    )
-                    new_bal = updated.get("balance", 0) if updated else 0
-                    notify_user_balance_update(target_phone, new_bal)
-                    
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, json={
-                        "chat_id": ADMIN_ID, 
-                        "text": f"✅ የተጠቃሚው ({target_phone}) ባላንስ በ {add_amt} ETB ጨምሯል። አጠቃላይ ባላንስ: {new_bal} ETB"
-                    })
-                except ValueError:
-                    pass
+        if chat_id == str(ADMIN_ID):
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            
+            if text.startswith("/add "):
+                parts = text.split()
+                if len(parts) >= 3:
+                    target_phone = sanitize_input(parts[1])
+                    try:
+                        add_amt = float(parts[2])
+                        updated = wallets.find_one_and_update(
+                            {"phone": target_phone},
+                            {"$inc": {"balance": add_amt}},
+                            return_document=True,
+                            upsert=True
+                        )
+                        new_bal = updated.get("balance", 0) if updated else 0
+                        notify_user_balance_update(target_phone, new_bal)
+                        
+                        requests.post(url, json={
+                            "chat_id": ADMIN_ID, 
+                            "text": f"✅ የተጠቃሚው ({target_phone}) ባላንስ በ {add_amt} ETB ጨምሯል። አጠቃላይ ባላንስ: {new_bal} ETB"
+                        })
+                    except ValueError:
+                        pass
+
+            elif text == "/all" or text == "/all_balances":
+                all_users = list(wallets.find({}))
+                if not all_users:
+                    requests.post(url, json={"chat_id": ADMIN_ID, "text": "📭 ምንም የተመዘገበ ተጠቃሚ የለም።"})
+                else:
+                    msg_text = "📋 *የሁሉም ተጠቃሚዎች ባላንስ ዝርዝር:*\n\n"
+                    total_sys_balance = 0
+                    for u in all_users:
+                        u_phone = u.get("phone", "N/A")
+                        u_name = u.get("name", u.get("username", "Unknown"))
+                        u_bal = u.get("balance", 0)
+                        total_sys_balance += u_bal
+                        msg_text += f"📞 `{u_phone}` | 👤 {u_name} | 💰 *{u_bal} ETB*\n"
+                    msg_text += f"\n💵 *አጠቃላይ የሲስተሙ ገንዘብ:* {total_sys_balance} ETB"
+                    requests.post(url, json={"chat_id": ADMIN_ID, "text": msg_text, "parse_mode": "Markdown"})
+
+            elif text.startswith("/check_balance "):
+                parts = text.split()
+                if len(parts) >= 2:
+                    target_phone = sanitize_input(parts[1])
+                    user = wallets.find_one({"phone": target_phone})
+                    if user:
+                        u_phone = user.get("phone", "N/A")
+                        u_name = user.get("name", user.get("username", "Unknown"))
+                        u_bal = user.get("balance", 0)
+                        u_referrer = user.get("referrer", "ማንም አላጋበዘም (Direct)")
+                        info_msg = f"👤 *የተጠቃሚ መረጃ*\n\n📞 ስልክ: `{u_phone}`\n🏷️ ስም: {u_name}\n💰 ባላንስ: *{u_bal} ETB*\n🤝 ጋባዥ: `{u_referrer}`"
+                        requests.post(url, json={"chat_id": ADMIN_ID, "text": info_msg, "parse_mode": "Markdown"})
+                    else:
+                        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"})
+
+            elif text == "/security_check":
+                suspicious_users = list(wallets.find({"balance": {"$gte": 500}}).sort("balance", -1).limit(10))
+                if not suspicious_users:
+                    requests.post(url, json={"chat_id": ADMIN_ID, "text": "🛡️ ከፍተኛ ባላንስ ያለው ወይም አጠራጣሪ ተጠቃሚ አልተገኘም።"})
+                else:
+                    sec_text = "🛡️ *Security Check ( ከፍተኛ ባላንስ ያላቸው ተጠቃሚዎች ):*\n\n"
+                    for u in suspicious_users:
+                        sec_text += f"📞 `{u.get('phone')}` | 👤 {u.get('name', u.get('username', 'N/A'))} | 💰 *{u.get('balance', 0)} ETB*\n"
+                    requests.post(url, json={"chat_id": ADMIN_ID, "text": sec_text, "parse_mode": "Markdown"})
+
+            elif text.startswith("/remove "):
+                parts = text.split()
+                if len(parts) >= 2:
+                    target_phone = sanitize_input(parts[1])
+                    delete_result = wallets.delete_one({"phone": target_phone})
+                    if delete_result.deleted_count > 0:
+                        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"✅ ተጠቃሚው ({target_phone}) ከዳታቤዝ ሙሉ በሙሉ ተሰርዟል።"})
+                    else:
+                        requests.post(url, json={"chat_id": ADMIN_ID, "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"})
 
     elif "callback_query" in data:
         cq = data["callback_query"]
@@ -347,7 +399,7 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     wallets.update_one(
         {"phone": clean_phone},
-        {"$set": {"username": input_username}, "$setOnInsert": {"balance": 0}},
+        {"$set": {"username": input_username, "name": input_username}, "$setOnInsert": {"balance": 0}},
         upsert=True
     )
     existing = wallets.find_one({"phone": clean_phone})
@@ -492,7 +544,7 @@ def index():
 @app.route('/get_status')
 def get_status():
     phone = sanitize_input(request.args.get('phone'))
-    user = wallets.find_one({"$or": [{"phone": phone}, {"telegram_id": phone}]}) if phone else None
+    user = wallets.find_one({"phone": phone}) if phone else None
     db_phone = user['phone'] if user else phone
     p_data = game_state["players"].get(db_phone, {"cards": {}})
     cards_list = list(p_data["cards"].values())
@@ -525,7 +577,7 @@ def buy_ticket():
     ph, t_num, uname = sanitize_input(d.get('phone')), str(d.get('ticket_num')), sanitize_input(d.get('username'))
     if not ph or not t_num:
         return jsonify({"success": False})
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    user = wallets.find_one({"phone": ph})
     if not user:
         return jsonify({"success": False})
     db_phone = user["phone"]
@@ -562,7 +614,7 @@ def buy_ticket():
 def cancel_ticket():
     d = request.json or {}
     ph, t_num = sanitize_input(d.get('phone')), str(d.get('ticket_num'))
-    user = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    user = wallets.find_one({"phone": ph})
     if not user or game_state["status"] != "lobby":
         return jsonify({"success": False})
     db_phone = user["phone"]
@@ -590,7 +642,7 @@ def claim_bingo():
     marked_0 = d.get('marked_0', [])
     marked_1 = d.get('marked_1', [])
     
-    user_info = wallets.find_one({"$or": [{"phone": ph}, {"telegram_id": ph}]})
+    user_info = wallets.find_one({"phone": ph})
     if not user_info:
         return jsonify({"success": False, "msg": "ተጠቃሚው አልተገኘም!"})
     db_phone = user_info["phone"]
