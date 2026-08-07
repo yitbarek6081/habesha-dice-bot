@@ -15,7 +15,8 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent", ping_timeout=10, ping_interval=3)
+# እዚህ ላይ ping_timeout እና ping_interval በመጨመር 'Invalid session' የሚለውን ስגיል ተከላክለናል
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent", ping_timeout=20, ping_interval=5)
 
 ADMIN_ID = os.getenv("ADMIN_ID") 
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
@@ -290,17 +291,14 @@ def webhook():
                 if len(parts) >= 2:
                     target_phone = sanitize_input(parts[1])
                     
-                    # ከዳታቤዝ (wallets) መሰረዝ
                     delete_result = wallets.delete_one({"phone": target_phone})
                     
-                    # ንቁ በሆነው የጨዋታ ሁኔታ (game_state) ውስጥ ካለ ማስወገድ
                     removed_from_game = False
                     for p_key in list(game_state["players"].keys()):
                         if target_phone in p_key or p_key == target_phone:
                             game_state["players"].pop(p_key, None)
                             removed_from_game = True
                             
-                    # የያዛቸውን ካርቴላዎች መልቀቅ (sold_tickets)
                     for t_num, p_ph in list(game_state["sold_tickets"].items()):
                         if target_phone in p_ph or p_ph == target_phone:
                             game_state["sold_tickets"].pop(t_num, None)
