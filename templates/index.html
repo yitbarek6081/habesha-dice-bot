@@ -926,7 +926,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, receiver_phone: receiverPh, amount: amt })
             })
-            .then(r =>_json => _json.json())
+            .then(r => r.json())
             .then(res => {
                 closeM('trans-m');
                 alert(res.msg || "ተከናውኗል!");
