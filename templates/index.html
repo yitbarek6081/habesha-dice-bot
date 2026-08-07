@@ -388,16 +388,8 @@
         let globalMyCardsData = []; 
 
         window.onload = function() {
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                let tgUser = window.Telegram.WebApp.initDataUnsafe.user;
-                if (tgUser.id) {
-                    phone = String(tgUser.id);
-                    if (tgUser.first_name) username = tgUser.first_name;
-                    localStorage.setItem('phone', phone);
-                    if (username) localStorage.setItem('username', username);
-                }
-            }
-
+            // ከቴሌግራም ዌብ አፕ (Telegram WebApp) ዩዘር ID አንወስድም፤ 
+            // በምትኩ በተጠቃሚው ስልክ ቁጥር ብቻ እንመዘገባለን (Telegram ID እንዳይመዘገብ የተደረገ)።
             if (phone && username) {
                 showGameUI();
             } else {
@@ -546,7 +538,6 @@
             document.getElementById('p-count').innerText = parseInt(d.active_players) || 0;
             document.getElementById('timer').innerText = d.timer;
             
-            // የባላንስ መርገብገብ ችግር መፍትሔ፦ balance ተለይቶ ከመጣ ብቻ መቀየር
             if (d.balance !== undefined && d.balance !== null) {
                 clientBalance = parseFloat(d.balance) || 0;
                 document.getElementById('balance').innerText = clientBalance.toFixed(0) + " ETB";
@@ -893,7 +884,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, amount: amt })
             })
-            .then(r => r.json())
+            .then(r =>.json())
             .then(res => { 
                 closeM('with-m'); 
                 alert(res.msg || "ጥያቄዎ ተልኳል!"); 
