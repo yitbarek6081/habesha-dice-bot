@@ -388,14 +388,68 @@
         let globalMyCardsData = []; 
 
         window.onload = function() {
-            // ተጠቃሚው ቀድሞ ከተመዘገበ (ስልክ ቁጥር ካለው) በቀጥታ ወደ ጨዋታው ይገባል
             if (phone && phone.trim() !== "") {
-                showGameUI();
+                // ተጠቃሚው በlocalStorage ስልክ ቁጥር ቢኖረውም ከዳታቤዝ ተሰርዞ (ወይም አድሚን አስወግዶት) እንደሆነ እናረጋግጣለን
+                fetch(`/get_status?phone=${encodeURIComponent(phone)}`)
+                .then(r => r.json())
+                .then(d => {
+                    // ዳታቤዝ ውስጥ ተጠቃሚው ከሌለ ወይም ባላንሱ እና መረጃው ሙሉ በሙሉ ከተሰረዘ 
+                    // ሎካል ስቶሬጁን በማጽዳት የምዝገባ ፎርሙን እናሳያለን
+                    if (d.error || (d.balance === 0 && d.active_players !== undefined && !phoneExistsInSystem(d))) {
+                        // እንደ አዲስ እንዲመዘገብ እናጸዳዋለን
+                        checkAndClearIfDeleted(phone);
+                    } else {
+                        showGameUI();
+                    }
+                })
+                .catch(() => {
+                    // ሰርቨር ማግኘት ካልተቻለ ቢያንስ በነበረው ሎካል ስቶሬጅ እንድናስገባው እናደርጋለን
+                    showGameUI();
+                });
             } else {
-                // የመጀመሪያው ጊዜ ከሆነ የምዝገባ ፎርሙን ያሳያል
-                document.getElementById('auth-ui').style.display = 'flex';
-                document.getElementById('main-app-content').style.display = 'none';
+                showAuthUI();
             }
+        }
+
+        function phoneExistsInSystem(d) {
+            return true; 
+        }
+
+        function checkAndClearIfDeleted(currentPhone) {
+            fetch(`/get_status?phone=${encodeURIComponent(currentPhone)}`)
+            .then(res => res.json())
+            .then(data => {
+                // ዳታቤዝ ውስጥ ጨርሶ ያልተገኘ ከሆነ (በ /remove የተሰረዘ)
+                if (data.balance === 0 && data.my_cards && data.my_cards.length === 0) {
+                    // ተጨማሪ ማረጋገጫ: ተጠቃሚው በእርግጥ በሲስተሙ ውስጥ መኖሩን ለማወቅ 
+                    // ዩዘሩ ዳታቤዝ ውስጥ ከሌለ localStorage እናጸዳለን
+                }
+            }).catch(() => {});
+
+            // በአድሚን የተሰረዘ ተጠቃሚ ዳታቤዝ ውስጥ ስለማይኖር 
+            // ወደ ሲስተም ሲገባ ዳታቤዙ ውስጥ መኖሩን ከፍተሻ በኋላ ከጠፋ ሎካል ስቶሬጅ ይጸዳል
+            // ለደህንነት ሲባል አድሚን ሲያስወግደው ዳታቤዝ ውስጥ ሙሉ በሙሉ ስለሚጠፋ 
+            // እዚህ ላይ በቀጥታ የማረጋገጫ ጥያቄ እንልካለን:
+            fetch(`/register_or_login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: currentPhone, username: localStorage.getItem('username') || "User" })
+            }).then(res => res.json()).then(resp => {
+                if(!resp.success) {
+                    localStorage.removeItem('phone');
+                    localStorage.removeItem('username');
+                    showAuthUI();
+                } else {
+                    showGameUI();
+                }
+            }).catch(() => {
+                showAuthUI();
+            });
+        }
+
+        function showAuthUI() {
+            document.getElementById('auth-ui').style.display = 'flex';
+            document.getElementById('main-app-content').style.display = 'none';
         }
 
         document.addEventListener("visibilitychange", function() {
