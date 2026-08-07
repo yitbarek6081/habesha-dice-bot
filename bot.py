@@ -401,8 +401,7 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
     
-    # ተጠቃሚው ከዚህ በፊት ተሰርዞ (Removed) ከሆነ ወይም አዲስ ከሆነ በስልክ ቁጥሩ ብቻ በራስ-ሰር ይመዘገባል (Register)
-    # አስቀድሞ ከነበረ ደግሞ ያለ ተጨማሪ ምዝገባ በቀጥታ ይገባል (Login)
+    # 1 & 2 & 3: በቴሌግራም ID አውቶማቲክ ምዝገባ ታግዷል። በስልክ ቁጥር ብቻ አዲስ ዩዘር ወይም ሪሙቭ ሆኖ የተመለሰ ዩዘር ይመዘገባል/ይገባል።
     wallets.update_one(
         {"phone": clean_phone},
         {
