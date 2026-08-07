@@ -424,7 +424,7 @@ def register_or_login():
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
     
-    # እዚህጋ ቴሌግራም ID በራስ ሰር እንዳይመዘገብ ተደርጓል፣ በስልክ ቁጥር ብቻ ቼክ ይደረጋል (upsert=True በመሆኑ /remove የተደረገም በአዲስ መልክ በስልክ ቁጥሩ መመዝገብ ይችላል)
+    # ቴሌግራም ID በራስ ሰር እንዳይመዘገብ ተደርጓል፣ በስልክ ቁጥር ብቻ ቼክ ይደረጋል (upsert=True በመሆኑ /remove የተደረገም በአዲስ መልክ በስልክ ቁጥሩ መመዝገብ ይችላል)
     wallets.update_one(
         {"phone": clean_phone},
         {
