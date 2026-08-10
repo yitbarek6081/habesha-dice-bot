@@ -15,7 +15,6 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# እዚህ ላይ ping_timeout እና ping_interval በመጨመር 'Invalid session' የሚለውን ስגיል ተከላክለናል
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent", ping_timeout=20, ping_interval=5)
 
 ADMIN_ID = os.getenv("ADMIN_ID") 
@@ -715,8 +714,12 @@ def claim_bingo():
     winning_line_type = None
     winning_indices_list = None
     
-    for idx_key, (t_num, card) in enumerate(p_data["cards"].items()):
+    # የተጫዋቹን ካርቴላዎች በቅደም ተከተል በመቃኘት ከየራሳቸው ማርኮች ጋር ማረጋገጥ
+    cards_items = list(p_data["cards"].items())
+    for idx_key, (t_num, card) in enumerate(cards_items):
+        # የመጀመሪያው ካርቴላ marked_0, ሁለተኛው ካርቴላ marked_1 ይጠቀማሉ
         current_marked = marked_0 if idx_key == 0 else marked_1
+        
         win_indices, line_type = check_winning_line(card, current_drawn_balls, player_marked_numbers=current_marked)
         if win_indices is not None:
             valid_win_found = True
