@@ -364,7 +364,7 @@
 
     <div id="result-ui" class="winner-modal">
         <div class="winner-box">
-            <div class="trophy-icon">🏆</div><div class="winner-name-text" id="w-player-name">Player <span>has won!</span></div>
+            <div class="trophy-icon">🏆</div><div class="winner-name-text" id="w-player-name"></div>
             <div class="prize-pool-card"><span>Total Prize Pool</span><b id="w-prize-pool">0 ETB</b></div>
             <div class="winner-card-section">
                 <div class="winner-card-info-row">
@@ -654,8 +654,11 @@
             } 
             else if(d.status === "result") {
                 document.getElementById('result-ui').style.display='flex';
-                let winnerName = d.winner || "Player";
-                document.getElementById('w-player-name').innerHTML = `${winnerName} <span>has won!</span>`;
+                let winnerName = d.winner;
+                if (!winnerName || winnerName === "Player" || winnerName.includes("No Winner")) {
+                    winnerName = "ተጫዋች";
+                }
+                document.getElementById('w-player-name').innerHTML = `${winnerName}`;
                 document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                 
                 let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
@@ -842,7 +845,6 @@
             wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
 
-        // 🌟 እዚህ ጋር የተስተካከለው ኮድ፡ ተጫዋቹ 2 ካርቴላ ቢኖረውም ማርክ ሳያደርግ በቀጥታ ኳሶቹን እና ካርቴላዎቹን በማመሳከር (Auto-Check) ያረጋግጣል
         function claim() { 
             const cardArea = document.getElementById('card-area');
             if (!cardArea || cardArea.children.length === 0) { return alert("ካርታዎ ስላልታየ BINGO ማለት አይችሉም!"); }
