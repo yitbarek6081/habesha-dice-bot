@@ -572,7 +572,7 @@
                 document.getElementById('ball-prep-countdown').style.display = 'none';
                 document.getElementById('start-alert-msg').style.display = 'none';
                 document.getElementById("recent-balls-container").innerHTML = ""; 
-                if (announced) { localStorage.removeItem('marked_0'); localStorage.removeItem('marked_1'); announced = false; }
+                if (announced) { announced = false; }
                 const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = false;
                 lastBall = "--";
                 latestDrawnBallsGlobal = [];
@@ -796,7 +796,7 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
-        function handleCellClickCrossMatch(targetNumVal, clickedCellEl, cardIdx) {
+        function handleCellClickCrossMatch(targetNumVal, clickedCellEl) {
             if(isNaN(targetNumVal)) return;
             
             let ballFound = false;
@@ -814,32 +814,17 @@
                 return;
             }
 
-            let storageKey = `marked_${cardIdx}`;
-            let savedMarks = JSON.parse(localStorage.getItem(storageKey) || "[]");
-            let isCurrentlySelected = clickedCellEl.classList.contains('selected');
-            
-            if (!isCurrentlySelected) {
+            if (!clickedCellEl.classList.contains('selected')) {
                 clickedCellEl.classList.add('selected');
-                if(!savedMarks.includes(targetNumVal)) {
-                    savedMarks.push(targetNumVal);
-                    localStorage.setItem(storageKey, JSON.stringify(savedMarks));
-                }
             } else {
                 clickedCellEl.classList.remove('selected');
-                let idx = savedMarks.indexOf(targetNumVal);
-                if (idx > -1) {
-                    savedMarks.splice(idx, 1);
-                    localStorage.setItem(storageKey, JSON.stringify(savedMarks));
-                }
             }
         }
 
-        function renderCard(card, cardIdx) {
-            const safeCardIdx = parseInt(cardIdx);
+        function renderCard(card) {
             const wrap = document.createElement('div'); wrap.style.margin="0 auto 4px auto"; wrap.style.width="100%";
             wrap.innerHTML = `<div style="display:grid;grid-template-columns:repeat(5,1fr);background:var(--orange);font-weight:900;padding:2px;font-size:0.7rem;border-radius:4px 4px 0 0;text-align:center;"><div>B</div><div>I</div><div>N</div><div>G</div><div>O</div></div>`;
             const grid = document.createElement('div'); grid.className='bingo-card';
-            let savedMarks = JSON.parse(localStorage.getItem(`marked_${safeCardIdx}`) || "[]");
             
             card.forEach((n, i) => {
                 const cell=document.createElement('div'); let cleanVal = n;
@@ -848,22 +833,19 @@
                     cell.innerText="FREE"; 
                 } else { 
                     let numVal = parseInt(cleanVal); 
-                    cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; 
+                    cell.className = "cell"; 
                     cell.innerText = cleanVal; 
-                    cell.onclick = () => { handleCellClickCrossMatch(numVal, cell, safeCardIdx); } 
+                    cell.onclick = () => { handleCellClickCrossMatch(numVal, cell); } 
                 }
                 grid.appendChild(cell);
             });
             wrap.appendChild(grid); document.getElementById('card-area').appendChild(wrap);
         }
 
+        // 🌟 እዚህ ጋር የተስተካከለው ኮድ፡ ተጫዋቹ 2 ካርቴላ ቢኖረውም ማርክ ሳያደርግ በቀጥታ ኳሶቹን እና ካርቴላዎቹን በማመሳከር (Auto-Check) ያረጋግጣል
         function claim() { 
-            const activeMarks0 = JSON.parse(localStorage.getItem('marked_0') || "[]");
-            const activeMarks1 = JSON.parse(localStorage.getItem('marked_1') || "[]");
-            
             const cardArea = document.getElementById('card-area');
             if (!cardArea || cardArea.children.length === 0) { return alert("ካርታዎ ስላልታየ BINGO ማለት አይችሉም!"); }
-            if (activeMarks0.length === 0 && activeMarks1.length === 0) { return alert("እባክዎ መጀመሪያ ቁጥሮቹን ያጥቁሩ!"); }
 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
             
@@ -871,9 +853,7 @@
                 method:'POST', 
                 headers:{ 'Content-Type':'application/json' }, 
                 body: JSON.stringify({
-                    phone: phone, 
-                    marked_0: activeMarks0, 
-                    marked_1: activeMarks1
+                    phone: phone
                 }) 
             })
             .then(r => r.json())
