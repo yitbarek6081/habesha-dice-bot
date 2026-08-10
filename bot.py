@@ -689,8 +689,6 @@ def claim_bingo():
     global claim_lock_active, pending_claims
     d = request.json or {}
     ph = sanitize_input(d.get('phone'))
-    marked_0 = d.get('marked_0', [])
-    marked_1 = d.get('marked_1', [])
     
     user_info = wallets.find_one({"phone": ph})
     if not user_info:
@@ -714,13 +712,9 @@ def claim_bingo():
     winning_line_type = None
     winning_indices_list = None
     
-    # የተጫዋቹን ካርቴላዎች በቅደም ተከተል በመቃኘት ከየራሳቸው ማርኮች ጋር ማረጋገጥ
-    cards_items = list(p_data["cards"].items())
-    for idx_key, (t_num, card) in enumerate(cards_items):
-        # የመጀመሪያው ካርቴላ marked_0, ሁለተኛው ካርቴላ marked_1 ይጠቀማሉ
-        current_marked = marked_0 if idx_key == 0 else marked_1
-        
-        win_indices, line_type = check_winning_line(card, current_drawn_balls, player_marked_numbers=current_marked)
+    # 🌟 እዚህ ጋር የተስተካከለው ኮድ፡ ከተያዙት ካርቴላዎች (እስከ 2 ካርቴላ) የትኛዉ ላይ ቢንጎ እንደሞላ በአንድ ሰከንድ ውስጥ ይፈትሻል
+    for t_num, card in p_data["cards"].items():
+        win_indices, line_type = check_winning_line(card, current_drawn_balls, player_marked_numbers=None)
         if win_indices is not None:
             valid_win_found = True
             winning_ticket_num = str(t_num)
