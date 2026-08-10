@@ -796,7 +796,7 @@
             drawn.forEach(b => { let num = parseInt(String(b).replace(/[^0-9]/g, '')); if(!isNaN(num)) { let el = document.getElementById('b-'+num); if(el) el.className = 'ball-dot active'; } });
         }
 
-        function handleCellClickCrossMatch(targetNumVal) {
+        function handleCellClickCrossMatch(targetNumVal, clickedCellEl, cardIdx) {
             if(isNaN(targetNumVal)) return;
             
             let ballFound = false;
@@ -814,31 +814,24 @@
                 return;
             }
 
-            const allGrids = document.querySelectorAll('.bingo-card');
-            allGrids.forEach((gridEl, cardIdx) => {
-                const cells = gridEl.querySelectorAll('.cell');
-                cells.forEach((cellEl) => {
-                    if (parseInt(cellEl.innerText) === targetNumVal) {
-                        let savedMarks = JSON.parse(localStorage.getItem(`marked_${cardIdx}`) || "[]");
-                        let isCurrentlySelected = cellEl.classList.contains('selected');
-                        
-                        if (!isCurrentlySelected) {
-                            cellEl.classList.add('selected');
-                            if(!savedMarks.includes(targetNumVal)) {
-                                savedMarks.push(targetNumVal);
-                                localStorage.setItem(`marked_${cardIdx}`, JSON.stringify(savedMarks));
-                            }
-                        } else {
-                            cellEl.classList.remove('selected');
-                            let idx = savedMarks.indexOf(targetNumVal);
-                            if (idx > -1) {
-                                savedMarks.splice(idx, 1);
-                                localStorage.setItem(`marked_${cardIdx}`, JSON.stringify(savedMarks));
-                            }
-                        }
-                    }
-                });
-            });
+            let storageKey = `marked_${cardIdx}`;
+            let savedMarks = JSON.parse(localStorage.getItem(storageKey) || "[]");
+            let isCurrentlySelected = clickedCellEl.classList.contains('selected');
+            
+            if (!isCurrentlySelected) {
+                clickedCellEl.classList.add('selected');
+                if(!savedMarks.includes(targetNumVal)) {
+                    savedMarks.push(targetNumVal);
+                    localStorage.setItem(storageKey, JSON.stringify(savedMarks));
+                }
+            } else {
+                clickedCellEl.classList.remove('selected');
+                let idx = savedMarks.indexOf(targetNumVal);
+                if (idx > -1) {
+                    savedMarks.splice(idx, 1);
+                    localStorage.setItem(storageKey, JSON.stringify(savedMarks));
+                }
+            }
         }
 
         function renderCard(card, cardIdx) {
@@ -850,10 +843,14 @@
             
             card.forEach((n, i) => {
                 const cell=document.createElement('div'); let cleanVal = n;
-                if(i === 12 || parseInt(cleanVal) === 0) { cell.className="cell free selected"; cell.innerText="FREE"; } 
-                else { 
-                    let numVal = parseInt(cleanVal); cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; cell.innerText=cleanVal; 
-                    cell.onclick = () => { handleCellClickCrossMatch(numVal); } 
+                if(i === 12 || parseInt(cleanVal) === 0) { 
+                    cell.className="cell free selected"; 
+                    cell.innerText="FREE"; 
+                } else { 
+                    let numVal = parseInt(cleanVal); 
+                    cell.className = savedMarks.includes(numVal) ? "cell selected" : "cell"; 
+                    cell.innerText = cleanVal; 
+                    cell.onclick = () => { handleCellClickCrossMatch(numVal, cell, safeCardIdx); } 
                 }
                 grid.appendChild(cell);
             });
