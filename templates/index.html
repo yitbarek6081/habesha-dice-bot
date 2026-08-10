@@ -869,11 +869,18 @@
             if (activeMarks0.length === 0 && activeMarks1.length === 0) { return alert("እባክዎ መጀመሪያ ቁጥሮቹን ያጥቁሩ!"); }
 
             const bBtn = document.getElementById('bingo-btn'); if(bBtn) bBtn.disabled = true;
+            
             fetch('/claim_bingo', { 
-                method:'POST', headers:{ 'Content-Type':'application/json' }, 
-                body:JSON.stringify({phone: phone, marked_0: activeMarks0, marked_1: activeMarks1}) 
+                method:'POST', 
+                headers:{ 'Content-Type':'application/json' }, 
+                body: JSON.stringify({
+                    phone: phone, 
+                    marked_0: activeMarks0, 
+                    marked_1: activeMarks1
+                }) 
             })
-            .then(r => r.json()).then(d=>{ 
+            .then(r => r.json())
+            .then(d => { 
                 if(!d.success) { 
                     alert(d.msg); 
                     if(bBtn) bBtn.disabled = false; 
