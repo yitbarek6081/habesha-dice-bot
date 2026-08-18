@@ -653,11 +653,17 @@
                 }
             } 
             else if(d.status === "result") {
+                // እውነተኛ አሸናፊ ከሌለ (ለምሳሌ በቂ ተጫዋች ሳይኖር ሲቀር ወይም ጨዋታው ሲቋረጥ) የድል ፕላትፎርሙን (Modal) እንዳይከፈት እንከልክለዋለን
+                let hasRealWinner = d.winner && !d.winner.includes("No Winner") && !d.winner.includes("Insufficient Players");
+                
+                if (!hasRealWinner) {
+                    document.getElementById('result-ui').style.display = 'none';
+                    return;
+                }
+
                 document.getElementById('result-ui').style.display='flex';
                 let winnerName = d.winner;
-                if (!winnerName || winnerName === "Player" || winnerName.includes("No Winner")) {
-                    winnerName = "ተጫዋች (1 ተጫዋች ስለቀረ ተመልሷል)";
-                }
+                
                 document.getElementById('w-player-name').innerHTML = `${winnerName}`;
                 document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                 
@@ -670,7 +676,7 @@
 
                 let patternNameEl = document.getElementById('w-pattern-name');
                 if (patternNameEl) {
-                    patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "⚠️ በቂ ተጫዋቾች የሉም (ገንዘብዎ ተመላሽ ሆኗል)";
+                    patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "";
                 }
 
                 const gridCells = document.getElementById('w-grid-cells');
