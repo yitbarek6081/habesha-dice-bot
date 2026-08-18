@@ -267,13 +267,38 @@ def webhook():
                     user = wallets.find_one({"phone": target_phone})
                     if user:
                         u_phone = user.get("phone", "N/A")
-                        u_name = user.get("name", user.get("username", "Unknown"))
+                        u_name = user.get("name", u.get("username", "Unknown"))
                         u_bal = user.get("balance", 0)
                         u_referrer = user.get("referrer", "ማንም አላጋበዘም (Direct)")
                         info_msg = f"👤 *የተጠቃሚ መረጃ*\n\n📞 ስልክ: `{u_phone}`\n🏷️ ስም: {u_name}\n💰 ባላንስ: *{u_bal} ETB*\n🤝 ጋባዥ: `{u_referrer}`"
                         requests.post(url, json={"chat_id": ADMIN_ID, "text": info_msg, "parse_mode": "Markdown"})
                     else:
                         requests.post(url, json={"chat_id": ADMIN_ID, "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"})
+
+            # 🌟 አዲሱ የ /rename ትዕዛዝ እዚህ ተጨምሯል
+            elif text.startswith("/rename "):
+                parts = text.split(maxsplit=2)
+                if len(parts) >= 3:
+                    target_phone = sanitize_input(parts[1])
+                    new_name = sanitize_input(parts[2])
+                    
+                    updated = wallets.find_one_and_update(
+                        {"phone": target_phone},
+                        {"$set": {"username": new_name, "name": new_name}},
+                        return_document=True
+                    )
+                    
+                    if updated:
+                        requests.post(url, json={
+                            "chat_id": ADMIN_ID, 
+                            "text": f"✅ የተጠቃሚው ({target_phone}) ስም ወደ *{new_name}* ተቀይሯል።",
+                            "parse_mode": "Markdown"
+                        })
+                    else:
+                        requests.post(url, json={
+                            "chat_id": ADMIN_ID, 
+                            "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"
+                        })
 
             elif text == "/security_check":
                 suspicious_users = list(wallets.find({"balance": {"$gte": 500}}).sort("balance", -1).limit(10))
@@ -712,7 +737,6 @@ def claim_bingo():
     winning_line_type = None
     winning_indices_list = None
     
-    # 🌟 እዚህ ጋር የተስተካከለው ኮድ፡ ከተያዙት ካርቴላዎች (እስከ 2 ካርቴላ) የትኛዉ ላይ ቢንጎ እንደሞላ በአንድ ሰከንድ ውስጥ ይፈትሻል
     for t_num, card in p_data["cards"].items():
         win_indices, line_type = check_winning_line(card, current_drawn_balls, player_marked_numbers=None)
         if win_indices is not None:
