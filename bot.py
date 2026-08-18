@@ -588,7 +588,7 @@ def game_loop():
                         
                         if len(game_state["players"]) < 2:
                             game_state["status"] = "result"
-                            game_state["winner"] = "No Winner (Insufficient Players)"
+                            game_state["winner"] = None  # አሸናፊ እንደሌለ እንዲታወቅ None ተደረገ (Modal እንዳይከፈት)
                             refund_all_sold_tickets()
                             break
 
@@ -599,7 +599,7 @@ def game_loop():
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
-                game_state["winner"] = "No Winner (House)"
+                game_state["winner"] = None  # አሸናፊ እንደሌለ እንዲታወቅ None ተደረገ (Modal እንዳይከፈት)
                 refund_all_sold_tickets()
 
             def house_countdown_and_reset():
