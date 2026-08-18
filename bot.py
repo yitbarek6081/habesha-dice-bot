@@ -267,7 +267,7 @@ def webhook():
                     user = wallets.find_one({"phone": target_phone})
                     if user:
                         u_phone = user.get("phone", "N/A")
-                        u_name = user.get("name", u.get("username", "Unknown"))
+                        u_name = user.get("name", user.get("username", "Unknown"))
                         u_bal = user.get("balance", 0)
                         u_referrer = user.get("referrer", "ማንም አላጋበዘም (Direct)")
                         info_msg = f"👤 *የተጠቃሚ መረጃ*\n\n📞 ስልክ: `{u_phone}`\n🏷️ ስም: {u_name}\n💰 ባላንስ: *{u_bal} ETB*\n🤝 ጋባዥ: `{u_referrer}`"
@@ -275,7 +275,6 @@ def webhook():
                     else:
                         requests.post(url, json={"chat_id": ADMIN_ID, "text": f"❌ ተጠቃሚ በስልክ ቁጥር ({target_phone}) አልተገኘም!"})
 
-            # 🌟 አዲሱ የ /rename ትዕዛዝ እዚህ ተጨምሯል
             elif text.startswith("/rename "):
                 parts = text.split(maxsplit=2)
                 if len(parts) >= 3:
@@ -561,54 +560,65 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            if game_state["status"] == "lobby" and len(game_state["players"]) >= 2:
-                game_state["status"] = "playing"
-                game_state["drawn_balls"] = []
-                game_state["ball_timer"] = 2
-                shuffled = balls.copy()
-                random.shuffle(shuffled)
-                broadcast_game_state()
-            else:
-                game_state["timer"] = 30
-                broadcast_game_state()
-                continue
+            # --- እዚህጋ 1 ተጫዋች ብቻ ሲቀር ወይም ጨዋታው ሲጀምር ያለውን ሁኔታ አስተካክለናል ---
+            if game_state["status"] == "lobby":
+                if len(game_state["players"]) >= 2:
+                    game_state["status"] = "playing"
+                    game_state["drawn_balls"] = []
+                    game_state["ball_timer"] = 2
+                    shuffled = balls.copy()
+                    random.shuffle(shuffled)
+                    broadcast_game_state()
+                else:
+                    # 1 ተጫዋች ብቻ ወይም 0 ተጫዋች ከቀረ ወደ ሎቢ መመለሱን እንዲቀጥል ቆጣሪውን እንደገና እንጀምራለን
+                    game_state["timer"] = 30
+                    broadcast_game_state()
+                    continue
 
-            if shuffled:
-                for j in range(2, -1, -1):
-                    if game_state["status"] != "playing":
-                        break
-                    game_state["ball_timer"] = j
-                    broadcast_game_state() 
-                    socketio.sleep(1)
+            if game_state["status"] == "playing":
+                if shuffled:
+                    for j in range(2, -1, -1):
+                        if game_state["status"] != "playing":
+                            break
+                        game_state["ball_timer"] = j
+                        broadcast_game_state() 
+                        socketio.sleep(1)
 
-                for b in shuffled:
-                    if game_state["status"] != "playing": 
-                        break
-                    if len(game_state["players"]) < 2:
-                        game_state["status"] = "result"
-                        game_state["winner"] = "No Winner (Insufficient Players)"
-                        refund_all_sold_tickets()
-                        break
+                    for b in shuffled:
+                        if game_state["status"] != "playing": 
+                            break
+                        
+                        # በጨዋታ መካከል ተጫዋቾች ቁጥር ከ 2 በታች (1 ተጫዋች ብቻ) ከቀረ ወዲያውኑ ወደ result (ማዕቀፍ) ይወስደዋል
+                        if len(game_state["players"]) < 2:
+                            game_state["status"] = "result"
+                            game_state["winner"] = "No Winner (Insufficient Players)"
+                            refund_all_sold_tickets()
+                            break
 
-                    game_state["current_ball"] = b
-                    game_state["drawn_balls"].append(b)
-                    broadcast_game_state() 
-                    socketio.sleep(5)  
+                        game_state["current_ball"] = b
+                        game_state["drawn_balls"].append(b)
+                        broadcast_game_state() 
+                        socketio.sleep(5)  
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
                 game_state["winner"] = "No Winner (House)"
                 refund_all_sold_tickets()
-                def house_countdown_and_reset():
-                    for t in range(5, -1, -1):
-                        if game_state["status"] != "result":
-                            return
-                        game_state["timer"] = t
-                        broadcast_game_state()
-                        socketio.sleep(1)
-                    reset_game()
-                global reset_task_reference
+
+            # 1 ተጫዋች ብቻ ቀርቶ ወደ result ሲገባ የ 5 ሰከንድ ቆጣሪ ጀምሮ ወደ ሎቢ ይመልሰዋል
+            def house_countdown_and_reset():
+                for t in range(5, -1, -1):
+                    if game_state["status"] != "result":
+                        return
+                    game_state["timer"] = t
+                    broadcast_game_state()
+                    socketio.sleep(1)
+                reset_game()
+            
+            global reset_task_reference
+            if reset_task_reference is None:
                 reset_task_reference = socketio.start_background_task(house_countdown_and_reset)
+                
             broadcast_game_state()
         socketio.sleep(1)
 
