@@ -653,7 +653,6 @@
                 }
             } 
             else if(d.status === "result") {
-                // እውነተኛ አሸናፊ ከሌለ (ለምሳሌ በቂ ተጫዋች ሳይኖር ሲቀር ወይም ጨዋታው ሲቋረጥ) የድል ፕላትፎርሙን (Modal) እንዳይከፈት እንከልክለዋለን
                 let hasRealWinner = d.winner && !d.winner.includes("No Winner") && !d.winner.includes("Insufficient Players");
                 
                 if (!hasRealWinner) {
@@ -664,7 +663,7 @@
                 document.getElementById('result-ui').style.display='flex';
                 let winnerName = d.winner;
                 
-                document.getElementById('w-player-name').innerHTML = `${winnerName}`;
+                document.getElementById('w-player-name').innerHTML = `${winnerName} <span style="color: #1e293b; font-style: normal;">has won!</span>`;
                 document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                 
                 let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
