@@ -560,7 +560,6 @@ def game_loop():
                 broadcast_game_state() 
                 socketio.sleep(1) 
             
-            # --- እዚህጋ 1 ተጫዋች ብቻ ሲቀር ወይም ጨዋታው ሲጀምር ያለውን ሁኔታ አስተካክለናል ---
             if game_state["status"] == "lobby":
                 if len(game_state["players"]) >= 2:
                     game_state["status"] = "playing"
@@ -570,7 +569,6 @@ def game_loop():
                     random.shuffle(shuffled)
                     broadcast_game_state()
                 else:
-                    # 1 ተጫዋች ብቻ ወይም 0 ተጫዋች ከቀረ ወደ ሎቢ መመለሱን እንዲቀጥል ቆጣሪውን እንደገና እንጀምራለን
                     game_state["timer"] = 30
                     broadcast_game_state()
                     continue
@@ -588,7 +586,6 @@ def game_loop():
                         if game_state["status"] != "playing": 
                             break
                         
-                        # በጨዋታ መካከል ተጫዋቾች ቁጥር ከ 2 በታች (1 ተጫዋች ብቻ) ከቀረ ወዲያውኑ ወደ result (ማዕቀፍ) ይወስደዋል
                         if len(game_state["players"]) < 2:
                             game_state["status"] = "result"
                             game_state["winner"] = "No Winner (Insufficient Players)"
@@ -605,7 +602,6 @@ def game_loop():
                 game_state["winner"] = "No Winner (House)"
                 refund_all_sold_tickets()
 
-            # 1 ተጫዋች ብቻ ቀርቶ ወደ result ሲገባ የ 5 ሰከንድ ቆጣሪ ጀምሮ ወደ ሎቢ ይመልሰዋል
             def house_countdown_and_reset():
                 for t in range(5, -1, -1):
                     if game_state["status"] != "result":
