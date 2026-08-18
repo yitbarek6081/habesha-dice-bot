@@ -656,7 +656,7 @@
                 document.getElementById('result-ui').style.display='flex';
                 let winnerName = d.winner;
                 if (!winnerName || winnerName === "Player" || winnerName.includes("No Winner")) {
-                    winnerName = "ተጫዋች";
+                    winnerName = "ተጫዋች (1 ተጫዋች ስለቀረ ተመልሷል)";
                 }
                 document.getElementById('w-player-name').innerHTML = `${winnerName}`;
                 document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
@@ -670,7 +670,7 @@
 
                 let patternNameEl = document.getElementById('w-pattern-name');
                 if (patternNameEl) {
-                    patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "🎉 BINGO!";
+                    patternNameEl.innerText = d.winning_line_name ? `🎉 ያሸነፈበት መስመር፦ ${d.winning_line_name}` : "⚠️ በቂ ተጫዋቾች የሉም (ገንዘብዎ ተመላሽ ሆኗል)";
                 }
 
                 const gridCells = document.getElementById('w-grid-cells');
