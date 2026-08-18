@@ -588,7 +588,7 @@ def game_loop():
                         
                         if len(game_state["players"]) < 2:
                             game_state["status"] = "result"
-                            game_state["winner"] = None  # አሸናፊ እንደሌለ እንዲታወቅ None ተደረገ (Modal እንዳይከፈት)
+                            game_state["winner"] = None  
                             refund_all_sold_tickets()
                             break
 
@@ -599,7 +599,7 @@ def game_loop():
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
-                game_state["winner"] = None  # አሸናፊ እንደሌለ እንዲታወቅ None ተደረገ (Modal እንዳይከፈት)
+                game_state["winner"] = None  
                 refund_all_sold_tickets()
 
             def house_countdown_and_reset():
@@ -781,9 +781,9 @@ def claim_bingo():
                 num_winners = len(pending_claims)
 
                 if num_winners == 1:
-                    winner_display = pending_claims[0]["username"]
+                    winner_display = f"{pending_claims[0]['username']} has won!"
                 else:
-                    winner_names = [c["username"] for c in pending_claims]
+                    winner_names = [f"{c['username']} has won!" for c in pending_claims]
                     winner_display = " & ".join(winner_names)
 
                 game_state["winner"] = winner_display
@@ -803,7 +803,7 @@ def claim_bingo():
                         if win_res:
                             gevent.spawn(notify_user_balance_update, w["phone"], win_res.get("balance", 0))
                         
-                        success_msg = f"🏆 *WINNER!* \n👤 Name: {w['username']} | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket_num']} \n🎯 Winning Ball: {w['winning_ball']} \n💰 Prize Won: {total_prize:.2f} ETB"
+                        success_msg = f"🏆 *WINNER!* \n👤 Name: {w['username']} has won! | 📞 Phone: `{w['phone']}` | 🎫 Ticket: {w['ticket_num']} \n🎯 Winning Ball: {w['winning_ball']} \n💰 Prize Won: {total_prize:.2f} ETB"
                         send_telegram(success_msg)
                     else:
                         share_prize = total_prize / num_winners
@@ -816,7 +816,7 @@ def claim_bingo():
                             )
                             if w_res:
                                 gevent.spawn(notify_user_balance_update, w["phone"], w_res.get("balance", 0))
-                            winner_texts.append(f"👤 {w['username']} (`{w['phone']}`) - 🎫 {w['ticket_num']}")
+                            winner_texts.append(f"👤 {w['username']} has won! (`{w['phone']}`) - 🎫 {w['ticket_num']}")
                         
                         success_msg = f"🏆 *WINNERS (Shared Prize on Ball {pending_claims[0]['winning_ball']})!* \n💰 Total Pot Share: {share_prize:.2f} ETB each ({num_winners} winners)\n" + "\n".join(winner_texts)
                         send_telegram(success_msg)
