@@ -592,11 +592,12 @@ def claim_bingo():
                 total_prize = game_state["pot"] * 0.8  
                 num_winners = len(pending_claims)
 
+                # 🌟 [የተስተካከለ] 1 አሸናፊ ሲሆን "... አሸንፏል"፣ ከሁለት በላይ ሲሆኑ ደግሞ " & " በማድረግ "... አሸንፈዋል" የሚል አባባል
                 if num_winners == 1:
-                    winner_display = pending_claims[0]["username"]
+                    winner_display = f"{pending_claims[0]['username']} አሸንፏል"
                 else:
                     winner_names = [c["username"] for c in pending_claims]
-                    winner_display = " & ".join(winner_names)
+                    winner_display = f"{' & '.join(winner_names)} አሸንፈዋል"
 
                 game_state["winner"] = winner_display
                 game_state["winning_card"] = pending_claims[0]["card"]  
