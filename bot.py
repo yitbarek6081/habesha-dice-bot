@@ -310,7 +310,7 @@ def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
 
     def is_hit(idx):
         val = card[idx]
-        if idx == 12 or val == 0 or val == "FREE" or val == "★":
+        if idx == 12 or val == 0 or val == "Besh" or val == "★":
             return True
         try:
             val_int = int(val)
