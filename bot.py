@@ -411,7 +411,7 @@ def game_loop():
                     game_state["current_ball"] = b
                     game_state["drawn_balls"].append(b)
                     broadcast_game_state() 
-                    socketio.sleep(3.5)  # ኳሶች የሚወጡበት ፍጥነት እንዲቀላጠፍ ተስተካክሏል
+                    socketio.sleep(3.5) 
             
             if game_state["status"] == "playing":
                 game_state["status"] = "result"
@@ -585,7 +585,6 @@ def claim_bingo():
             game_state["timer"] = 10
             pending_claims = [claim_info]
 
-            # 🌟 ሪሰልቱ ወዲያውኑ እንዲታይ የቆይታ ጊዜ ወደ 0.2 ሰከንድ ተቀንሷል
             def process_claims_by_ball():
                 global claim_lock_active, pending_claims
                 socketio.sleep(0.2)
