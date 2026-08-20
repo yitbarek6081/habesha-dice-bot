@@ -264,10 +264,24 @@ def webhook():
                 else:
                     success_count = 0
                     fail_count = 0
+                    
+                    # አዝራሮቹ (Inline Buttons) እንዲኖሩ የሚደረግ ማቀናበሪያ
+                    broadcast_markup = {
+                        "inline_keyboard": [
+                            [{"text": "👉 Beshbingo (10ብር)", "url": "https://t.me/beshbingo1bot"}],
+                            [{"text": "👉 Supperbeshbingo (50ብር)", "url": "http://t.me/superbeshbingobot"}]
+                        ]
+                    }
+
                     for u in all_users:
                         u_chat_id = u.get("chat_id")
                         if u_chat_id:
-                            payload = {"chat_id": u_chat_id, "text": broadcast_msg, "parse_mode": "Markdown"}
+                            payload = {
+                                "chat_id": u_chat_id, 
+                                "text": broadcast_msg, 
+                                "parse_mode": "Markdown",
+                                "reply_markup": broadcast_markup
+                            }
                             try:
                                 res = requests.post(url, json=payload, timeout=2)
                                 if res.status_code == 200:
