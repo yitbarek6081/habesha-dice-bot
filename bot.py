@@ -290,35 +290,30 @@ def webhook():
             edit_url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
             
             if data_str.startswith("app_dep_"):
-                _, _, phone, amt_str = data_str.split("_", 3)
+                _, _, phone_num, amt_str = data_str.split("_", 3)
                 amt = float(amt_str)
-                updated = wallets.find_one_and_update({"phone": phone}, {"$inc": {"balance": amt}}, return_document=True, upsert=True)
+                updated = wallets.find_one_and_update({"phone": phone_num}, {"$inc": {"balance": amt}}, return_document=True, upsert=True)
                 new_bal = updated.get("balance", 0) if updated else 0
-                notify_user_balance_update(phone, new_bal)
+                notify_user_balance_update(phone_num, new_bal)
                 requests.post(answer_url, json={"callback_query_id": cq_id, "text": f"ተሳክቷል! {amt} ETB ገብቷል።"})
                 requests.post(edit_url, json={"chat_id": ADMIN_ID, "message_id": cq["message"]["message_id"], "text": cq["message"]["text"] + f"\n\n✅ APPROVED\n💰 አጠቃላይ ባላንስ: {new_bal} ETB", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": []}})
             
             elif data_str.startswith("rej_dep_"):
-                _, _, phone = data_str.split("_", 2)
-                user = wallets.find_one({"phone": phone})
-                curr_bal = user.get("balance", 0) if user else 0
+                _, _, phone_num = data_str.split("_", 2)
                 requests.post(answer_url, json={"callback_query_id": cq_id, "text": "ዲፖዚት ጥያቄው ሪጀክት ተደርጓል።"})
                 requests.post(edit_url, json={"chat_id": ADMIN_ID, "message_id": cq["message"]["message_id"], "text": cq["message"]["text"] + f"\n\n❌ REJECTED", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": []}})
 
             elif data_str.startswith("app_wit_"):
-                _, _, phone, amt_str = data_str.split("_", 3)
+                _, _, phone_num, amt_str = data_str.split("_", 3)
                 amt = float(amt_str)
-                updated = wallets.find_one_and_update({"phone": phone, "balance": {"$gte": amt}}, {"$inc": {"balance": -amt}}, return_document=True)
+                updated = wallets.find_one_and_update({"phone": phone_num, "balance": {"$gte": amt}}, {"$inc": {"balance": -amt}}, return_document=True)
                 new_bal = updated.get("balance", 0) if updated else 0
                 if updated:
-                    notify_user_balance_update(phone, new_bal)
+                    notify_user_balance_update(phone_num, new_bal)
                     requests.post(answer_url, json={"callback_query_id": cq_id, "text": f"ዊዝድሮዋል ጸድቋል!"})
                 requests.post(edit_url, json={"chat_id": ADMIN_ID, "message_id": cq["message"]["message_id"], "text": cq["message"]["text"] + f"\n\n✅ APPROVED\n💰 አጠቃላይ ባላንስ: {new_bal} ETB", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": []}})
             
             elif data_str.startswith("rej_wit_"):
-                _, _, phone, amt_str = data_str.split("_", 3)
-                user = wallets.find_one({"phone": phone})
-                curr_bal = user.get("balance", 0) if user else 0
                 requests.post(answer_url, json={"callback_query_id": cq_id, "text": "ዊዝድሮዋል ጥያቄው ሪጀክት ተደርጓል።"})
                 requests.post(edit_url, json={"chat_id": ADMIN_ID, "message_id": cq["message"]["message_id"], "text": cq["message"]["text"] + f"\n\n❌ REJECTED", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": []}})
 
@@ -335,30 +330,50 @@ def webhook():
                     requests.post(edit_url, json={"chat_id": ADMIN_ID, "message_id": cq["message"]["message_id"], "text": cq["message"]["text"] + f"\n\n✅ APPROVED\n💰 የላኪ አጠቃላይ ባላንስ: {sender_updated.get('balance', 0)} ETB", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": []}})
             
             elif data_str.startswith("rej_trf_"):
-                _, _, sender_ph, amt_str = data_str.split("_", 3)
-                user = wallets.find_one({"phone": sender_ph})
-                curr_bal = user.get("balance", 0) if user else 0
                 requests.post(answer_url, json={"callback_query_id": cq_id, "text": "ማስተላለፍ ጥያቄው ሪጀክት ተደርጓል።"})
                 requests.post(edit_url, json={"chat_id": ADMIN_ID, "message_id": cq["message"]["message_id"], "text": cq["message"]["text"] + f"\n\n❌ REJECTED", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": []}})
 
     return "OK", 200
 
+# 🌟 የተስተካከለ የምዝገባ እና መግቢያ ሎጂክ ከ chat_id ጋር (ከቴሌግራም ዌብ አፕ ጋር የተገናኘ)
 @app.route('/register_or_login', methods=['POST'])
 def register_or_login():
     data = request.json or {}
     input_phone = sanitize_input(data.get('phone'))
     input_username = sanitize_input(data.get('username'))
+    input_chat_id = str(data.get('chat_id', '')).strip()
+    
     if not input_phone:
         return jsonify({"success": False, "msg": "እባክዎ ስልክ ቁጥር ያስገቡ!"}), 400
+        
     clean_phone = input_phone.replace("+", "").replace(" ", "")
     fallback_name = input_username if input_username else f"User_{clean_phone[-4:]}"
+    
+    update_data = {
+        "username": fallback_name, 
+        "name": fallback_name
+    }
+    
+    if input_chat_id:
+        update_data["chat_id"] = input_chat_id
+
     wallets.update_one(
         {"phone": clean_phone},
-        {"$set": {"username": fallback_name, "name": fallback_name}, "$setOnInsert": {"balance": 0}},
+        {
+            "$set": update_data, 
+            "$setOnInsert": {
+                "balance": 0
+            }
+        },
         upsert=True
     )
+    
     existing = wallets.find_one({"phone": clean_phone})
-    return jsonify({"success": True, "balance": existing.get("balance", 0) if existing else 0})
+    return jsonify({
+        "success": True, 
+        "balance": existing.get("balance", 0) if existing else 0,
+        "username": existing.get("username", fallback_name)
+    })
 
 def check_winning_line(card, drawn_numbers, player_marked_numbers=None):
     drawn_set = set()
