@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>BESH BINGO - SECURE PREMIUM</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- 🌟 የቴሌግራም WebApp SDK ተካትቷል -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
     <style>
         :root { 
@@ -387,11 +389,21 @@
         let globalMyCardsData = []; 
 
         window.onload = function() {
+            // 🌟 ከቴሌግራም WebApp የተጠቃሚውን chat_id ማግኘት
+            let telegramChatId = "";
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+                telegramChatId = window.Telegram.WebApp.initDataUnsafe.user?.id || "";
+            }
+
             if (phone && phone.trim() !== "") {
                 fetch(`/register_or_login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone: phone, username: localStorage.getItem('username') || "User" })
+                    body: JSON.stringify({ 
+                        phone: phone, 
+                        username: localStorage.getItem('username') || "User",
+                        chat_id: telegramChatId // chat_id ን ወደ ሰርቨር መላክ[cite: 7]
+                    })
                 })
                 .then(res => res.json())
                 .then(d => {
@@ -446,10 +458,16 @@
 
             if(submitBtn) submitBtn.disabled = true;
 
+            // 🌟 ከተጠቃሚው ስልክ ቁጥር ጋር chat_id ን በጋራ መላክ[cite: 7]
+            let telegramChatId = "";
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+                telegramChatId = window.Telegram.WebApp.initDataUnsafe.user?.id || "";
+            }
+
             fetch('/register_or_login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: cleanPhone, username: inputName })
+                body: JSON.stringify({ phone: cleanPhone, username: inputName, chat_id: telegramChatId })
             })
             .then(res => res.json())
             .then(data => {
@@ -653,9 +671,7 @@
                     winnerName = "ተጫዋች አሸንፏል";
                 }
                 
-                // 🌟 የተስተካከለው የአሸናፊ ስም ማሳያ ከባክኤንድ የመጣውን ሐረግ በቀጥታ ይቀበላል
                 document.getElementById('w-player-name').innerText = winnerName;
-                
                 document.getElementById('w-prize-pool').innerText = finalPrize + " ETB";
                 
                 let ticketNum = d.winning_ticket_num ? String(d.winning_ticket_num) : "100";
