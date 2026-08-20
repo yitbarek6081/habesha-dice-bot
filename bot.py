@@ -194,7 +194,6 @@ def webhook():
         text = msg.get("text", "")
         chat_id = str(msg.get("chat", {}).get("id", ""))
         
-        # ተጠቃሚው ቦቱን ሲጠቀም chat_id በዳታቤዝ እንዲቀመጥ ማድረግ (ለብሮድካስት እንዲመች)
         if chat_id != str(ADMIN_ID):
             wallets.update_one({"chat_id": chat_id}, {"$set": {"chat_id": chat_id}}, upsert=False)
         
@@ -720,8 +719,8 @@ def claim_bingo():
                 pending_claims.append(claim_info)
 
     elif game_state["status"] == "result" and claim_lock_active:
-        already_exists = any(c["phone"] == db_phone for c== pending_claims) if 'pending_claims' in globals() else False # safe check
-        if not any(c["phone"] == db_phone for c in pending_claims):
+        already_exists = any(c["phone"] == db_phone for c in pending_claims)
+        if not already_exists:
             pending_claims.append(claim_info)
 
     return jsonify({"success": True})
